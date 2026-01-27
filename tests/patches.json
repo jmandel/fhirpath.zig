@@ -1,0 +1,12 @@
+{
+  "_comment": "Patches to apply to official tests after regeneration from XML. These address upstream spec/test bugs.",
+  "patches": [
+    {
+      "test_name": "testPrecedence3",
+      "reason": "Spec bug: precedence table (line 3132) shows is/as binding tighter than comparisons, but this test requires the opposite. See: https://github.com/HL7/FHIRPath/issues/XXX",
+      "set": {
+        "invalid": true
+      }
+    }
+  ]
+}

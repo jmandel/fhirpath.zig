@@ -3,6 +3,7 @@ const lib = @import("lib.zig");
 const eval = @import("eval.zig");
 const ast = @import("ast.zig");
 const jsondoc = @import("jsondoc.zig");
+const JsonDocAdapter = @import("backends/jsondoc.zig").JsonDocAdapter;
 const item = @import("item.zig");
 const schema = @import("schema.zig");
 
@@ -19,6 +20,7 @@ pub fn main() !void {
     var model_path: ?[]const u8 = "models/r5/model.bin";
     var schema_prefix: []const u8 = "FHIR";
     var mode_filter: ?[]const u8 = null;
+    var name_filter: ?[]const u8 = null;
     var limit: usize = 0;
 
     var i: usize = 1;
@@ -40,6 +42,9 @@ pub fn main() !void {
             model_path = null;
         } else if (std.mem.eql(u8, arg, "--mode") and i + 1 < args.len) {
             mode_filter = args[i + 1];
+            i += 1;
+        } else if (std.mem.eql(u8, arg, "--filter") and i + 1 < args.len) {
+            name_filter = args[i + 1];
             i += 1;
         } else if (std.mem.eql(u8, arg, "--limit") and i + 1 < args.len) {
             limit = std.fmt.parseInt(usize, args[i + 1], 10) catch 0;
@@ -108,6 +113,11 @@ pub fn main() !void {
             if (!std.mem.eql(u8, mode_val.?.string, mf)) continue;
         }
 
+        if (name_filter) |nf| {
+            if (name_val != .string) continue;
+            if (std.mem.indexOf(u8, name_val.string, nf) == null) continue;
+        }
+
         total += 1;
 
         if (expr_val != .string) {
@@ -156,13 +166,14 @@ pub fn main() !void {
         };
         defer doc.deinit();
 
-        var ctx = eval.EvalContext{
+        var adapter = JsonDocAdapter.init(&doc);
+        var ctx = eval.EvalContext(JsonDocAdapter){
             .allocator = allocator,
-            .doc = &doc,
+            .adapter = &adapter,
             .types = &types,
             .schema = if (schema_obj) |*s| s else null,
         };
-        var items = eval.evalExpression(&ctx, expr, doc.root, null) catch {
+        var items = eval.evalExpression(&ctx, expr, adapter.root(), null) catch {
             if (invalid) {
                 passed += 1;
                 invalid_expected += 1;

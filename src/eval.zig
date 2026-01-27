@@ -1,18 +1,22 @@
 const std = @import("std");
 const ast = @import("ast.zig");
 const jsondoc = @import("jsondoc.zig");
+const node = @import("node.zig");
 const item = @import("item.zig");
 const schema = @import("schema.zig");
+const JsonDocAdapter = @import("backends/jsondoc.zig").JsonDocAdapter;
 
 pub const ItemList = std.ArrayList(item.Item);
 
-pub const EvalContext = struct {
-    allocator: std.mem.Allocator,
-    doc: *jsondoc.JsonDoc,
-    types: *item.TypeTable,
-    schema: ?*schema.Schema,
-    root_item: item.Item = undefined,
-};
+pub fn EvalContext(comptime A: type) type {
+    return struct {
+        allocator: std.mem.Allocator,
+        adapter: *A,
+        types: *item.TypeTable,
+        schema: ?*schema.Schema,
+        root_item: item.Item = undefined,
+    };
+}
 
 pub const Env = struct {
     map: std.StringHashMap([]const item.Item),
@@ -51,15 +55,16 @@ pub fn evalWithJson(
     schema_ptr: ?*schema.Schema,
 ) !EvalResult {
     var doc = try jsondoc.JsonDoc.init(allocator, json_text);
-    var ctx = EvalContext{ .allocator = allocator, .doc = &doc, .types = types, .schema = schema_ptr };
-    const items = try evalExpression(&ctx, expr, doc.root, env);
+    var adapter = JsonDocAdapter.init(&doc);
+    var ctx = EvalContext(JsonDocAdapter){ .allocator = allocator, .adapter = &adapter, .types = types, .schema = schema_ptr };
+    const items = try evalExpression(&ctx, expr, adapter.root(), env);
     return .{ .items = items, .doc = doc };
 }
 
 pub fn evalExpression(
-    ctx: *EvalContext,
+    ctx: anytype,
     expr: ast.Expr,
-    root: jsondoc.NodeIndex,
+    root: @TypeOf(ctx.adapter.*).NodeRef,
     env: ?*Env,
 ) EvalError!ItemList {
     const root_item = try itemFromNode(ctx, root);
@@ -67,8 +72,24 @@ pub fn evalExpression(
     return evalExpressionCtx(ctx, expr, root_item, env, null);
 }
 
+fn rawFromNodeRef(comptime A: type, ref: A.NodeRef) usize {
+    return switch (@typeInfo(A.NodeRef)) {
+        .pointer => @intFromPtr(ref),
+        .int, .comptime_int => @intCast(ref),
+        else => @compileError("NodeRef must be pointer or integer"),
+    };
+}
+
+fn nodeRefFromRaw(comptime A: type, raw: usize) A.NodeRef {
+    return switch (@typeInfo(A.NodeRef)) {
+        .pointer => @ptrFromInt(raw),
+        .int, .comptime_int => @intCast(raw),
+        else => @compileError("NodeRef must be pointer or integer"),
+    };
+}
+
 fn evalExpressionCtx(
-    ctx: *EvalContext,
+    ctx: anytype,
     expr: ast.Expr,
     root_item: item.Item,
     env: ?*Env,
@@ -89,7 +110,7 @@ fn evalExpressionCtx(
 }
 
 fn evalPath(
-    ctx: *EvalContext,
+    ctx: anytype,
     path: ast.PathExpr,
     root_item: item.Item,
     env: ?*Env,
@@ -157,39 +178,41 @@ fn evalPath(
 }
 
 fn applySegment(
-    ctx: *EvalContext,
+    ctx: anytype,
     it: item.Item,
     name: []const u8,
     out: *ItemList,
 ) !void {
     if (it.node == null) return;
-    const node = ctx.doc.node(@intCast(it.node.?)).*;
+    const A = @TypeOf(ctx.adapter.*);
+    const ref = nodeRefFromRaw(A, it.node.?);
     var child_type_id: u32 = 0;
     if (ctx.schema) |s| {
         if (schema.isModelType(it.type_id)) {
             if (s.childTypeForField(it.type_id, name)) |tid| child_type_id = tid;
         }
     }
-    switch (node.kind) {
+    switch (A.kind(ctx.adapter, ref)) {
         .object => {
-            for (node.data.object) |field| {
-                if (std.mem.eql(u8, field.key, name)) {
-                    const child_node = ctx.doc.node(field.value).*;
-                    if (child_node.kind == .array) {
-                        for (child_node.data.array) |child_idx| {
-                            const child = try itemFromNodeWithType(ctx, child_idx, child_type_id);
-                            try out.append(ctx.allocator, child);
-                        }
-                    } else {
-                        const child = try itemFromNodeWithType(ctx, field.value, child_type_id);
+            if (A.objectGet(ctx.adapter, ref, name)) |child_ref| {
+                if (A.kind(ctx.adapter, child_ref) == .array) {
+                    const len = A.arrayLen(ctx.adapter, child_ref);
+                    for (0..len) |i| {
+                        const child_item_ref = A.arrayAt(ctx.adapter, child_ref, i);
+                        const child = try itemFromNodeWithType(ctx, child_item_ref, child_type_id);
                         try out.append(ctx.allocator, child);
                     }
+                } else {
+                    const child = try itemFromNodeWithType(ctx, child_ref, child_type_id);
+                    try out.append(ctx.allocator, child);
                 }
             }
         },
         .array => {
-            for (node.data.array) |child_idx| {
-                const child = try itemFromNodeWithType(ctx, child_idx, child_type_id);
+            const len = A.arrayLen(ctx.adapter, ref);
+            for (0..len) |i| {
+                const child_ref = A.arrayAt(ctx.adapter, ref, i);
+                const child = try itemFromNodeWithType(ctx, child_ref, child_type_id);
                 try applySegment(ctx, child, name, out);
             }
         },
@@ -198,7 +221,7 @@ fn applySegment(
 }
 
 fn evalBinary(
-    ctx: *EvalContext,
+    ctx: anytype,
     expr: ast.BinaryExpr,
     root_item: item.Item,
     env: ?*Env,
@@ -258,7 +281,7 @@ fn evalBinary(
 }
 
 fn evalEquality(
-    ctx: *EvalContext,
+    ctx: anytype,
     left: []const item.Item,
     right: []const item.Item,
 ) EvalError!ItemList {
@@ -287,7 +310,7 @@ fn evalEquality(
 }
 
 fn evalNotEquality(
-    ctx: *EvalContext,
+    ctx: anytype,
     left: []const item.Item,
     right: []const item.Item,
 ) EvalError!ItemList {
@@ -303,7 +326,7 @@ fn evalNotEquality(
 }
 
 fn evalEquivalence(
-    ctx: *EvalContext,
+    ctx: anytype,
     left: []const item.Item,
     right: []const item.Item,
 ) EvalError!ItemList {
@@ -333,7 +356,7 @@ fn evalEquivalence(
 }
 
 fn evalNotEquivalence(
-    ctx: *EvalContext,
+    ctx: anytype,
     left: []const item.Item,
     right: []const item.Item,
 ) EvalError!ItemList {
@@ -347,7 +370,7 @@ fn evalNotEquivalence(
     return out;
 }
 
-fn itemsEquivalent(ctx: *EvalContext, a: item.Item, b: item.Item) bool {
+fn itemsEquivalent(ctx: anytype, a: item.Item, b: item.Item) bool {
     // For now, use same logic as equality
     // TODO: Implement proper equivalence (case-insensitive strings, etc.)
     return itemsEqual(ctx, a, b);
@@ -356,7 +379,7 @@ fn itemsEquivalent(ctx: *EvalContext, a: item.Item, b: item.Item) bool {
 const CompareOp = enum { lt, le, gt, ge };
 
 fn evalComparison(
-    ctx: *EvalContext,
+    ctx: anytype,
     left: []const item.Item,
     right: []const item.Item,
     op: CompareOp,
@@ -378,7 +401,7 @@ fn evalComparison(
     return out;
 }
 
-fn compareItems(ctx: *EvalContext, a: item.Item, b: item.Item) ?i32 {
+fn compareItems(ctx: anytype, a: item.Item, b: item.Item) ?i32 {
     const va = itemToValue(ctx, a);
     const vb = itemToValue(ctx, b);
 
@@ -420,7 +443,7 @@ fn compareItems(ctx: *EvalContext, a: item.Item, b: item.Item) ?i32 {
 
 // Boolean operators with three-valued logic
 fn evalAnd(
-    ctx: *EvalContext,
+    ctx: anytype,
     expr: ast.BinaryExpr,
     root_item: item.Item,
     env: ?*Env,
@@ -471,7 +494,7 @@ fn evalAnd(
 }
 
 fn evalOr(
-    ctx: *EvalContext,
+    ctx: anytype,
     expr: ast.BinaryExpr,
     root_item: item.Item,
     env: ?*Env,
@@ -510,7 +533,7 @@ fn evalOr(
 }
 
 fn evalImplies(
-    ctx: *EvalContext,
+    ctx: anytype,
     expr: ast.BinaryExpr,
     root_item: item.Item,
     env: ?*Env,
@@ -550,7 +573,7 @@ fn evalImplies(
 }
 
 fn evalXor(
-    ctx: *EvalContext,
+    ctx: anytype,
     left: []const item.Item,
     right: []const item.Item,
 ) EvalError!ItemList {
@@ -570,7 +593,7 @@ fn evalXor(
 
 const TernaryBool = enum { true_val, false_val, empty };
 
-fn toBoolTernary(ctx: *EvalContext, items: []const item.Item) TernaryBool {
+fn toBoolTernary(ctx: anytype, items: []const item.Item) TernaryBool {
     if (items.len == 0) return .empty;
     if (items.len != 1) return .empty; // Non-singleton is treated as empty for boolean
     // Per FHIRPath spec: singleton non-boolean is truthy
@@ -579,7 +602,7 @@ fn toBoolTernary(ctx: *EvalContext, items: []const item.Item) TernaryBool {
 }
 
 fn evalUnionOp(
-    ctx: *EvalContext,
+    ctx: anytype,
     left: []const item.Item,
     right: []const item.Item,
 ) EvalError!ItemList {
@@ -594,7 +617,7 @@ fn evalUnionOp(
 const ArithOp = enum { add, sub, mul, div, int_div, mod };
 
 fn evalArithmetic(
-    ctx: *EvalContext,
+    ctx: anytype,
     left: []const item.Item,
     right: []const item.Item,
     op: ArithOp,
@@ -661,7 +684,7 @@ fn evalArithmetic(
 }
 
 fn evalConcat(
-    ctx: *EvalContext,
+    ctx: anytype,
     left: []const item.Item,
     right: []const item.Item,
 ) EvalError!ItemList {
@@ -683,7 +706,7 @@ fn evalConcat(
 }
 
 fn evalIn(
-    ctx: *EvalContext,
+    ctx: anytype,
     left: []const item.Item,
     right: []const item.Item,
 ) EvalError!ItemList {
@@ -702,7 +725,7 @@ fn evalIn(
 }
 
 fn evalTypeExpr(
-    ctx: *EvalContext,
+    ctx: anytype,
     expr: ast.TypeExprNode,
     root_item: item.Item,
     env: ?*Env,
@@ -735,7 +758,7 @@ fn evalTypeExpr(
     return out;
 }
 
-fn itemIsType(ctx: *EvalContext, it: item.Item, type_name: []const u8) bool {
+fn itemIsType(ctx: anytype, it: item.Item, type_name: []const u8) bool {
     // Normalize type name (remove System. prefix if present)
     const normalized = if (std.mem.startsWith(u8, type_name, "System."))
         type_name[7..]
@@ -759,8 +782,9 @@ fn itemIsType(ctx: *EvalContext, it: item.Item, type_name: []const u8) bool {
 
     // For JSON spans, check the underlying JSON type
     if (it.data_kind == .json_span and it.node != null) {
-        const node = ctx.doc.node(@intCast(it.node.?)).*;
-        return switch (node.kind) {
+        const A = @TypeOf(ctx.adapter.*);
+        const ref = nodeRefFromRaw(A, it.node.?);
+        return switch (A.kind(ctx.adapter, ref)) {
             .bool => std.mem.eql(u8, normalized, "Boolean"),
             .number => std.mem.eql(u8, normalized, "Integer") or std.mem.eql(u8, normalized, "Decimal"),
             .string => std.mem.eql(u8, normalized, "String"),
@@ -772,7 +796,7 @@ fn itemIsType(ctx: *EvalContext, it: item.Item, type_name: []const u8) bool {
 }
 
 fn evalUnary(
-    ctx: *EvalContext,
+    ctx: anytype,
     expr: ast.UnaryExpr,
     root_item: item.Item,
     env: ?*Env,
@@ -824,7 +848,7 @@ fn evalUnary(
 }
 
 fn evalInvoke(
-    ctx: *EvalContext,
+    ctx: anytype,
     inv: ast.InvokeExpr,
     root_item: item.Item,
     env: ?*Env,
@@ -864,7 +888,7 @@ fn evalInvoke(
 }
 
 fn evalFunction(
-    ctx: *EvalContext,
+    ctx: anytype,
     call: ast.FunctionCall,
     input: []const item.Item,
     env: ?*Env,
@@ -1399,7 +1423,7 @@ fn parseIntegerArg(call: ast.FunctionCall) EvalError!i64 {
     return integerLiteral(call.args[0]) orelse error.InvalidFunction;
 }
 
-fn typeNameFromExpr(ctx: *EvalContext, expr: ast.Expr) EvalError![]const u8 {
+fn typeNameFromExpr(ctx: anytype, expr: ast.Expr) EvalError![]const u8 {
     switch (expr) {
         .Path => |p| {
             if (p.root != .This) return error.InvalidFunction;
@@ -1427,7 +1451,7 @@ fn typeNameFromExpr(ctx: *EvalContext, expr: ast.Expr) EvalError![]const u8 {
     }
 }
 
-fn itemStringValue(ctx: *EvalContext, it: item.Item) ?[]const u8 {
+fn itemStringValue(ctx: anytype, it: item.Item) ?[]const u8 {
     const val = itemToValue(ctx, it);
     return switch (val) {
         .string => |s| s,
@@ -1435,7 +1459,7 @@ fn itemStringValue(ctx: *EvalContext, it: item.Item) ?[]const u8 {
     };
 }
 
-fn evalStringArg(ctx: *EvalContext, expr: ast.Expr, env: ?*Env) EvalError!?[]const u8 {
+fn evalStringArg(ctx: anytype, expr: ast.Expr, env: ?*Env) EvalError!?[]const u8 {
     // For string literal, return directly
     switch (expr) {
         .Literal => |lit| switch (lit) {
@@ -1451,7 +1475,7 @@ fn evalStringArg(ctx: *EvalContext, expr: ast.Expr, env: ?*Env) EvalError!?[]con
     return itemStringValue(ctx, result.items[0]);
 }
 
-fn evalIntegerArg(ctx: *EvalContext, expr: ast.Expr, env: ?*Env) EvalError!?i64 {
+fn evalIntegerArg(ctx: anytype, expr: ast.Expr, env: ?*Env) EvalError!?i64 {
     // For integer literal, return directly
     if (integerLiteral(expr)) |i| return i;
     // Evaluate the expression and get integer value
@@ -1475,7 +1499,7 @@ fn integerLiteral(expr: ast.Expr) ?i64 {
     };
 }
 
-fn evalDecimalArg(ctx: *EvalContext, expr: ast.Expr, env: ?*Env) EvalError!?f64 {
+fn evalDecimalArg(ctx: anytype, expr: ast.Expr, env: ?*Env) EvalError!?f64 {
     // For number literal, return directly
     switch (expr) {
         .Literal => |lit| switch (lit) {
@@ -1491,12 +1515,12 @@ fn evalDecimalArg(ctx: *EvalContext, expr: ast.Expr, env: ?*Env) EvalError!?f64 
     return itemToFloat(ctx, result.items[0]);
 }
 
-fn evalCollectionArg(ctx: *EvalContext, expr: ast.Expr, env: ?*Env) EvalError!ItemList {
+fn evalCollectionArg(ctx: anytype, expr: ast.Expr, env: ?*Env) EvalError!ItemList {
     // Evaluate the expression with the root context and return the full result as a collection
     return evalExpressionCtx(ctx, expr, ctx.root_item, env, null);
 }
 
-fn sliceItems(ctx: *EvalContext, values: []const item.Item) EvalError!ItemList {
+fn sliceItems(ctx: anytype, values: []const item.Item) EvalError!ItemList {
     var out = ItemList.empty;
     if (values.len == 0) return out;
     try out.appendSlice(ctx.allocator, values);
@@ -1549,7 +1573,7 @@ fn replaceAll(allocator: std.mem.Allocator, str: []const u8, pattern: []const u8
     return result;
 }
 
-fn distinctItems(ctx: *EvalContext, input: []const item.Item) EvalError!ItemList {
+fn distinctItems(ctx: anytype, input: []const item.Item) EvalError!ItemList {
     var out = ItemList.empty;
     for (input) |it| {
         var seen = false;
@@ -1564,12 +1588,15 @@ fn distinctItems(ctx: *EvalContext, input: []const item.Item) EvalError!ItemList
     return out;
 }
 
-fn itemsEqual(ctx: *EvalContext, a: item.Item, b: item.Item) bool {
+fn itemsEqual(ctx: anytype, a: item.Item, b: item.Item) bool {
     if (a.data_kind == .value and b.data_kind == .value) {
         return valueEqual(a.value.?, b.value.?);
     }
     if (a.data_kind == .json_span and b.data_kind == .json_span and a.node != null and b.node != null) {
-        return nodeEqual(ctx.doc, @intCast(a.node.?), @intCast(b.node.?));
+        const A = @TypeOf(ctx.adapter.*);
+        const a_ref = nodeRefFromRaw(A, a.node.?);
+        const b_ref = nodeRefFromRaw(A, b.node.?);
+        return nodeEqual(ctx, a_ref, b_ref);
     }
     return valueEqual(itemToValue(ctx, a), itemToValue(ctx, b));
 }
@@ -1602,48 +1629,40 @@ fn valueToNumber(v: item.Value) ?f64 {
     };
 }
 
-fn nodeEqual(doc: *jsondoc.JsonDoc, a_idx: jsondoc.NodeIndex, b_idx: jsondoc.NodeIndex) bool {
-    if (a_idx == b_idx) return true;
-    const a = doc.node(a_idx).*;
-    const b = doc.node(b_idx).*;
-    if (a.kind != b.kind) {
-        if (a.kind == .number and b.kind == .number) {
-            return numberEqual(a.data.number, b.data.number);
+fn nodeEqual(ctx: anytype, a_ref: @TypeOf(ctx.adapter.*).NodeRef, b_ref: @TypeOf(ctx.adapter.*).NodeRef) bool {
+    const A = @TypeOf(ctx.adapter.*);
+    if (rawFromNodeRef(A, a_ref) == rawFromNodeRef(A, b_ref)) return true;
+    const kind_a = A.kind(ctx.adapter, a_ref);
+    const kind_b = A.kind(ctx.adapter, b_ref);
+    if (kind_a != kind_b) {
+        if (kind_a == .number and kind_b == .number) {
+            return numberEqual(A.numberText(ctx.adapter, a_ref), A.numberText(ctx.adapter, b_ref));
         }
         return false;
     }
-    switch (a.kind) {
-        .null => return true,
-        .bool => return a.data.bool == b.data.bool,
-        .number => return numberEqual(a.data.number, b.data.number),
-        .string => return std.mem.eql(u8, a.data.string, b.data.string),
-        .array => {
-            const arr_a = a.data.array;
-            const arr_b = b.data.array;
-            if (arr_a.len != arr_b.len) return false;
-            for (arr_a, 0..) |child, idx| {
-                if (!nodeEqual(doc, child, arr_b[idx])) return false;
+    return switch (kind_a) {
+        .null => true,
+        .bool => A.boolean(ctx.adapter, a_ref) == A.boolean(ctx.adapter, b_ref),
+        .number => numberEqual(A.numberText(ctx.adapter, a_ref), A.numberText(ctx.adapter, b_ref)),
+        .string => std.mem.eql(u8, A.string(ctx.adapter, a_ref), A.string(ctx.adapter, b_ref)),
+        .array => blk: {
+            const len = A.arrayLen(ctx.adapter, a_ref);
+            if (len != A.arrayLen(ctx.adapter, b_ref)) break :blk false;
+            for (0..len) |i| {
+                if (!nodeEqual(ctx, A.arrayAt(ctx.adapter, a_ref, i), A.arrayAt(ctx.adapter, b_ref, i))) break :blk false;
             }
-            return true;
+            break :blk true;
         },
-        .object => {
-            const obj_a = a.data.object;
-            const obj_b = b.data.object;
-            if (obj_a.len != obj_b.len) return false;
-            for (obj_a) |field| {
-                var found = false;
-                for (obj_b) |other| {
-                    if (std.mem.eql(u8, field.key, other.key)) {
-                        if (!nodeEqual(doc, field.value, other.value)) return false;
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found) return false;
+        .object => blk: {
+            if (A.objectCount(ctx.adapter, a_ref) != A.objectCount(ctx.adapter, b_ref)) break :blk false;
+            var it = A.objectIter(ctx.adapter, a_ref);
+            while (it.next()) |entry| {
+                const other = A.objectGet(ctx.adapter, b_ref, entry.key) orelse break :blk false;
+                if (!nodeEqual(ctx, entry.value, other)) break :blk false;
             }
-            return true;
+            break :blk true;
         },
-    }
+    };
 }
 
 fn numberEqual(a: []const u8, b: []const u8) bool {
@@ -1652,7 +1671,7 @@ fn numberEqual(a: []const u8, b: []const u8) bool {
     return na == nb;
 }
 
-fn literalToItem(ctx: *EvalContext, lit: ast.Literal) item.Item {
+fn literalToItem(ctx: anytype, lit: ast.Literal) item.Item {
     return switch (lit) {
         .Null => makeEmptyItem(ctx),
         .Bool => |b| makeBoolItem(ctx, b),
@@ -1665,31 +1684,38 @@ fn literalToItem(ctx: *EvalContext, lit: ast.Literal) item.Item {
     };
 }
 
-fn makeNodeItem(ctx: *EvalContext, node_idx: jsondoc.NodeIndex, type_id_override: u32) !item.Item {
-    const node = ctx.doc.node(node_idx).*;
-    const type_id = if (type_id_override != 0) type_id_override else try typeIdForNode(ctx, node_idx);
+fn makeNodeItem(ctx: anytype, node_ref: @TypeOf(ctx.adapter.*).NodeRef, type_id_override: u32) !item.Item {
+    const A = @TypeOf(ctx.adapter.*);
+    const type_id = if (type_id_override != 0) type_id_override else try typeIdForNode(ctx, node_ref);
+    var data_pos: u32 = 0;
+    var data_end: u32 = 0;
+    if (node.hasSpanSupport(A)) {
+        const span = A.span(ctx.adapter, node_ref);
+        data_pos = span.pos;
+        data_end = span.end;
+    }
     return .{
         .data_kind = .json_span,
         .value_kind = .empty,
         .type_id = type_id,
         .source_pos = 0,
         .source_end = 0,
-        .data_pos = node.start,
-        .data_end = node.end,
-        .node = node_idx,
+        .data_pos = data_pos,
+        .data_end = data_end,
+        .node = rawFromNodeRef(A, node_ref),
         .value = null,
     };
 }
 
-fn itemFromNode(ctx: *EvalContext, node_idx: jsondoc.NodeIndex) !item.Item {
-    return makeNodeItem(ctx, node_idx, 0);
+fn itemFromNode(ctx: anytype, node_ref: @TypeOf(ctx.adapter.*).NodeRef) !item.Item {
+    return makeNodeItem(ctx, node_ref, 0);
 }
 
-fn itemFromNodeWithType(ctx: *EvalContext, node_idx: jsondoc.NodeIndex, type_id: u32) !item.Item {
-    return makeNodeItem(ctx, node_idx, type_id);
+fn itemFromNodeWithType(ctx: anytype, node_ref: @TypeOf(ctx.adapter.*).NodeRef, type_id: u32) !item.Item {
+    return makeNodeItem(ctx, node_ref, type_id);
 }
 
-fn makeEmptyItem(ctx: *EvalContext) item.Item {
+fn makeEmptyItem(ctx: anytype) item.Item {
     _ = ctx;
     return .{
         .data_kind = .value,
@@ -1704,7 +1730,7 @@ fn makeEmptyItem(ctx: *EvalContext) item.Item {
     };
 }
 
-fn makeBoolItem(ctx: *EvalContext, v: bool) item.Item {
+fn makeBoolItem(ctx: anytype, v: bool) item.Item {
     const type_id = ctx.types.getOrAdd("System.Boolean") catch 0;
     return .{
         .data_kind = .value,
@@ -1719,7 +1745,7 @@ fn makeBoolItem(ctx: *EvalContext, v: bool) item.Item {
     };
 }
 
-fn makeIntegerItem(ctx: *EvalContext, v: i64) item.Item {
+fn makeIntegerItem(ctx: anytype, v: i64) item.Item {
     const type_id = ctx.types.getOrAdd("System.Integer") catch 0;
     return .{
         .data_kind = .value,
@@ -1734,7 +1760,7 @@ fn makeIntegerItem(ctx: *EvalContext, v: i64) item.Item {
     };
 }
 
-fn makeNumberItem(ctx: *EvalContext, raw: []const u8) item.Item {
+fn makeNumberItem(ctx: anytype, raw: []const u8) item.Item {
     if (isInteger(raw)) {
         const parsed = std.fmt.parseInt(i64, raw, 10) catch 0;
         return makeIntegerItem(ctx, parsed);
@@ -1753,7 +1779,7 @@ fn makeNumberItem(ctx: *EvalContext, raw: []const u8) item.Item {
     };
 }
 
-fn makeStringItem(ctx: *EvalContext, s: []const u8) item.Item {
+fn makeStringItem(ctx: anytype, s: []const u8) item.Item {
     const type_id = ctx.types.getOrAdd("System.String") catch 0;
     return .{
         .data_kind = .value,
@@ -1768,7 +1794,7 @@ fn makeStringItem(ctx: *EvalContext, s: []const u8) item.Item {
     };
 }
 
-fn makeDateItem(ctx: *EvalContext, s: []const u8) item.Item {
+fn makeDateItem(ctx: anytype, s: []const u8) item.Item {
     const type_id = ctx.types.getOrAdd("System.Date") catch 0;
     return .{
         .data_kind = .value,
@@ -1783,7 +1809,7 @@ fn makeDateItem(ctx: *EvalContext, s: []const u8) item.Item {
     };
 }
 
-fn makeDateTimeItem(ctx: *EvalContext, s: []const u8) item.Item {
+fn makeDateTimeItem(ctx: anytype, s: []const u8) item.Item {
     const type_id = ctx.types.getOrAdd("System.DateTime") catch 0;
     return .{
         .data_kind = .value,
@@ -1798,7 +1824,7 @@ fn makeDateTimeItem(ctx: *EvalContext, s: []const u8) item.Item {
     };
 }
 
-fn makeTimeItem(ctx: *EvalContext, s: []const u8) item.Item {
+fn makeTimeItem(ctx: anytype, s: []const u8) item.Item {
     const type_id = ctx.types.getOrAdd("System.Time") catch 0;
     return .{
         .data_kind = .value,
@@ -1813,7 +1839,7 @@ fn makeTimeItem(ctx: *EvalContext, s: []const u8) item.Item {
     };
 }
 
-fn makeQuantityItem(ctx: *EvalContext, value: []const u8, unit: []const u8) item.Item {
+fn makeQuantityItem(ctx: anytype, value: []const u8, unit: []const u8) item.Item {
     const type_id = ctx.types.getOrAdd("System.Quantity") catch 0;
     return .{
         .data_kind = .value,
@@ -1828,53 +1854,57 @@ fn makeQuantityItem(ctx: *EvalContext, value: []const u8, unit: []const u8) item
     };
 }
 
-fn itemIsBool(ctx: *EvalContext, it: item.Item) bool {
+fn itemIsBool(ctx: anytype, it: item.Item) bool {
     if (it.data_kind == .value and it.value != null and it.value.? == .boolean) return true;
     if (it.data_kind == .json_span and it.node != null) {
-        const node = ctx.doc.node(@intCast(it.node.?)).*;
-        return node.kind == .bool;
+        const A = @TypeOf(ctx.adapter.*);
+        const ref = nodeRefFromRaw(A, it.node.?);
+        return A.kind(ctx.adapter, ref) == .bool;
     }
     return false;
 }
 
-fn itemBoolValue(ctx: *EvalContext, it: item.Item) bool {
+fn itemBoolValue(ctx: anytype, it: item.Item) bool {
     if (it.data_kind == .value and it.value != null and it.value.? == .boolean) return it.value.?.boolean;
     if (it.data_kind == .json_span and it.node != null) {
-        const node = ctx.doc.node(@intCast(it.node.?)).*;
-        return node.data.bool;
+        const A = @TypeOf(ctx.adapter.*);
+        const ref = nodeRefFromRaw(A, it.node.?);
+        return A.boolean(ctx.adapter, ref);
     }
     return false;
 }
 
-fn itemToValue(ctx: *EvalContext, it: item.Item) item.Value {
+fn itemToValue(ctx: anytype, it: item.Item) item.Value {
     if (it.data_kind == .value and it.value != null) return it.value.?;
     if (it.data_kind == .json_span and it.node != null) {
-        const node = ctx.doc.node(@intCast(it.node.?)).*;
-        return switch (node.kind) {
+        const A = @TypeOf(ctx.adapter.*);
+        const ref = nodeRefFromRaw(A, it.node.?);
+        return switch (A.kind(ctx.adapter, ref)) {
             .null => .{ .empty = {} },
-            .bool => .{ .boolean = node.data.bool },
-            .number => .{ .decimal = node.data.number },
-            .string => .{ .string = node.data.string },
+            .bool => .{ .boolean = A.boolean(ctx.adapter, ref) },
+            .number => .{ .decimal = A.numberText(ctx.adapter, ref) },
+            .string => .{ .string = A.string(ctx.adapter, ref) },
             else => .{ .empty = {} },
         };
     }
     return .{ .empty = {} };
 }
 
-fn typeIdForNode(ctx: *EvalContext, node_idx: jsondoc.NodeIndex) !u32 {
-    const node = ctx.doc.node(node_idx).*;
-    return switch (node.kind) {
+fn typeIdForNode(ctx: anytype, node_ref: @TypeOf(ctx.adapter.*).NodeRef) !u32 {
+    const A = @TypeOf(ctx.adapter.*);
+    return switch (A.kind(ctx.adapter, node_ref)) {
         .null => ctx.types.getOrAdd("System.Any"),
         .bool => ctx.types.getOrAdd("System.Boolean"),
-        .number => if (isInteger(node.data.number)) ctx.types.getOrAdd("System.Integer") else ctx.types.getOrAdd("System.Decimal"),
+        .number => if (isInteger(A.numberText(ctx.adapter, node_ref))) ctx.types.getOrAdd("System.Integer") else ctx.types.getOrAdd("System.Decimal"),
         .string => {
-            if (isDateTime(node.data.string)) return ctx.types.getOrAdd("System.DateTime");
-            if (isDate(node.data.string)) return ctx.types.getOrAdd("System.Date");
-            if (isTime(node.data.string)) return ctx.types.getOrAdd("System.Time");
+            const s = A.string(ctx.adapter, node_ref);
+            if (isDateTime(s)) return ctx.types.getOrAdd("System.DateTime");
+            if (isDate(s)) return ctx.types.getOrAdd("System.Date");
+            if (isTime(s)) return ctx.types.getOrAdd("System.Time");
             return ctx.types.getOrAdd("System.String");
         },
         .object => {
-            if (resourceTypeName(ctx, node)) |rt| {
+            if (resourceTypeName(ctx, node_ref)) |rt| {
                 if (ctx.schema) |s| {
                     if (s.typeIdByLocalName(rt)) |tid| return tid;
                 }
@@ -1885,12 +1915,13 @@ fn typeIdForNode(ctx: *EvalContext, node_idx: jsondoc.NodeIndex) !u32 {
     };
 }
 
-fn resourceTypeName(ctx: *EvalContext, node: jsondoc.Node) ?[]const u8 {
-    if (node.kind != .object) return null;
-    for (node.data.object) |field| {
-        if (!std.mem.eql(u8, field.key, "resourceType")) continue;
-        const value_node = ctx.doc.node(field.value).*;
-        if (value_node.kind == .string) return value_node.data.string;
+fn resourceTypeName(ctx: anytype, node_ref: @TypeOf(ctx.adapter.*).NodeRef) ?[]const u8 {
+    const A = @TypeOf(ctx.adapter.*);
+    if (A.kind(ctx.adapter, node_ref) != .object) return null;
+    if (A.objectGet(ctx.adapter, node_ref, "resourceType")) |value_ref| {
+        if (A.kind(ctx.adapter, value_ref) == .string) {
+            return A.string(ctx.adapter, value_ref);
+        }
     }
     return null;
 }
@@ -1916,7 +1947,7 @@ fn isTime(s: []const u8) bool {
 // Math function implementations
 // ============================================================================
 
-fn itemToFloat(ctx: *EvalContext, it: item.Item) ?f64 {
+fn itemToFloat(ctx: anytype, it: item.Item) ?f64 {
     const val = itemToValue(ctx, it);
     return switch (val) {
         .integer => |i| @floatFromInt(i),
@@ -1925,12 +1956,12 @@ fn itemToFloat(ctx: *EvalContext, it: item.Item) ?f64 {
     };
 }
 
-fn itemIsInteger(ctx: *EvalContext, it: item.Item) bool {
+fn itemIsInteger(ctx: anytype, it: item.Item) bool {
     const val = itemToValue(ctx, it);
     return val == .integer;
 }
 
-fn itemIntegerValue(ctx: *EvalContext, it: item.Item) ?i64 {
+fn itemIntegerValue(ctx: anytype, it: item.Item) ?i64 {
     const val = itemToValue(ctx, it);
     return switch (val) {
         .integer => |i| i,
@@ -1938,7 +1969,7 @@ fn itemIntegerValue(ctx: *EvalContext, it: item.Item) ?i64 {
     };
 }
 
-fn makeDecimalItem(ctx: *EvalContext, v: f64) EvalError!item.Item {
+fn makeDecimalItem(ctx: anytype, v: f64) EvalError!item.Item {
     // Format decimal value to string
     var buf: [64]u8 = undefined;
     const str = formatDecimal(&buf, v);
@@ -1969,7 +2000,7 @@ fn formatDecimal(buf: []u8, v: f64) []const u8 {
     return std.fmt.bufPrint(buf, "{d}", .{v}) catch "0.0";
 }
 
-fn evalAbs(ctx: *EvalContext, it: item.Item) EvalError!ItemList {
+fn evalAbs(ctx: anytype, it: item.Item) EvalError!ItemList {
     var out = ItemList.empty;
     const val = itemToValue(ctx, it);
     switch (val) {
@@ -1987,7 +2018,7 @@ fn evalAbs(ctx: *EvalContext, it: item.Item) EvalError!ItemList {
     return out;
 }
 
-fn evalCeiling(ctx: *EvalContext, it: item.Item) EvalError!ItemList {
+fn evalCeiling(ctx: anytype, it: item.Item) EvalError!ItemList {
     var out = ItemList.empty;
     const val = itemToValue(ctx, it);
     switch (val) {
@@ -2005,7 +2036,7 @@ fn evalCeiling(ctx: *EvalContext, it: item.Item) EvalError!ItemList {
     return out;
 }
 
-fn evalFloor(ctx: *EvalContext, it: item.Item) EvalError!ItemList {
+fn evalFloor(ctx: anytype, it: item.Item) EvalError!ItemList {
     var out = ItemList.empty;
     const val = itemToValue(ctx, it);
     switch (val) {
@@ -2023,7 +2054,7 @@ fn evalFloor(ctx: *EvalContext, it: item.Item) EvalError!ItemList {
     return out;
 }
 
-fn evalTruncate(ctx: *EvalContext, it: item.Item) EvalError!ItemList {
+fn evalTruncate(ctx: anytype, it: item.Item) EvalError!ItemList {
     var out = ItemList.empty;
     const val = itemToValue(ctx, it);
     switch (val) {
@@ -2041,7 +2072,7 @@ fn evalTruncate(ctx: *EvalContext, it: item.Item) EvalError!ItemList {
     return out;
 }
 
-fn evalRound(ctx: *EvalContext, it: item.Item, precision: i64) EvalError!ItemList {
+fn evalRound(ctx: anytype, it: item.Item, precision: i64) EvalError!ItemList {
     var out = ItemList.empty;
     if (precision < 0) return error.InvalidFunction; // negative precision is an error
 
@@ -2066,7 +2097,7 @@ fn evalRound(ctx: *EvalContext, it: item.Item, precision: i64) EvalError!ItemLis
     return out;
 }
 
-fn evalExp(ctx: *EvalContext, it: item.Item) EvalError!ItemList {
+fn evalExp(ctx: anytype, it: item.Item) EvalError!ItemList {
     var out = ItemList.empty;
     const f = itemToFloat(ctx, it) orelse return out;
     const result = @exp(f);
@@ -2074,7 +2105,7 @@ fn evalExp(ctx: *EvalContext, it: item.Item) EvalError!ItemList {
     return out;
 }
 
-fn evalLn(ctx: *EvalContext, it: item.Item) EvalError!ItemList {
+fn evalLn(ctx: anytype, it: item.Item) EvalError!ItemList {
     var out = ItemList.empty;
     const f = itemToFloat(ctx, it) orelse return out;
     if (f <= 0) return out; // domain error returns empty
@@ -2083,7 +2114,7 @@ fn evalLn(ctx: *EvalContext, it: item.Item) EvalError!ItemList {
     return out;
 }
 
-fn evalLog(ctx: *EvalContext, it: item.Item, base: f64) EvalError!ItemList {
+fn evalLog(ctx: anytype, it: item.Item, base: f64) EvalError!ItemList {
     var out = ItemList.empty;
     const f = itemToFloat(ctx, it) orelse return out;
     if (f <= 0 or base <= 0 or base == 1) return out; // domain errors return empty
@@ -2092,7 +2123,7 @@ fn evalLog(ctx: *EvalContext, it: item.Item, base: f64) EvalError!ItemList {
     return out;
 }
 
-fn evalSqrt(ctx: *EvalContext, it: item.Item) EvalError!ItemList {
+fn evalSqrt(ctx: anytype, it: item.Item) EvalError!ItemList {
     var out = ItemList.empty;
     const f = itemToFloat(ctx, it) orelse return out;
     if (f < 0) return out; // domain error returns empty
@@ -2101,7 +2132,7 @@ fn evalSqrt(ctx: *EvalContext, it: item.Item) EvalError!ItemList {
     return out;
 }
 
-fn evalPower(ctx: *EvalContext, it: item.Item, exponent: f64) EvalError!ItemList {
+fn evalPower(ctx: anytype, it: item.Item, exponent: f64) EvalError!ItemList {
     var out = ItemList.empty;
     const base = itemToFloat(ctx, it) orelse return out;
     // Check for domain errors (negative base with fractional exponent)

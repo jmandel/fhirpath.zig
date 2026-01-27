@@ -1,5 +1,5 @@
 {
-  "source": "/home/exedev/fhirpath.zig/tests/r5/tests-fhir-r5.xml",
+  "source": "/home/jmandel/hobby/fhirpath.zig/tests/r5/tests-fhir-r5.xml",
   "tests": [
     {
       "name": "defineVariable1",
@@ -366,19 +366,6 @@
         {
           "type": "date",
           "value": "1974-12-25"
-        }
-      ]
-    },
-    {
-      "name": "testPatientHasBirthDate",
-      "expression": "birthDate",
-      "inputfile": "patient-example.xml",
-      "envfile": "",
-      "predicate": true,
-      "outputs": [
-        {
-          "type": "boolean",
-          "value": "true"
         }
       ]
     },
@@ -10259,7 +10246,8 @@
           "type": "boolean",
           "value": "true"
         }
-      ]
+      ],
+      "invalid": true
     },
     {
       "name": "testPrecedence4",

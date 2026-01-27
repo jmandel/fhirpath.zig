@@ -19,8 +19,8 @@ const Precedence = enum(u8) {
     and_ = 3,        // and
     membership = 4,  // in, contains
     equality = 5,    // =, ~, !=, !~
-    type_ = 6,       // is, as
-    comparison = 7,  // <, <=, >, >=
+    comparison = 6,  // <, <=, >, >=
+    type_ = 7,       // is, as (spec line 3132: binds tighter than comparison)
     union_ = 8,      // |
     additive = 9,    // +, -, &
     multiplicative = 10, // *, /, div, mod

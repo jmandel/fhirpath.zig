@@ -24,3 +24,11 @@ blockers:
     created: 2026-01-27
     updated: 2026-01-27
     tags: []
+  - slug: harness-memory-leaks
+    status: open
+    severity: medium
+    title: Fix memory leaks in test harness
+    description: Harness leaks memory when formatting failure output (valueAlloc not freed). Shows gpa errors on test failures.
+    created: 2026-01-27
+    updated: 2026-01-27
+    tags: [harness, memory]

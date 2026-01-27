@@ -1,62 +1,14 @@
 # Artisanal Tests
 
-These tests are hand-authored and meant to validate core semantics early.
+Hand-authored tests for validating core FHIRPath semantics.
 
-Format:
-```json
-{
-  "meta": {
-    "status": "drafted"
-  },
-  "cases": [
-    {
-      "name": "simple path",
-      "expr": "name.given",
-      "input": { "name": { "given": ["Ann"] } },
-      "env": { "root": { ... } },
-      "expect": [{"type": "string", "value": "Ann"}]
-    }
-  ]
-}
-```
+See `methodology.md` in the project root for:
+- Complete test format specification
+- Field reference (input, expect, skip, invalid, etc.)
+- Expected value format
+- Spec documentation guidelines
 
-## Expected value format
-
-Each item in `expect` must have explicit `type` and `value` fields:
-
-| Type | Value format | Example |
-|------|--------------|--------|
-| `string` | string | `{"type": "string", "value": "hello"}` |
-| `integer` | string (numeric) | `{"type": "integer", "value": "42"}` |
-| `decimal` | string (numeric) | `{"type": "decimal", "value": "3.14"}` |
-| `boolean` | string | `{"type": "boolean", "value": "true"}` |
-| `date` | string (no @ prefix) | `{"type": "date", "value": "2024-01-15"}` |
-| `dateTime` | string (no @ prefix) | `{"type": "dateTime", "value": "2024-01-15T10:30:00Z"}` |
-| `time` | string (no @T prefix) | `{"type": "time", "value": "10:30:00"}` |
-| `Quantity` | object with numeric value+unit | `{"type": "Quantity", "value": {"value": 10, "unit": "mg"}}` |
-
-**Important**: Do NOT use FHIRPath literal prefixes like `@` for dates or `@T` for times in expected values. The `type` field makes these redundant.
-
-## Unordered comparison
-
-Some FHIRPath operations return collections where order is not guaranteed. Use `"unordered": true` for set-like comparison:
-
-```json
-{
-  "name": "distinct removes duplicates",
-  "expr": "values.distinct()",
-  "input": {"values": [3, 1, 2, 1]},
-  "unordered": true,
-  "expect": [{"type": "integer", "value": 2}, {"type": "integer", "value": 1}, {"type": "integer", "value": 3}]
-}
-```
-
-With `unordered: true`:
-- Same number of items required
-- Each expected item must match exactly one actual item (multiset comparison)
-- Order doesn't matter
-
-## Running tests
+## Quick start
 
 ```bash
 # Run all artisinal tests
@@ -65,20 +17,22 @@ zig build harness
 # Run a specific file
 zig build harness -- tests/artisinal/string-matching.json
 
-# Filter by pattern (matches file or test names)
+# Filter by pattern
 zig build harness -- -f substring
 
-# Show only summary (no failure details)
-zig build harness -- -q
-
-# Limit failures shown
-zig build harness -- -n 10
+# Run official tests
+zig build harness -- -m models/r5/model.bin -i tests/r5/input tests/r5/tests-fhir-r5.json
 ```
 
-Output shows pass/fail counts per file with breakdown by error type (parse, eval, mismatch).
+## File structure
 
-## Notes
-
-- `env` entries use bare names (no `%`); **env should be supported by the harness**, even though it is not wired yet.
-- `meta.status` is used by `scripts/choose_mode.py` to bias EXPLORE/DEVELOP/CONFIRM:
-  - `drafted`, `reviewed`, `implemented` (see `methodology.md` for details).
+```json
+{
+  "meta": {"status": "drafted"},
+  "_spec_summary": "Thorough explanation of spec behavior...",
+  "_todo": ["[ ] Add edge case tests"],
+  "cases": [
+    {"name": "test name", "expr": "...", "input": {...}, "expect": [...]}
+  ]
+}
+```

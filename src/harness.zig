@@ -3,6 +3,7 @@ const lib = @import("lib.zig");
 const eval = @import("eval.zig");
 const ast = @import("ast.zig");
 const jsondoc = @import("jsondoc.zig");
+const JsonDocAdapter = @import("backends/jsondoc.zig").JsonDocAdapter;
 const item = @import("item.zig");
 const convert = @import("convert.zig");
 const schema = @import("schema.zig");
@@ -321,13 +322,24 @@ fn runTestFile(
             }
         }
 
-        // Check for invalid/skip markers
-        if (obj.get("invalid")) |inv| {
-            if (inv == .bool and inv.bool) {
+        // Skip tests with predicate flag (not supported)
+        if (obj.get("predicate")) |pred| {
+            if (pred == .bool and pred.bool) {
                 result.skipped += 1;
                 continue;
             }
         }
+
+        // Check for skip marker (with optional reason string)
+        if (obj.get("skip")) |skip_val| {
+            if (skip_val == .string or (skip_val == .bool and skip_val.bool)) {
+                result.skipped += 1;
+                continue;
+            }
+        }
+
+        // Check for invalid marker (expect error)
+        const expect_error = if (obj.get("invalid")) |inv| inv == .bool and inv.bool else false;
 
         const expr_val = obj.get(expr_key) orelse {
             result.failed += 1;
@@ -375,33 +387,63 @@ fn runTestFile(
         }
 
         const expr = lib.parseExpression(allocator, expr_str) catch {
-            result.failed += 1;
-            result.parse_errors += 1;
-            try addFailure(allocator, failures, result.name, name_str, expr_str, "parse error", null, null);
+            if (expect_error) {
+                result.passed += 1;
+                if (opts.verbose) {
+                    std.debug.print("[PASS] {s}:{s} (expected parse error)\n", .{ result.name, name_str });
+                }
+            } else {
+                result.failed += 1;
+                result.parse_errors += 1;
+                try addFailure(allocator, failures, result.name, name_str, expr_str, "parse error", null, null);
+            }
             continue;
         };
         defer ast.deinitExpr(allocator, expr);
 
         var doc = jsondoc.JsonDoc.init(allocator, input_str) catch {
-            result.failed += 1;
-            result.parse_errors += 1;
-            try addFailure(allocator, failures, result.name, name_str, expr_str, "json parse error", null, null);
+            if (expect_error) {
+                result.passed += 1;
+                if (opts.verbose) {
+                    std.debug.print("[PASS] {s}:{s} (expected json error)\n", .{ result.name, name_str });
+                }
+            } else {
+                result.failed += 1;
+                result.parse_errors += 1;
+                try addFailure(allocator, failures, result.name, name_str, expr_str, "json parse error", null, null);
+            }
             continue;
         };
         defer doc.deinit();
 
-        var ctx = eval.EvalContext{
+        var adapter = JsonDocAdapter.init(&doc);
+        var ctx = eval.EvalContext(JsonDocAdapter){
             .allocator = allocator,
-            .doc = &doc,
+            .adapter = &adapter,
             .types = &types,
             .schema = schema_ptr,
         };
-        var eval_result = eval.evalExpression(&ctx, expr, doc.root, null) catch {
-            result.failed += 1;
-            result.eval_errors += 1;
-            try addFailure(allocator, failures, result.name, name_str, expr_str, "eval error", null, null);
+        var eval_result = eval.evalExpression(&ctx, expr, adapter.root(), null) catch {
+            if (expect_error) {
+                result.passed += 1;
+                if (opts.verbose) {
+                    std.debug.print("[PASS] {s}:{s} (expected eval error)\n", .{ result.name, name_str });
+                }
+            } else {
+                result.failed += 1;
+                result.eval_errors += 1;
+                try addFailure(allocator, failures, result.name, name_str, expr_str, "eval error", null, null);
+            }
             continue;
         };
+
+        // If we expected an error but evaluation succeeded, that's a failure
+        if (expect_error) {
+            result.failed += 1;
+            try addFailure(allocator, failures, result.name, name_str, expr_str, "expected error but succeeded", null, null);
+            eval_result.deinit(allocator);
+            continue;
+        }
         defer eval_result.deinit(allocator);
 
         const expect_val = obj.get(expect_key);

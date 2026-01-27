@@ -69,15 +69,39 @@ Goal: expand coverage.
   - Any explicit assumptions or open questions.
 
 ### DEVELOP
-Goal: implement to pass existing artisinal tests.
-- Run the harness to identify failing tests:
-  ```bash
-  zig build harness          # summary of all artisinal
-  zig build harness -- -n 5  # show first 5 failures
-  zig build harness -- -f string  # focus on string-related tests
-  ```
-- Implement the smallest correct change to make the tests pass.
-- Add/adjust tests only if they clarify the spec or correct a wrong assumption.
+Goal: make artisinal tests pass.
+
+**Finding a seed issue**:
+```bash
+# Random failing test
+zig build harness 2>&1 | grep '^\[FAIL\]' | shuf -n 1
+
+# Random skipped test
+jq -r '.cases[]? | select(.skip) | "\(.name): \(.skip)"' tests/artisinal/*.json | shuf -n 1
+```
+Pick one and expand from there.
+
+**Working the issue**:
+1. Understand the seed failure - read the test, trace through the code
+2. **Explore related failures**: Once you understand the root cause, search for similar patterns:
+   - Other tests in the same file
+   - Tests using the same function/operator
+   - Skipped tests citing the same limitation
+3. Fix the root cause to unblock multiple tests at once
+4. Remove `skip` from any tests that now pass
+
+**Commands**:
+```bash
+zig build harness                    # summary of all artisinal
+zig build harness -- -n 5            # show first 5 failures
+zig build harness -- -f string       # focus on string-related tests
+grep -r '"skip":' tests/artisinal/   # find skipped tests
+```
+
+**Discipline**:
+- Implement the smallest correct change to make tests pass
+- Add/adjust tests only if they clarify the spec or correct a wrong assumption
+- Update `_todo` checkboxes and pass rates in affected files
 
 ### CONFIRM
 Goal: verify correctness of existing tests.
@@ -97,6 +121,60 @@ Each artisinal file should combine:
 - **Comprehensive spec documentation** (see below)
 - A TODO checklist using checkbox format (see below)
 - Tests that must pass
+
+## Test case format (unified)
+
+The harness supports both artisinal and official test formats. It auto-detects based on the array key (`cases` = artisinal, `tests` = official).
+
+### Test case fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Test name (required) |
+| `expr` or `expression` | string | FHIRPath expression to evaluate (required) |
+| `input` | object | Inline JSON input document |
+| `inputfile` | string | Path to input file (alternative to `input`) |
+| `expect` or `outputs` | array | Expected output items |
+| `env` | object | Environment variables (keys without `%` prefix) |
+| `skip` | string | Skip test with this reason |
+| `invalid` | boolean | If true, expect parse or eval error |
+| `unordered` | boolean | Compare results as unordered set |
+| `mode` | string | Parsing mode (for FHIR-specific tests) |
+
+**Notes:**
+- Use either `input` (inline) or `inputfile` (file reference), not both
+- `env` keys should be bare names (e.g., `"root"` not `"%root"`)
+- `skip` should explain why the test is skipped (e.g., parser limitation)
+- Tests with `predicate: true` are filtered out during JSON generation (not supported)
+
+### Expecting errors
+
+Use `invalid: true` when the expression should fail to parse or evaluate:
+
+```json
+{
+  "name": "type error on comparison",
+  "expr": "1 > 'hello'",
+  "input": {},
+  "invalid": true
+}
+```
+
+The test passes if parse or eval throws an error. It fails if the expression succeeds.
+
+### Skipping tests
+
+Use `skip` with a reason string for tests that can't run yet:
+
+```json
+{
+  "name": "parenthesized expression",
+  "expr": "(1 + 2) * 3",
+  "input": {},
+  "skip": "Parser: parenthesized expressions not supported",
+  "expect": [{"type": "integer", "value": "9"}]
+}
+```
 
 ### Spec documentation in artisinal files (critical)
 The `_spec_summary` field is not just a brief note—it should be a **thorough, standalone explanation** of how this part of the spec works. Include:

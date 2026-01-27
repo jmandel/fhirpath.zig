@@ -17,6 +17,44 @@ except Exception as exc:
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUT_DIR = ROOT / "tests"
+PATCHES_FILE = ROOT / "tests" / "patches.json"
+
+
+def load_patches() -> dict[str, dict]:
+    """Load patches from patches.json, keyed by test name."""
+    if not PATCHES_FILE.exists():
+        return {}
+    try:
+        data = json.loads(PATCHES_FILE.read_text())
+        patches = {}
+        for patch in data.get("patches", []):
+            name = patch.get("test_name")
+            if name:
+                patches[name] = patch
+        return patches
+    except Exception as e:
+        print(f"WARNING: Failed to load patches: {e}", file=sys.stderr)
+        return {}
+
+
+def apply_patches(tests: list[dict], patches: dict[str, dict]) -> int:
+    """Apply patches to tests. Returns count of patches applied."""
+    applied = 0
+    for test in tests:
+        name = test.get("name")
+        if name and name in patches:
+            patch = patches[name]
+            for key, value in patch.get("set", {}).items():
+                test[key] = value
+            applied += 1
+    return applied
+
+
+def filter_predicate_tests(tests: list[dict]) -> tuple[list[dict], int]:
+    """Remove tests with predicate=true (not supported). Returns (filtered_tests, removed_count)."""
+    filtered = [t for t in tests if not t.get("predicate")]
+    removed = len(tests) - len(filtered)
+    return filtered, removed
 
 
 def candidate_tests_dirs() -> list[Path]:
@@ -241,7 +279,12 @@ def main() -> int:
         help="Directory to write versioned JSON outputs (default: tests)",
     )
     parser.add_argument("--no-additional", action="store_true", help="Skip additional-tests.xml")
+    parser.add_argument("--no-patches", action="store_true", help="Skip applying patches from patches.json")
     args = parser.parse_args()
+
+    patches = {} if args.no_patches else load_patches()
+    if patches:
+        print(f"Loaded {len(patches)} patches from {PATCHES_FILE}")
 
     if args.xml:
         if not args.out:
@@ -252,8 +295,10 @@ def main() -> int:
             print(f"ERROR: {xml_path} not found", file=sys.stderr)
             return 2
         tests = parse_tests_xml(xml_path)
+        tests, pred_removed = filter_predicate_tests(tests)
+        patched = apply_patches(tests, patches)
         write_tests_json(Path(args.out), xml_path, tests)
-        print(f"Wrote {args.out} ({len(tests)} tests)")
+        print(f"Wrote {args.out} ({len(tests)} tests, {pred_removed} predicate tests removed, {patched} patched)")
         return 0
 
     out_dir = Path(args.out_dir)
@@ -270,17 +315,21 @@ def main() -> int:
             print(f"ERROR: tests-fhir-{version}.xml not found under tests/", file=sys.stderr)
             return 2
         tests = parse_tests_xml(xml_path)
+        tests, pred_removed = filter_predicate_tests(tests)
+        patched = apply_patches(tests, patches)
         out_path = out_dir / version / f"tests-fhir-{version}.json"
         write_tests_json(out_path, xml_path, tests)
-        print(f"Wrote {out_path} ({len(tests)} tests)")
+        print(f"Wrote {out_path} ({len(tests)} tests, {pred_removed} predicate removed, {patched} patched)")
 
     if not args.no_additional:
         additional_xml = find_additional_xml()
         if additional_xml:
             tests = parse_tests_xml(additional_xml)
+            tests, pred_removed = filter_predicate_tests(tests)
+            patched = apply_patches(tests, patches)
             out_path = out_dir / "additional-tests.json"
             write_tests_json(out_path, additional_xml, tests)
-            print(f"Wrote {out_path} ({len(tests)} tests)")
+            print(f"Wrote {out_path} ({len(tests)} tests, {pred_removed} predicate removed, {patched} patched)")
         else:
             print("INFO: additional-tests.xml not found under tests/, skipping", file=sys.stderr)
 

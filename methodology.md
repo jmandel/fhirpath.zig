@@ -83,12 +83,16 @@ Pick one and expand from there.
 
 **Working the issue**:
 1. Understand the seed failure - read the test, trace through the code
-2. **Explore related failures**: Once you understand the root cause, search for similar patterns:
-   - Other tests in the same file
-   - Tests using the same function/operator
-   - Skipped tests citing the same limitation
-3. Fix the root cause to unblock multiple tests at once
-4. Remove `skip` from any tests that now pass
+2. **Fix it first**: Implement the minimal fix for JUST that one test
+3. Run harness to confirm the fix works
+4. **Then expand**: Check if the fix also passes related tests (same function, similar patterns)
+5. Remove `skip` from any tests that now pass
+
+**Scope discipline**:
+- Do NOT try to understand the full system before fixing one test
+- Do NOT fix test expectations unless you're certain they're wrong
+- Do NOT implement multiple unrelated functions in one session
+- If you find yourself reading more than 3-4 files to understand one failure, you're going too deep - just try a fix and see what happens
 
 **Commands**:
 ```bash

@@ -1,43 +1,148 @@
 {
+  "_spec_summary": [
+    "BOUNDARY AND PRECISION FUNCTIONS - Functions for working with value precision and bounds.",
+    "All these functions are STU (Standard for Trial Use).",
+    "",
+    "=== precision() : Integer ===",
+    "Returns the number of digits of precision in the input value.",
+    "Can only be used with Decimal, Date, DateTime, and Time values.",
+    "",
+    "For Decimal: returns digits after the decimal point in the literal.",
+    "  1.58700.precision() → 5 (counts trailing zeros from the literal)",
+    "  1.5.precision() → 1",
+    "",
+    "For Date: returns precision based on components present.",
+    "  Precision levels for Date:",
+    "    Year only (@2014) → 4",
+    "    Year-Month (@2014-01) → 6",
+    "    Year-Month-Day (@2014-01-01) → 8",
+    "",
+    "For DateTime: extends Date precision with time components.",
+    "  Precision levels for DateTime:",
+    "    ...to hours (@2014-01-01T10) → 10",
+    "    ...to minutes (@2014-01-01T10:30) → 12",
+    "    ...to seconds (@2014-01-01T10:30:00) → 14",
+    "    ...to milliseconds (@2014-01-01T10:30:00.000) → 17",
+    "",
+    "For Time: same pattern as DateTime time portion.",
+    "  @T10:30.precision() → 4",
+    "  @T10:30:00.000.precision() → 9",
+    "",
+    "Empty input → empty result.",
+    "Multiple items → error.",
+    "",
+    "=== lowBoundary([precision: Integer]) : Decimal | Date | DateTime | Time ===",
+    "Returns the least possible value of the input to the specified precision.",
+    "",
+    "For Decimal: calculates the lower bound based on uncertainty.",
+    "  The uncertainty is ±0.5 at the last digit of precision.",
+    "  1.587.lowBoundary() → 1.58650000 (default is 8 digits precision)",
+    "  1.587.lowBoundary(6) → 1.586500",
+    "  1.587.lowBoundary(2) → 1.58",
+    "  1.587.lowBoundary(0) → 1 (rounds down to integer)",
+    "",
+    "  For negative decimals, lowBoundary goes more negative:",
+    "  (-1.587).lowBoundary() → -1.58750000",
+    "  (-1.587).lowBoundary(2) → -1.59",
+    "",
+    "  Integer-valued decimals:",
+    "  1.lowBoundary(0) → 0 (meaning 0.5 to 1.5, lower bound is 0.5 → rounds to 0)",
+    "  1.lowBoundary(5) → 0.50000",
+    "",
+    "For Date/DateTime: fills unknown components with minimum values.",
+    "  @2014.lowBoundary(6) → @2014-01 (year expands to include month)",
+    "  @2014-01-01T08.lowBoundary(17) → @2014-01-01T08:00:00.000+14:00",
+    "  Note: +14:00 is the earliest timezone offset (most westward UTC interpretation).",
+    "",
+    "For Time: fills unknown components with minimum values.",
+    "  @T10:30.lowBoundary(9) → @T10:30:00.000",
+    "",
+    "For Quantity: applies to the numeric value, preserves unit.",
+    "  1.587 'cm'.lowBoundary(8) → 1.58650000 'cm'",
+    "",
+    "If precision > implementation max, result is empty.",
+    "If precision is negative, result is empty.",
+    "Empty input → empty result.",
+    "Multiple items → error.",
+    "",
+    "=== highBoundary([precision: Integer]) : Decimal | Date | DateTime | Time ===",
+    "Returns the greatest possible value of the input to the specified precision.",
+    "",
+    "For Decimal: calculates the upper bound based on uncertainty.",
+    "  1.587.highBoundary() → 1.58750000",
+    "  1.587.highBoundary(6) → 1.587500",
+    "  1.587.highBoundary(2) → 1.59",
+    "  1.587.highBoundary(0) → 2",
+    "",
+    "  For negative decimals, highBoundary goes less negative:",
+    "  (-1.587).highBoundary() → -1.58650000",
+    "  (-1.587).highBoundary(2) → -1.58",
+    "",
+    "For Date/DateTime: fills unknown components with maximum values.",
+    "  @2014.highBoundary(6) → @2014-12",
+    "  @2014-01-01T08.highBoundary(17) → @2014-01-01T08:00:59.999-12:00",
+    "  Note: -12:00 is the latest timezone offset (most eastward UTC interpretation).",
+    "",
+    "For Time: fills unknown components with maximum values.",
+    "  @T10:30.highBoundary(9) → @T10:30:59.999",
+    "",
+    "For Quantity: applies to the numeric value, preserves unit.",
+    "  1.587 'm'.highBoundary(8) → 1.58750000 'm'",
+    "",
+    "If precision > implementation max, result is empty.",
+    "Empty input → empty result.",
+    "Multiple items → error.",
+    "",
+    "=== Key precision values ===",
+    "Default/max precision by type:",
+    "  Decimal: at least 8 digits after decimal",
+    "  Date: 4 (year only) to 8 (full date)",
+    "  DateTime: at least 17 (to milliseconds with timezone)",
+    "  Time: at least 9 (to milliseconds)",
+    "",
+    "=== Implementation note on uncertainty ===",
+    "The boundary functions model 'measurement uncertainty':",
+    "  - A value like 1.587 represents the interval [1.5865, 1.5875)",
+    "  - lowBoundary gives the closed lower bound",
+    "  - highBoundary gives the open upper bound (or supremum)",
+    "This is critical for correct date/time comparisons under partial precision."
+  ],
+  "_todo": [
+    "[ ] Improve passing rate (0/65 passing)",
+    "[ ] Parser may need to support negative decimal literals like (-1.587)",
+    "[ ] Verify timezone handling for DateTime boundaries (+14:00 and -12:00)",
+    "[ ] Test interaction with Quantity type",
+    "[ ] Clarify: does precision(39) fail for Decimal or return empty?"
+  ],
   "meta": {
-    "status": "drafted",
-    "spec_summary": "lowBoundary(), highBoundary(), and precision() return bounds and precision info for Decimal, Date, DateTime, and Time values. lowBoundary returns the least possible value to the given precision. highBoundary returns the greatest possible value. precision() returns the number of digits of precision. All three operate on singleton input and return empty for empty input. Multiple items signal an error.",
-    "spec_refs": [
-      "spec/index.md - lowBoundary, highBoundary, precision sections"
-    ],
-    "notes": [
-      "For decimals: precision is digits after decimal point. lowBoundary subtracts 0.5 at the next digit position; highBoundary adds 0.5.",
-      "For dates/times: precision is total digit count (4=year, 6=month, 8=day, 10=hour, 12=minute, 14=second, 17=millisecond for DateTime; 4=hour:minute, 6=seconds, 9=milliseconds for Time).",
-      "Negative precision returns empty. Precision > max implementation precision returns empty.",
-      "Date/DateTime literals start with @; Time literals with @T."
-    ],
-    "open_questions": [
-      "What is the max precision for decimals? Spec says 'at least 8' - we assume 8 for now.",
-      "HighBoundary of (-1.587).highBoundary(0) spec example shows 1, but seems like it should be -1. Need to verify."
-    ],
-    "todo": [
-      "Improve passing rate (0/59 passing) - functions not yet implemented",
-      "Parser blockers: date/time literals (@2014, @T10:30) not supported yet"
-    ]
+    "status": "drafted"
   },
   "cases": [
     {
-      "name": "precision_decimal_basic",
+      "_comment": "=== precision() function ===",
+      "name": "precision_decimal_trailing_zeros",
       "expr": "1.58700.precision()",
       "input": {},
       "expect": [5]
     },
     {
-      "name": "precision_decimal_no_trailing",
-      "expr": "1.587.precision()",
-      "input": {},
-      "expect": [3]
-    },
-    {
-      "name": "precision_decimal_integer_converted",
-      "expr": "1.0.precision()",
+      "name": "precision_decimal_simple",
+      "expr": "1.5.precision()",
       "input": {},
       "expect": [1]
+    },
+    {
+      "name": "precision_decimal_many_digits",
+      "expr": "3.14159265.precision()",
+      "input": {},
+      "expect": [8]
+    },
+    {
+      "name": "precision_integer_literal",
+      "expr": "1.precision()",
+      "input": {},
+      "expect": [0],
+      "_comment": "Integer has 0 decimal places"
     },
     {
       "name": "precision_date_year",
@@ -58,16 +163,10 @@
       "expect": [8]
     },
     {
-      "name": "precision_datetime_milliseconds",
-      "expr": "@2014-01-05T10:30:00.000.precision()",
+      "name": "precision_datetime_hours",
+      "expr": "@2014-01-05T10.precision()",
       "input": {},
-      "expect": [17]
-    },
-    {
-      "name": "precision_datetime_seconds",
-      "expr": "@2014-01-05T10:30:00.precision()",
-      "input": {},
-      "expect": [14]
+      "expect": [10]
     },
     {
       "name": "precision_datetime_minutes",
@@ -76,10 +175,16 @@
       "expect": [12]
     },
     {
-      "name": "precision_datetime_hours",
-      "expr": "@2014-01-05T10.precision()",
+      "name": "precision_datetime_seconds",
+      "expr": "@2014-01-05T10:30:00.precision()",
       "input": {},
-      "expect": [10]
+      "expect": [14]
+    },
+    {
+      "name": "precision_datetime_milliseconds",
+      "expr": "@2014-01-05T10:30:00.000.precision()",
+      "input": {},
+      "expect": [17]
     },
     {
       "name": "precision_time_minutes",
@@ -107,16 +212,17 @@
     },
 
     {
+      "_comment": "=== lowBoundary() for Decimal ===",
       "name": "lowBoundary_decimal_default",
       "expr": "1.587.lowBoundary()",
       "input": {},
-      "expect": [1.5865]
+      "expect": [1.58650000]
     },
     {
       "name": "lowBoundary_decimal_precision_6",
       "expr": "1.587.lowBoundary(6)",
       "input": {},
-      "expect": [1.5865]
+      "expect": [1.586500]
     },
     {
       "name": "lowBoundary_decimal_precision_2",
@@ -131,46 +237,28 @@
       "expect": [1]
     },
     {
-      "name": "lowBoundary_decimal_negative_precision_returns_empty",
-      "expr": "1.587.lowBoundary(-1)",
-      "input": {},
-      "expect": []
-    },
-    {
-      "name": "lowBoundary_decimal_precision_exceeds_max_returns_empty",
-      "expr": "1.587.lowBoundary(39)",
-      "input": {},
-      "expect": []
-    },
-    {
-      "name": "lowBoundary_negative_decimal_default",
+      "name": "lowBoundary_decimal_negative",
       "expr": "(-1.587).lowBoundary()",
       "input": {},
-      "expect": [-1.5875]
+      "expect": [-1.58750000]
     },
     {
-      "name": "lowBoundary_negative_decimal_precision_6",
+      "name": "lowBoundary_decimal_negative_precision_6",
       "expr": "(-1.587).lowBoundary(6)",
       "input": {},
-      "expect": [-1.5875]
+      "expect": [-1.587500]
     },
     {
-      "name": "lowBoundary_negative_decimal_precision_2",
+      "name": "lowBoundary_decimal_negative_precision_2",
       "expr": "(-1.587).lowBoundary(2)",
       "input": {},
       "expect": [-1.59]
     },
     {
-      "name": "lowBoundary_negative_decimal_precision_0",
+      "name": "lowBoundary_decimal_negative_precision_0",
       "expr": "(-1.587).lowBoundary(0)",
       "input": {},
       "expect": [-2]
-    },
-    {
-      "name": "lowBoundary_integer_as_decimal",
-      "expr": "1.toDecimal().lowBoundary()",
-      "input": {},
-      "expect": [0.5]
     },
     {
       "name": "lowBoundary_integer_precision_0",
@@ -182,31 +270,56 @@
       "name": "lowBoundary_integer_precision_5",
       "expr": "1.lowBoundary(5)",
       "input": {},
-      "expect": [0.5]
+      "expect": [0.50000]
     },
     {
-      "name": "lowBoundary_larger_decimal",
+      "name": "lowBoundary_decimal_12_587_precision_2",
       "expr": "12.587.lowBoundary(2)",
       "input": {},
       "expect": [12.58]
     },
     {
-      "name": "lowBoundary_decimal_with_trailing_zeros",
+      "name": "lowBoundary_decimal_12_500_precision_4",
       "expr": "12.500.lowBoundary(4)",
       "input": {},
       "expect": [12.4995]
     },
     {
-      "name": "lowBoundary_integer_larger",
+      "name": "lowBoundary_decimal_120_precision_2",
       "expr": "120.lowBoundary(2)",
       "input": {},
-      "expect": [119.5]
+      "expect": [119.50]
     },
     {
-      "name": "lowBoundary_negative_integer",
+      "name": "lowBoundary_decimal_neg120_precision_2",
       "expr": "(-120).lowBoundary(2)",
       "input": {},
-      "expect": [-120.5]
+      "expect": [-120.50]
+    },
+    {
+      "name": "lowBoundary_decimal_small_precision_1",
+      "expr": "0.0034.lowBoundary(1)",
+      "input": {},
+      "expect": [0.0]
+    },
+    {
+      "name": "lowBoundary_decimal_small_negative_precision_1",
+      "expr": "(-0.0034).lowBoundary(1)",
+      "input": {},
+      "expect": [-0.0],
+      "_comment": "Spec: (-0.0034).lowBoundary(1) = -0.0 (negative zero)"
+    },
+    {
+      "name": "lowBoundary_decimal_negative_precision",
+      "expr": "1.587.lowBoundary(-1)",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "lowBoundary_decimal_precision_too_high",
+      "expr": "1.587.lowBoundary(39)",
+      "input": {},
+      "expect": []
     },
     {
       "name": "lowBoundary_empty_input",
@@ -214,14 +327,142 @@
       "input": {},
       "expect": []
     },
+
     {
+      "_comment": "=== highBoundary() for Decimal ===",
+      "name": "highBoundary_decimal_default",
+      "expr": "1.587.highBoundary()",
+      "input": {},
+      "expect": [1.58750000]
+    },
+    {
+      "name": "highBoundary_decimal_precision_6",
+      "expr": "1.587.highBoundary(6)",
+      "input": {},
+      "expect": [1.587500]
+    },
+    {
+      "name": "highBoundary_decimal_precision_2",
+      "expr": "1.587.highBoundary(2)",
+      "input": {},
+      "expect": [1.59]
+    },
+    {
+      "name": "highBoundary_decimal_precision_0",
+      "expr": "1.587.highBoundary(0)",
+      "input": {},
+      "expect": [2]
+    },
+    {
+      "name": "highBoundary_decimal_negative",
+      "expr": "(-1.587).highBoundary()",
+      "input": {},
+      "expect": [-1.58650000]
+    },
+    {
+      "name": "highBoundary_decimal_negative_precision_6",
+      "expr": "(-1.587).highBoundary(6)",
+      "input": {},
+      "expect": [-1.586500]
+    },
+    {
+      "name": "highBoundary_decimal_negative_precision_2",
+      "expr": "(-1.587).highBoundary(2)",
+      "input": {},
+      "expect": [-1.58]
+    },
+    {
+      "name": "highBoundary_integer_default",
+      "expr": "1.highBoundary()",
+      "input": {},
+      "expect": [1.50000000]
+    },
+    {
+      "name": "highBoundary_integer_precision_0",
+      "expr": "1.highBoundary(0)",
+      "input": {},
+      "expect": [2]
+    },
+    {
+      "name": "highBoundary_integer_precision_5",
+      "expr": "1.highBoundary(5)",
+      "input": {},
+      "expect": [1.50000]
+    },
+    {
+      "name": "highBoundary_decimal_12_587_precision_2",
+      "expr": "12.587.highBoundary(2)",
+      "input": {},
+      "expect": [12.59]
+    },
+    {
+      "name": "highBoundary_decimal_12_500_precision_4",
+      "expr": "12.500.highBoundary(4)",
+      "input": {},
+      "expect": [12.5005]
+    },
+    {
+      "name": "highBoundary_decimal_120_precision_2",
+      "expr": "120.highBoundary(2)",
+      "input": {},
+      "expect": [120.50]
+    },
+    {
+      "name": "highBoundary_decimal_neg120_precision_2",
+      "expr": "(-120).highBoundary(2)",
+      "input": {},
+      "expect": [-119.50],
+      "_comment": "Negative: greatest value in [-120.5, -119.5) is -119.5"
+    },
+    {
+      "name": "highBoundary_decimal_neg_unary_minus",
+      "expr": "-120.highBoundary(2)",
+      "input": {},
+      "expect": [-120.50],
+      "_comment": "Parses as -(120.highBoundary(2)) = -120.50"
+    },
+    {
+      "name": "highBoundary_decimal_small_precision_1",
+      "expr": "0.0034.highBoundary(1)",
+      "input": {},
+      "expect": [0.0],
+      "_comment": "0.0034 rounded to 1 decimal is 0.0 (highBoundary ≈ 0.05)"
+    },
+    {
+      "name": "highBoundary_decimal_small_negative_precision_1",
+      "expr": "(-0.0034).highBoundary(1)",
+      "input": {},
+      "expect": [0.0],
+      "_comment": "-0.0034 highBoundary at precision 1 is 0.0"
+    },
+    {
+      "name": "highBoundary_decimal_negative_precision",
+      "expr": "1.587.highBoundary(-1)",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "highBoundary_decimal_precision_too_high",
+      "expr": "1.587.highBoundary(39)",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "highBoundary_empty_input",
+      "expr": "{}.highBoundary()",
+      "input": {},
+      "expect": []
+    },
+
+    {
+      "_comment": "=== lowBoundary() for Date/DateTime ===",
       "name": "lowBoundary_date_to_month",
       "expr": "@2014.lowBoundary(6)",
       "input": {},
       "expect": ["@2014-01"]
     },
     {
-      "name": "lowBoundary_datetime_to_millisecond",
+      "name": "lowBoundary_datetime_to_ms",
       "expr": "@2014-01-01T08.lowBoundary(17)",
       "input": {},
       "expect": ["@2014-01-01T08:00:00.000+14:00"]
@@ -239,128 +480,21 @@
       "expect": ["@2014-01-01"]
     },
     {
-      "name": "lowBoundary_time_to_millisecond",
+      "name": "lowBoundary_time_to_ms",
       "expr": "@T10:30.lowBoundary(9)",
       "input": {},
       "expect": ["@T10:30:00.000"]
     },
 
     {
-      "name": "highBoundary_decimal_default",
-      "expr": "1.587.highBoundary()",
-      "input": {},
-      "expect": [1.5875]
-    },
-    {
-      "name": "highBoundary_decimal_precision_2",
-      "expr": "1.587.highBoundary(2)",
-      "input": {},
-      "expect": [1.59]
-    },
-    {
-      "name": "highBoundary_decimal_precision_6",
-      "expr": "1.587.highBoundary(6)",
-      "input": {},
-      "expect": [1.5875]
-    },
-    {
-      "name": "highBoundary_decimal_negative_precision_returns_empty",
-      "expr": "1.587.highBoundary(-1)",
-      "input": {},
-      "expect": []
-    },
-    {
-      "name": "highBoundary_decimal_precision_exceeds_max_returns_empty",
-      "expr": "1.587.highBoundary(39)",
-      "input": {},
-      "expect": []
-    },
-    {
-      "name": "highBoundary_negative_decimal_default",
-      "expr": "(-1.587).highBoundary()",
-      "input": {},
-      "expect": [-1.5865]
-    },
-    {
-      "name": "highBoundary_negative_decimal_precision_2",
-      "expr": "(-1.587).highBoundary(2)",
-      "input": {},
-      "expect": [-1.58]
-    },
-    {
-      "name": "highBoundary_negative_decimal_precision_6",
-      "expr": "(-1.587).highBoundary(6)",
-      "input": {},
-      "expect": [-1.5865]
-    },
-    {
-      "name": "highBoundary_integer_default",
-      "expr": "1.highBoundary()",
-      "input": {},
-      "expect": [1.5]
-    },
-    {
-      "name": "highBoundary_integer_precision_0",
-      "expr": "1.highBoundary(0)",
-      "input": {},
-      "expect": [2]
-    },
-    {
-      "name": "highBoundary_integer_precision_5",
-      "expr": "1.highBoundary(5)",
-      "input": {},
-      "expect": [1.5]
-    },
-    {
-      "name": "highBoundary_larger_decimal",
-      "expr": "12.587.highBoundary(2)",
-      "input": {},
-      "expect": [12.59]
-    },
-    {
-      "name": "highBoundary_decimal_with_trailing_zeros",
-      "expr": "12.500.highBoundary(4)",
-      "input": {},
-      "expect": [12.5005]
-    },
-    {
-      "name": "highBoundary_integer_larger",
-      "expr": "120.highBoundary(2)",
-      "input": {},
-      "expect": [120.5]
-    },
-    {
-      "name": "highBoundary_negative_integer",
-      "expr": "-120.highBoundary(2)",
-      "input": {},
-      "expect": [-120.5]
-    },
-    {
-      "name": "highBoundary_small_positive_decimal",
-      "expr": "0.0034.highBoundary(1)",
-      "input": {},
-      "expect": [0.0]
-    },
-    {
-      "name": "highBoundary_small_negative_decimal",
-      "expr": "-0.0034.highBoundary(1)",
-      "input": {},
-      "expect": [0.0]
-    },
-    {
-      "name": "highBoundary_empty_input",
-      "expr": "{}.highBoundary()",
-      "input": {},
-      "expect": []
-    },
-    {
+      "_comment": "=== highBoundary() for Date/DateTime ===",
       "name": "highBoundary_date_to_month",
       "expr": "@2014.highBoundary(6)",
       "input": {},
       "expect": ["@2014-12"]
     },
     {
-      "name": "highBoundary_datetime_to_millisecond",
+      "name": "highBoundary_datetime_to_ms",
       "expr": "@2014-01-01T08.highBoundary(17)",
       "input": {},
       "expect": ["@2014-01-01T08:00:59.999-12:00"]
@@ -372,10 +506,24 @@
       "expect": ["@2014-01-01T08:05:59.999-05:00"]
     },
     {
-      "name": "highBoundary_time_to_millisecond",
+      "name": "highBoundary_time_to_ms",
       "expr": "@T10:30.highBoundary(9)",
       "input": {},
       "expect": ["@T10:30:59.999"]
+    },
+
+    {
+      "_comment": "=== lowBoundary/highBoundary with Quantity - preserves unit ===",
+      "name": "lowBoundary_quantity",
+      "expr": "1.587 'cm'.lowBoundary(8)",
+      "input": {},
+      "expect": [{"value": 1.58650000, "unit": "cm"}]
+    },
+    {
+      "name": "highBoundary_quantity",
+      "expr": "1.587 'm'.highBoundary(8)",
+      "input": {},
+      "expect": [{"value": 1.58750000, "unit": "m"}]
     }
   ]
 }

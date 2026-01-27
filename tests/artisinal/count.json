@@ -1,0 +1,60 @@
+{
+  "meta": {
+    "status": "drafted",
+    "feature": "count",
+    "source": "spec/index.md#count() : Integer"
+  },
+  "spec": {
+    "summary": [
+      "count() returns the integer number of items in the input collection.",
+      "If the input collection is empty, count() returns 0.",
+      "count() reflects collection semantics and does not remove duplicates."
+    ],
+    "examples": [
+      "Patient.name.given.count()"
+    ]
+  },
+  "todo": [
+    "[ ] Implement parsing of count() function calls.",
+    "[ ] Implement count() evaluation to return the number of items in the input collection.",
+    "[ ] Confirm count() on scalar values follows singleton collection semantics.",
+    "[ ] Improve passing rate (0/5 passing)."
+  ],
+  "cases": [
+    {
+      "name": "count on missing field returns 0",
+      "expr": "name.count()",
+      "input": {},
+      "expect": [0]
+    },
+    {
+      "name": "count on empty array returns 0",
+      "expr": "name.count()",
+      "input": { "name": [] },
+      "expect": [0]
+    },
+    {
+      "name": "count on scalar returns 1",
+      "expr": "active.count()",
+      "input": { "active": false },
+      "expect": [1]
+    },
+    {
+      "name": "count includes duplicate items",
+      "expr": "given.count()",
+      "input": { "given": ["Ann", "Ann", "Bob"] },
+      "expect": [3]
+    },
+    {
+      "name": "count on nested path flattens across items",
+      "expr": "name.given.count()",
+      "input": {
+        "name": [
+          { "given": ["Ann", "Annie"] },
+          { "given": ["Bob"] }
+        ]
+      },
+      "expect": [3]
+    }
+  ]
+}

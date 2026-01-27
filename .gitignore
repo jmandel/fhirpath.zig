@@ -8,6 +8,7 @@
 
 # Driver logs
 /driver.log
+/logs/
 
 # OS/editor cruft
 .DS_Store

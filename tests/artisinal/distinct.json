@@ -1,0 +1,83 @@
+{
+  "meta": {
+    "status": "drafted",
+    "feature": "distinct",
+    "source": "spec/index.md#distinct() : collection"
+  },
+  "spec": {
+    "summary": [
+      "distinct() returns a collection containing only the unique items in the input collection.",
+      "Uniqueness is determined using the equals (=) operator.",
+      "If the input collection is empty, distinct() returns an empty collection.",
+      "The order of elements in the distinct() result is not guaranteed to be preserved.",
+      "isDistinct() returns true when all items are distinct; it is equivalent to count() = distinct().count().",
+      "If the input collection is empty, isDistinct() returns true."
+    ],
+    "examples": [
+      "Patient.meta.tag.distinct()",
+      "Patient.meta.tag.isDistinct()"
+    ]
+  },
+  "todo": [
+    "[ ] Implement parsing of distinct() and isDistinct() function calls.",
+    "[ ] Implement distinct() evaluation using equals (=) to remove duplicates.",
+    "[ ] Implement isDistinct() as count() = distinct().count().",
+    "[ ] Confirm equals semantics for complex types once object equality is supported.",
+    "[ ] Improve passing rate (0/8 passing)."
+  ],
+  "cases": [
+    {
+      "name": "distinct on missing field returns empty",
+      "expr": "name.distinct()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "distinct on empty array returns empty",
+      "expr": "name.distinct()",
+      "input": { "name": [] },
+      "expect": []
+    },
+    {
+      "name": "distinct on single item returns same",
+      "expr": "name.distinct()",
+      "input": { "name": ["Ann"] },
+      "expect": ["Ann"]
+    },
+    {
+      "name": "distinct collapses duplicate values",
+      "expr": "name.distinct()",
+      "input": { "name": ["Ann", "Ann", "Ann"] },
+      "expect": ["Ann"]
+    },
+    {
+      "name": "distinct on nested path collapses duplicates",
+      "expr": "name.given.distinct()",
+      "input": {
+        "name": [
+          { "given": ["Ann"] },
+          { "given": ["Ann"] }
+        ]
+      },
+      "expect": ["Ann"]
+    },
+    {
+      "name": "isDistinct on missing field returns true",
+      "expr": "name.isDistinct()",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "isDistinct returns false for duplicates",
+      "expr": "name.isDistinct()",
+      "input": { "name": ["Ann", "Bob", "Ann"] },
+      "expect": [false]
+    },
+    {
+      "name": "isDistinct returns true for unique items",
+      "expr": "name.isDistinct()",
+      "input": { "name": ["Ann", "Bob"] },
+      "expect": [true]
+    }
+  ]
+}

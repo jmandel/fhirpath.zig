@@ -135,7 +135,7 @@ Expected values must use explicit `type` and `value` fields:
 ```json
 "expect": [
   {"type": "string", "value": "hello"},
-  {"type": "integer", "value": "42"},
+  {"type": "integer", "value": 42},
   {"type": "date", "value": "2024-01-15"},
   {"type": "Quantity", "value": {"value": 10, "unit": "mg"}}
 ]
@@ -147,6 +147,24 @@ Expected values must use explicit `type` and `value` fields:
 - ❌ `"10 'mg'"` → ✅ `{"type": "Quantity", "value": {"value": 10, "unit": "mg"}}`
 
 See `tests/artisinal/README.md` for the full type table.
+
+### Unordered comparison (for set-like results)
+Some FHIRPath operations return collections where order is not guaranteed. Use `"unordered": true` to compare as multisets:
+
+```json
+{
+  "name": "union returns both collections",
+  "expr": "a.union(b)",
+  "input": {"a": [1, 2], "b": [3]},
+  "unordered": true,
+  "expect": [{"type": "integer", "value": 3}, {"type": "integer", "value": 1}, {"type": "integer", "value": 2}]
+}
+```
+
+With `unordered: true`, the harness checks that:
+- Same number of items in expected and actual
+- Each expected item matches exactly one actual item (multiset comparison)
+- Order doesn't matter
 
 ### Meta fields
 - `meta.status` informs `scripts/choose_mode.py`:

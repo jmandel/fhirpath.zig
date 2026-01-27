@@ -416,7 +416,9 @@ fn runTestFile(
         var actual_values = try itemsToJsonArray(allocator, &doc, eval_result.items, &types, schema_ptr);
         defer actual_values.deinit(allocator);
 
-        const matched = compareExpected(expect_items, actual_values.items);
+        // Check for unordered flag
+        const unordered = if (obj.get("unordered")) |uv| uv == .bool and uv.bool else false;
+        const matched = compareExpected(expect_items, actual_values.items, unordered);
         if (!matched) {
             result.failed += 1;
             result.mismatch_errors += 1;
@@ -488,8 +490,29 @@ fn itemsToJsonArray(
     return out;
 }
 
-fn compareExpected(expected: []const std.json.Value, actual: []const std.json.Value) bool {
+fn compareExpected(expected: []const std.json.Value, actual: []const std.json.Value, unordered: bool) bool {
     if (expected.len != actual.len) return false;
+    
+    if (unordered) {
+        // Multiset comparison: each expected item must match exactly one actual item
+        var used = [_]bool{false} ** 256; // Max 256 items
+        if (actual.len > 256) return false; // Sanity check
+        
+        for (expected) |exp_item| {
+            var found = false;
+            for (actual, 0..) |act_item, j| {
+                if (!used[j] and compareTypedValue(exp_item, act_item)) {
+                    used[j] = true;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) return false;
+        }
+        return true;
+    }
+    
+    // Ordered comparison
     var i: usize = 0;
     while (i < expected.len) : (i += 1) {
         if (!compareTypedValue(expected[i], actual[i])) return false;

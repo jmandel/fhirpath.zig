@@ -37,6 +37,25 @@ Each item in `expect` must have explicit `type` and `value` fields:
 
 **Important**: Do NOT use FHIRPath literal prefixes like `@` for dates or `@T` for times in expected values. The `type` field makes these redundant.
 
+## Unordered comparison
+
+Some FHIRPath operations return collections where order is not guaranteed. Use `"unordered": true` for set-like comparison:
+
+```json
+{
+  "name": "distinct removes duplicates",
+  "expr": "values.distinct()",
+  "input": {"values": [3, 1, 2, 1]},
+  "unordered": true,
+  "expect": [{"type": "integer", "value": 2}, {"type": "integer", "value": 1}, {"type": "integer", "value": 3}]
+}
+```
+
+With `unordered: true`:
+- Same number of items required
+- Each expected item must match exactly one actual item (multiset comparison)
+- Order doesn't matter
+
 ## Running tests
 
 ```bash

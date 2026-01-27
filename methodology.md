@@ -94,6 +94,12 @@ Pick one and expand from there.
 - Do NOT implement multiple unrelated functions in one session
 - If you find yourself reading more than ~5 files to understand one failure, stop and form a hypothesis - then make a focused change to test it
 
+**Dependency chains**: Some features depend on more basic features. If your sampled failure requires unimplemented dependencies:
+1. Identify what's missing (e.g., "toQuantity needs quantity literal parsing")
+2. Check if that dependency has tests - search for related failures/skips
+3. Pivot to implementing the dependency instead
+4. Return STEP COMPLETE - you made progress on a real blocker
+
 **Commands**:
 ```bash
 zig build harness                    # summary of all artisinal

@@ -497,6 +497,150 @@ fn evalFunction(
             }
         }
     }
+    // String manipulation functions
+    if (std.mem.eql(u8, call.name, "length")) {
+        if (input.len == 0) return ItemList.empty;
+        if (input.len > 1) return error.SingletonRequired;
+        const str = itemStringValue(ctx, input[0]) orelse return error.InvalidFunction;
+        var out = ItemList.empty;
+        try out.append(ctx.allocator, makeIntegerItem(ctx, @intCast(str.len)));
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "indexOf")) {
+        if (call.args.len != 1) return error.InvalidFunction;
+        if (input.len == 0) return ItemList.empty;
+        if (input.len > 1) return error.SingletonRequired;
+        const str = itemStringValue(ctx, input[0]) orelse return error.InvalidFunction;
+        const needle = try evalStringArg(ctx, call.args[0], env);
+        if (needle == null) return ItemList.empty; // empty substring arg yields empty
+        var out = ItemList.empty;
+        const idx: i64 = if (needle.?.len == 0)
+            0 // empty substring returns 0
+        else if (std.mem.indexOf(u8, str, needle.?)) |i|
+            @intCast(i)
+        else
+            -1;
+        try out.append(ctx.allocator, makeIntegerItem(ctx, idx));
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "lastIndexOf")) {
+        if (call.args.len != 1) return error.InvalidFunction;
+        if (input.len == 0) return ItemList.empty;
+        if (input.len > 1) return error.SingletonRequired;
+        const str = itemStringValue(ctx, input[0]) orelse return error.InvalidFunction;
+        const needle = try evalStringArg(ctx, call.args[0], env);
+        if (needle == null) return ItemList.empty;
+        var out = ItemList.empty;
+        const idx: i64 = if (needle.?.len == 0)
+            @intCast(str.len) // empty substring returns length
+        else if (std.mem.lastIndexOf(u8, str, needle.?)) |i|
+            @intCast(i)
+        else
+            -1;
+        try out.append(ctx.allocator, makeIntegerItem(ctx, idx));
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "upper")) {
+        if (input.len == 0) return ItemList.empty;
+        if (input.len > 1) return error.SingletonRequired;
+        const str = itemStringValue(ctx, input[0]) orelse return error.InvalidFunction;
+        const upper_str = try ctx.allocator.alloc(u8, str.len);
+        for (str, 0..) |c, i| {
+            upper_str[i] = std.ascii.toUpper(c);
+        }
+        var out = ItemList.empty;
+        try out.append(ctx.allocator, makeStringItem(ctx, upper_str));
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "lower")) {
+        if (input.len == 0) return ItemList.empty;
+        if (input.len > 1) return error.SingletonRequired;
+        const str = itemStringValue(ctx, input[0]) orelse return error.InvalidFunction;
+        const lower_str = try ctx.allocator.alloc(u8, str.len);
+        for (str, 0..) |c, i| {
+            lower_str[i] = std.ascii.toLower(c);
+        }
+        var out = ItemList.empty;
+        try out.append(ctx.allocator, makeStringItem(ctx, lower_str));
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "replace")) {
+        if (call.args.len != 2) return error.InvalidFunction;
+        if (input.len == 0) return ItemList.empty;
+        if (input.len > 1) return error.SingletonRequired;
+        const str = itemStringValue(ctx, input[0]) orelse return error.InvalidFunction;
+        const pattern = try evalStringArg(ctx, call.args[0], env);
+        const substitution = try evalStringArg(ctx, call.args[1], env);
+        if (pattern == null or substitution == null) return ItemList.empty;
+        // Replace all occurrences
+        const replaced = try replaceAll(ctx.allocator, str, pattern.?, substitution.?);
+        var out = ItemList.empty;
+        try out.append(ctx.allocator, makeStringItem(ctx, replaced));
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "trim")) {
+        if (input.len == 0) return ItemList.empty;
+        if (input.len > 1) return error.SingletonRequired;
+        const str = itemStringValue(ctx, input[0]) orelse return error.InvalidFunction;
+        const trimmed = std.mem.trim(u8, str, " \t\n\r");
+        var out = ItemList.empty;
+        try out.append(ctx.allocator, makeStringItem(ctx, trimmed));
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "toChars")) {
+        if (input.len == 0) return ItemList.empty;
+        if (input.len > 1) return error.SingletonRequired;
+        const str = itemStringValue(ctx, input[0]) orelse return error.InvalidFunction;
+        var out = ItemList.empty;
+        for (str) |c| {
+            const char_str = try ctx.allocator.alloc(u8, 1);
+            char_str[0] = c;
+            try out.append(ctx.allocator, makeStringItem(ctx, char_str));
+        }
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "split")) {
+        if (call.args.len != 1) return error.InvalidFunction;
+        if (input.len == 0) return ItemList.empty;
+        if (input.len > 1) return error.SingletonRequired;
+        const str = itemStringValue(ctx, input[0]) orelse return error.InvalidFunction;
+        const sep = try evalStringArg(ctx, call.args[0], env);
+        if (sep == null) return ItemList.empty;
+        var out = ItemList.empty;
+        if (sep.?.len == 0) {
+            // Empty separator: split into individual characters
+            for (str) |c| {
+                const char_str = try ctx.allocator.alloc(u8, 1);
+                char_str[0] = c;
+                try out.append(ctx.allocator, makeStringItem(ctx, char_str));
+            }
+        } else {
+            // Split by separator, keeping empty segments
+            var iter = std.mem.splitSequence(u8, str, sep.?);
+            while (iter.next()) |part| {
+                try out.append(ctx.allocator, makeStringItem(ctx, part));
+            }
+        }
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "join")) {
+        if (call.args.len > 1) return error.InvalidFunction;
+        if (input.len == 0) return ItemList.empty;
+        // Get separator (default to empty string)
+        const sep = if (call.args.len == 1) (try evalStringArg(ctx, call.args[0], env)) orelse "" else "";
+        // Collect all string values
+        var parts = std.ArrayList([]const u8).empty;
+        defer parts.deinit(ctx.allocator);
+        for (input) |it| {
+            const s = itemStringValue(ctx, it);
+            if (s != null) try parts.append(ctx.allocator, s.?);
+        }
+        // Join
+        const joined = try std.mem.join(ctx.allocator, sep, parts.items);
+        var out = ItemList.empty;
+        try out.append(ctx.allocator, makeStringItem(ctx, joined));
+        return out;
+    }
     return error.InvalidFunction;
 }
 
@@ -574,6 +718,52 @@ fn sliceItems(ctx: *EvalContext, values: []const item.Item) EvalError!ItemList {
     if (values.len == 0) return out;
     try out.appendSlice(ctx.allocator, values);
     return out;
+}
+
+fn replaceAll(allocator: std.mem.Allocator, str: []const u8, pattern: []const u8, substitution: []const u8) ![]const u8 {
+    if (pattern.len == 0) {
+        // Empty pattern: insert substitution before each char and at end
+        // Result: substitution + (char + substitution) * len(str)
+        const new_len = substitution.len * (str.len + 1) + str.len;
+        const result = try allocator.alloc(u8, new_len);
+        var dst_idx: usize = 0;
+        @memcpy(result[dst_idx..][0..substitution.len], substitution);
+        dst_idx += substitution.len;
+        for (str) |c| {
+            result[dst_idx] = c;
+            dst_idx += 1;
+            @memcpy(result[dst_idx..][0..substitution.len], substitution);
+            dst_idx += substitution.len;
+        }
+        return result;
+    }
+    // Count occurrences to pre-allocate
+    var count: usize = 0;
+    var i: usize = 0;
+    while (i <= str.len - pattern.len) : (i += 1) {
+        if (std.mem.eql(u8, str[i..][0..pattern.len], pattern)) {
+            count += 1;
+            i += pattern.len - 1; // -1 because loop will add 1
+        }
+    }
+    if (count == 0) return str;
+    // Allocate result
+    const new_len = str.len - (count * pattern.len) + (count * substitution.len);
+    const result = try allocator.alloc(u8, new_len);
+    var src_idx: usize = 0;
+    var dst_idx: usize = 0;
+    while (src_idx < str.len) {
+        if (src_idx + pattern.len <= str.len and std.mem.eql(u8, str[src_idx..][0..pattern.len], pattern)) {
+            @memcpy(result[dst_idx..][0..substitution.len], substitution);
+            dst_idx += substitution.len;
+            src_idx += pattern.len;
+        } else {
+            result[dst_idx] = str[src_idx];
+            dst_idx += 1;
+            src_idx += 1;
+        }
+    }
+    return result;
 }
 
 fn distinctItems(ctx: *EvalContext, input: []const item.Item) EvalError!ItemList {

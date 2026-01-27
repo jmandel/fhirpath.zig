@@ -570,7 +570,7 @@ fn numberValue(v: std.json.Value) ?f64 {
     return switch (v) {
         .integer => |i| @floatFromInt(i),
         .float => |f| f,
-        .number_string => |s| std.fmt.parseFloat(f64, s) catch null,
+        .number_string, .string => |s| std.fmt.parseFloat(f64, s) catch null,
         else => null,
     };
 }

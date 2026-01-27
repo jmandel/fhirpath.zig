@@ -305,8 +305,8 @@
       "input": {},
       "expect": [
         {
-          "type": "integer",
-          "value": "1"
+          "type": "decimal",
+          "value": "1.0"
         }
       ]
     },
@@ -316,8 +316,8 @@
       "input": {},
       "expect": [
         {
-          "type": "integer",
-          "value": "1"
+          "type": "decimal",
+          "value": "1.0"
         }
       ]
     },

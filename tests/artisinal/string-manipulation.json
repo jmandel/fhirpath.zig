@@ -1,14 +1,14 @@
 {
   "meta": {
-    "status": "reviewed",
+    "status": "implemented",
     "spec_summary": "String manipulation functions for FHIRPath: length, indexOf, lastIndexOf, upper, lower, replace, trim, toChars, split, join. All single-string functions return empty if input is empty collection; multiple items signal error. The spec defines: indexOf returns 0 for empty substring, lastIndexOf returns length for empty substring.",
     "spec_sections": [
       "5.7. String Manipulation",
       "Additional String Functions"
     ],
     "todo": [
-      "Improve passing rate (0/70 passing) - functions not yet implemented",
-      "Add tests for error signaling on multiple items (when harness supports error expectations)"
+      "[x] Improve passing rate (67/70 passing - 3 blocked by parser: union operator)",
+      "[ ] Add tests for error signaling on multiple items (when harness supports error expectations)"
     ],
     "open_questions": [
       "split() with empty separator - spec doesn't specify behavior; no official test coverage"

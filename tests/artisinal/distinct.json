@@ -1,6 +1,6 @@
 {
   "meta": {
-    "status": "reviewed",
+    "status": "implemented",
     "feature": "distinct",
     "source": "spec/index.md#distinct() : collection"
   },
@@ -19,11 +19,11 @@
     ]
   },
   "todo": [
-    "[ ] Implement parsing of distinct() and isDistinct() function calls.",
-    "[ ] Implement distinct() evaluation using equals (=) to remove duplicates.",
-    "[ ] Implement isDistinct() as count() = distinct().count().",
+    "[x] Implement parsing of distinct() and isDistinct() function calls.",
+    "[x] Implement distinct() evaluation using equals (=) to remove duplicates.",
+    "[x] Implement isDistinct() as count() = distinct().count().",
     "[ ] Confirm equals semantics for complex types once object equality is supported.",
-    "[ ] Improve passing rate (0/8 passing; parse errors for function calls)."
+    "[x] Improve passing rate (8/8 passing)."
   ],
   "cases": [
     {

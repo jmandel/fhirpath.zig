@@ -26,38 +26,164 @@ pub const Parser = struct {
     }
 
     pub fn parseExpression(self: *Parser) !ast.Expr {
-        const expr = try self.parsePathExpression();
+        const expr = try self.parseEquality();
         if (self.current.kind != .Eof) {
             return error.UnexpectedToken;
         }
         return expr;
     }
 
-    fn parsePathExpression(self: *Parser) !ast.Expr {
+    const ParseErrorSet = ParseError || error{OutOfMemory};
+
+    fn parseEquality(self: *Parser) ParseErrorSet!ast.Expr {
+        var left = try self.parsePrimary();
+        while (self.current.kind == .Eq) {
+            _ = try self.advance();
+            const right = try self.parsePrimary();
+            const left_ptr = try self.allocator.create(ast.Expr);
+            left_ptr.* = left;
+            const right_ptr = try self.allocator.create(ast.Expr);
+            right_ptr.* = right;
+            left = ast.Expr{ .Binary = .{ .op = .Eq, .left = left_ptr, .right = right_ptr } };
+        }
+        return left;
+    }
+
+    fn parsePrimary(self: *Parser) ParseErrorSet!ast.Expr {
+        switch (self.current.kind) {
+            .String => {
+                const value = try self.unescapeString(self.current.lexeme);
+                _ = try self.advance();
+                return ast.Expr{ .Literal = .{ .String = value } };
+            },
+            .Number => {
+                const value = try self.allocator.dupe(u8, self.current.lexeme);
+                _ = try self.advance();
+                return ast.Expr{ .Literal = .{ .Number = value } };
+            },
+            .Date => {
+                const value = try self.allocator.dupe(u8, self.current.lexeme);
+                _ = try self.advance();
+                return ast.Expr{ .Literal = .{ .Date = value } };
+            },
+            .DateTime => {
+                const value = try self.allocator.dupe(u8, self.current.lexeme);
+                _ = try self.advance();
+                return ast.Expr{ .Literal = .{ .DateTime = value } };
+            },
+            .Time => {
+                const value = try self.allocator.dupe(u8, self.current.lexeme);
+                _ = try self.advance();
+                return ast.Expr{ .Literal = .{ .Time = value } };
+            },
+            .Identifier => {
+                const lex = self.current.lexeme;
+                if (std.mem.eql(u8, lex, "true")) {
+                    _ = try self.advance();
+                    return ast.Expr{ .Literal = .{ .Bool = true } };
+                }
+                if (std.mem.eql(u8, lex, "false")) {
+                    _ = try self.advance();
+                    return ast.Expr{ .Literal = .{ .Bool = false } };
+                }
+                if (std.mem.eql(u8, lex, "null")) {
+                    _ = try self.advance();
+                    return ast.Expr{ .Literal = .{ .Null = {} } };
+                }
+                return self.parsePathExpression();
+            },
+            .DelimitedIdentifier, .Percent, .Dollar => return self.parsePathExpression(),
+            .LParen => {
+                _ = try self.advance();
+                const expr = try self.parseEquality();
+                if (self.current.kind != .RParen) return error.UnexpectedToken;
+                _ = try self.advance();
+                return expr;
+            },
+            else => return error.UnexpectedToken,
+        }
+    }
+
+    fn parsePathExpression(self: *Parser) ParseErrorSet!ast.Expr {
         var root: ast.Root = .This;
-        var segments = std.ArrayList([]const u8).empty;
-        defer segments.deinit(self.allocator);
+        var steps = std.ArrayList(ast.Step).empty;
+        defer steps.deinit(self.allocator);
 
         if (self.current.kind == .Percent) {
             _ = try self.advance();
             const name = try self.parseEnvName();
             root = .{ .Env = name };
+        } else if (self.current.kind == .Dollar) {
+            _ = try self.advance();
+            if (self.current.kind != .Identifier) return error.UnexpectedToken;
+            const name = self.current.lexeme;
+            _ = try self.advance();
+            if (std.mem.eql(u8, name, "this")) {
+                root = .This;
+            } else if (std.mem.eql(u8, name, "index")) {
+                root = .Index;
+            } else {
+                return error.UnexpectedToken;
+            }
         } else {
             const name = try self.parseIdentifierName();
-            try segments.append(self.allocator, name);
+            try steps.append(self.allocator, .{ .Property = name });
         }
 
-        while (self.current.kind == .Dot) {
-            _ = try self.advance();
-            const name = try self.parseIdentifierName();
-            try segments.append(self.allocator, name);
+        while (true) {
+            switch (self.current.kind) {
+                .Dot => {
+                    _ = try self.advance();
+                    const name = try self.parseIdentifierName();
+                    if (self.current.kind == .LParen) {
+                        const call = try self.parseFunctionCall(name);
+                        try steps.append(self.allocator, .{ .Function = call });
+                    } else {
+                        try steps.append(self.allocator, .{ .Property = name });
+                    }
+                },
+                .LBracket => {
+                    _ = try self.advance();
+                    if (self.current.kind != .Number) return error.UnexpectedToken;
+                    const idx = std.fmt.parseInt(usize, self.current.lexeme, 10) catch {
+                        return error.UnexpectedToken;
+                    };
+                    _ = try self.advance();
+                    if (self.current.kind != .RBracket) return error.UnexpectedToken;
+                    _ = try self.advance();
+                    try steps.append(self.allocator, .{ .Index = idx });
+                },
+                else => break,
+            }
         }
 
-        const segs = try self.allocator.dupe([]const u8, segments.items);
-        return ast.Expr{ .Path = .{ .root = root, .segments = segs } };
+        const step_slice = try self.allocator.dupe(ast.Step, steps.items);
+        return ast.Expr{ .Path = .{ .root = root, .steps = step_slice } };
     }
 
-    fn parseIdentifierName(self: *Parser) ![]const u8 {
+    fn parseFunctionCall(self: *Parser, name: []const u8) ParseErrorSet!ast.FunctionCall {
+        if (self.current.kind != .LParen) return error.UnexpectedToken;
+        _ = try self.advance();
+        var args = std.ArrayList(ast.Expr).empty;
+        defer args.deinit(self.allocator);
+        if (self.current.kind != .RParen) {
+            while (true) {
+                const expr = try self.parseEquality();
+                try args.append(self.allocator, expr);
+                if (self.current.kind == .Comma) {
+                    _ = try self.advance();
+                    continue;
+                }
+                break;
+            }
+        }
+        if (self.current.kind != .RParen) return error.UnexpectedToken;
+        _ = try self.advance();
+        const arg_slice = try self.allocator.dupe(ast.Expr, args.items);
+        return .{ .name = name, .args = arg_slice };
+    }
+
+    fn parseIdentifierName(self: *Parser) ParseErrorSet![]const u8 {
         switch (self.current.kind) {
             .Identifier => {
                 const name = self.current.lexeme;
@@ -73,7 +199,7 @@ pub const Parser = struct {
         }
     }
 
-    fn parseEnvName(self: *Parser) ![]const u8 {
+    fn parseEnvName(self: *Parser) ParseErrorSet![]const u8 {
         switch (self.current.kind) {
             .Identifier, .DelimitedIdentifier => return self.parseIdentifierName(),
             .String => {
@@ -85,7 +211,7 @@ pub const Parser = struct {
         }
     }
 
-    fn unescapeDelimited(self: *Parser, token: []const u8) ![]const u8 {
+    fn unescapeDelimited(self: *Parser, token: []const u8) ParseErrorSet![]const u8 {
         if (token.len < 2 or token[0] != '`' or token[token.len - 1] != '`') {
             return error.UnexpectedToken;
         }
@@ -107,7 +233,7 @@ pub const Parser = struct {
         return out.toOwnedSlice(self.allocator);
     }
 
-    fn unescapeString(self: *Parser, token: []const u8) ![]const u8 {
+    fn unescapeString(self: *Parser, token: []const u8) ParseErrorSet![]const u8 {
         if (token.len < 2 or token[0] != '\'' or token[token.len - 1] != '\'') {
             return error.UnexpectedToken;
         }
@@ -129,7 +255,7 @@ pub const Parser = struct {
         return out.toOwnedSlice(self.allocator);
     }
 
-    fn advance(self: *Parser) !lexer.Token {
+    fn advance(self: *Parser) ParseErrorSet!lexer.Token {
         const tok = self.lex.next() catch {
             return error.LexerError;
         };

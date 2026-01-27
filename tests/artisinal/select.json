@@ -18,12 +18,12 @@
     ]
   },
   "todo": [
-    "[ ] Implement parsing of select() function calls.",
-    "[ ] Implement select() evaluation with per-item projection.",
-    "[ ] Flatten projection results into a single output collection.",
-    "[ ] Bind $this and $index within projection evaluation.",
+    "[x] Implement parsing of select() function calls.",
+    "[x] Implement select() evaluation with per-item projection.",
+    "[x] Flatten projection results into a single output collection.",
+    "[x] Bind $this and $index within projection evaluation.",
     "[ ] Add error tests for projection expressions once error harness exists.",
-    "[ ] Improve passing rate (0/5 passing)."
+    "[x] Improve passing rate (5/5 passing)."
   ],
   "cases": [
     {

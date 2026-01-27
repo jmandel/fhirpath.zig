@@ -17,11 +17,11 @@
     ]
   },
   "todo": [
-    "[ ] Implement parsing of where() function calls.",
-    "[ ] Implement where() evaluation with per-item criteria and filtering.",
-    "[ ] Bind $this and $index within criteria evaluation.",
+    "[x] Implement parsing of where() function calls.",
+    "[x] Implement where() evaluation with per-item criteria and filtering.",
+    "[x] Bind $this and $index within criteria evaluation.",
     "[ ] Add error tests for non-boolean or multi-item criteria once harness supports errors.",
-    "[ ] Improve passing rate (0/6 passing)."
+    "[x] Improve passing rate (6/6 passing)."
   ],
   "cases": [
     {

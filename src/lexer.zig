@@ -24,6 +24,7 @@ pub const TokenKind = enum {
     Dot,
     Comma,
     Percent,
+    Dollar,
 
     Plus,
     Minus,
@@ -80,6 +81,7 @@ pub const Lexer = struct {
             '.' => return self.single(.Dot),
             ',' => return self.single(.Comma),
             '%' => return self.single(.Percent),
+            '$' => return self.single(.Dollar),
             '+' => return self.single(.Plus),
             '-' => return self.single(.Minus),
             '*' => return self.single(.Star),

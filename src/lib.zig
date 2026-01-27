@@ -35,9 +35,15 @@ test "parse simple path" {
     defer ast.deinitExpr(testing.allocator, expr);
     switch (expr) {
         .Path => |p| {
-            try testing.expectEqual(@as(usize, 2), p.segments.len);
-            try testing.expect(std.mem.eql(u8, p.segments[0], "name"));
-            try testing.expect(std.mem.eql(u8, p.segments[1], "given"));
+            try testing.expectEqual(@as(usize, 2), p.steps.len);
+            switch (p.steps[0]) {
+                .Property => |name| try testing.expect(std.mem.eql(u8, name, "name")),
+                else => try testing.expect(false),
+            }
+            switch (p.steps[1]) {
+                .Property => |name| try testing.expect(std.mem.eql(u8, name, "given")),
+                else => try testing.expect(false),
+            }
         },
         else => try testing.expect(false),
     }

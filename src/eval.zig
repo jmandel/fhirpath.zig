@@ -29,6 +29,8 @@ pub const Env = struct {
     }
 };
 
+const EvalError = error{ InvalidFunction, InvalidPredicate } || error{OutOfMemory};
+
 pub fn evalWithJson(
     allocator: std.mem.Allocator,
     expr: ast.Expr,
@@ -45,18 +47,20 @@ pub fn evalExpression(
     expr: ast.Expr,
     root: std.json.Value,
     env: ?*Env,
-) !ValueList {
+) EvalError!ValueList {
+    return evalExpressionCtx(allocator, expr, root, env, null);
+}
+
+fn evalExpressionCtx(
+    allocator: std.mem.Allocator,
+    expr: ast.Expr,
+    root: std.json.Value,
+    env: ?*Env,
+    index: ?usize,
+) EvalError!ValueList {
     switch (expr) {
-        .Path => |p| return evalPath(allocator, p, root, env),
-        .Env => |name| {
-            var out = ValueList.empty;
-            if (env) |e| {
-                if (e.map.get(name)) |val| {
-                    try out.append(allocator, val);
-                }
-            }
-            return out;
-        },
+        .Path => |p| return evalPath(allocator, p, root, env, index),
+        .Binary => |b| return evalBinary(allocator, b, root, env, index),
         .Literal => |lit| {
             var out = ValueList.empty;
             try out.append(allocator, literalToJson(lit));
@@ -70,9 +74,9 @@ fn evalPath(
     path: ast.PathExpr,
     root: std.json.Value,
     env: ?*Env,
-) !ValueList {
+    index: ?usize,
+) EvalError!ValueList {
     var current = ValueList.empty;
-    defer current.deinit(allocator);
 
     switch (path.root) {
         .This => try current.append(allocator, root),
@@ -83,21 +87,40 @@ fn evalPath(
                 }
             }
         },
+        .Index => {
+            if (index) |idx| {
+                try current.append(allocator, .{ .integer = @intCast(idx) });
+            }
+        },
     }
 
-    for (path.segments) |seg| {
-        var next = ValueList.empty;
-        defer next.deinit(allocator);
-        for (current.items) |item| {
-            try applySegment(item, seg, &next, allocator);
+    for (path.steps) |step| {
+        switch (step) {
+            .Property => |name| {
+                var next = ValueList.empty;
+                for (current.items) |item| {
+                    try applySegment(item, name, &next, allocator);
+                }
+                current.deinit(allocator);
+                current = next;
+            },
+            .Index => |idx| {
+                var next = ValueList.empty;
+                if (idx < current.items.len) {
+                    try next.append(allocator, current.items[idx]);
+                }
+                current.deinit(allocator);
+                current = next;
+            },
+            .Function => |call| {
+                const next = try evalFunction(allocator, call, current.items, env);
+                current.deinit(allocator);
+                current = next;
+            },
         }
-        current.clearAndFree(allocator);
-        try current.appendSlice(allocator, next.items);
     }
 
-    var result = ValueList.empty;
-    try result.appendSlice(allocator, current.items);
-    return result;
+    return current;
 }
 
 fn applySegment(
@@ -128,14 +151,185 @@ fn applySegment(
     }
 }
 
+fn evalBinary(
+    allocator: std.mem.Allocator,
+    expr: ast.BinaryExpr,
+    root: std.json.Value,
+    env: ?*Env,
+    index: ?usize,
+) EvalError!ValueList {
+    var left = try evalExpressionCtx(allocator, expr.left.*, root, env, index);
+    defer left.deinit(allocator);
+    var right = try evalExpressionCtx(allocator, expr.right.*, root, env, index);
+    defer right.deinit(allocator);
+    return evalEquality(allocator, left.items, right.items);
+}
+
+fn evalEquality(
+    allocator: std.mem.Allocator,
+    left: []const std.json.Value,
+    right: []const std.json.Value,
+) EvalError!ValueList {
+    var out = ValueList.empty;
+    if (left.len == 0 or right.len == 0) return out;
+    var matched = false;
+    for (left) |l| {
+        for (right) |r| {
+            if (jsonEqual(l, r)) {
+                matched = true;
+                break;
+            }
+        }
+        if (matched) break;
+    }
+    try out.append(allocator, .{ .bool = matched });
+    return out;
+}
+
+fn evalFunction(
+    allocator: std.mem.Allocator,
+    call: ast.FunctionCall,
+    input: []const std.json.Value,
+    env: ?*Env,
+) EvalError!ValueList {
+    if (std.mem.eql(u8, call.name, "count")) {
+        var out = ValueList.empty;
+        try out.append(allocator, .{ .integer = @intCast(input.len) });
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "empty")) {
+        var out = ValueList.empty;
+        try out.append(allocator, .{ .bool = input.len == 0 });
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "exists")) {
+        var out = ValueList.empty;
+        try out.append(allocator, .{ .bool = input.len != 0 });
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "distinct")) {
+        return distinctValues(allocator, input);
+    }
+    if (std.mem.eql(u8, call.name, "isDistinct")) {
+        var distinct = try distinctValues(allocator, input);
+        defer distinct.deinit(allocator);
+        var out = ValueList.empty;
+        try out.append(allocator, .{ .bool = distinct.items.len == input.len });
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "select")) {
+        if (call.args.len != 1) return error.InvalidFunction;
+        var out = ValueList.empty;
+        for (input, 0..) |item, idx| {
+            var projection = try evalExpressionCtx(allocator, call.args[0], item, env, idx);
+            defer projection.deinit(allocator);
+            if (projection.items.len == 0) continue;
+            try out.appendSlice(allocator, projection.items);
+        }
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "where")) {
+        if (call.args.len != 1) return error.InvalidFunction;
+        var out = ValueList.empty;
+        for (input, 0..) |item, idx| {
+            var criteria = try evalExpressionCtx(allocator, call.args[0], item, env, idx);
+            defer criteria.deinit(allocator);
+            if (criteria.items.len == 0) continue;
+            if (criteria.items.len != 1 or criteria.items[0] != .bool) return error.InvalidPredicate;
+            if (criteria.items[0].bool) {
+                try out.append(allocator, item);
+            }
+        }
+        return out;
+    }
+    return error.InvalidFunction;
+}
+
 fn literalToJson(lit: ast.Literal) std.json.Value {
     return switch (lit) {
         .Null => .null,
         .Bool => |b| .{ .bool = b },
         .String => |s| .{ .string = s },
-        .Number => |n| .{ .string = n }, // TODO: parse numeric
+        .Number => |n| parseNumberLiteral(n),
         .Date => |d| .{ .string = d },
         .DateTime => |d| .{ .string = d },
         .Time => |t| .{ .string = t },
+    };
+}
+
+fn parseNumberLiteral(text: []const u8) std.json.Value {
+    if (std.mem.indexOfScalar(u8, text, '.') != null) {
+        const value = std.fmt.parseFloat(f64, text) catch {
+            return .{ .number_string = text };
+        };
+        return .{ .float = value };
+    }
+    const value = std.fmt.parseInt(i64, text, 10) catch {
+        return .{ .number_string = text };
+    };
+    return .{ .integer = value };
+}
+
+fn distinctValues(
+    allocator: std.mem.Allocator,
+    input: []const std.json.Value,
+) EvalError!ValueList {
+    var out = ValueList.empty;
+    for (input) |item| {
+        var seen = false;
+        for (out.items) |existing| {
+            if (jsonEqual(item, existing)) {
+                seen = true;
+                break;
+            }
+        }
+        if (!seen) try out.append(allocator, item);
+    }
+    return out;
+}
+
+fn jsonEqual(a: std.json.Value, b: std.json.Value) bool {
+    if (!std.mem.eql(u8, @tagName(a), @tagName(b))) {
+        const na = numberValue(a);
+        const nb = numberValue(b);
+        if (na != null and nb != null) {
+            return na.? == nb.?;
+        }
+        return false;
+    }
+    switch (a) {
+        .null => return true,
+        .bool => |v| return v == b.bool,
+        .integer => |v| return v == b.integer,
+        .float => |v| return v == b.float,
+        .number_string => |v| return std.mem.eql(u8, v, b.number_string),
+        .string => |v| return std.mem.eql(u8, v, b.string),
+        .array => |arr| {
+            const arr_b = b.array;
+            if (arr.items.len != arr_b.items.len) return false;
+            for (arr.items, 0..) |item, idx| {
+                if (!jsonEqual(item, arr_b.items[idx])) return false;
+            }
+            return true;
+        },
+        .object => |obj| {
+            const obj_b = b.object;
+            if (obj.count() != obj_b.count()) return false;
+            var it = obj.iterator();
+            while (it.next()) |entry| {
+                const other = obj_b.get(entry.key_ptr.*) orelse return false;
+                if (!jsonEqual(entry.value_ptr.*, other)) return false;
+            }
+            return true;
+        },
+    }
+}
+
+fn numberValue(v: std.json.Value) ?f64 {
+    return switch (v) {
+        .integer => |i| @floatFromInt(i),
+        .float => |f| f,
+        .number_string => |s| std.fmt.parseFloat(f64, s) catch null,
+        else => null,
     };
 }

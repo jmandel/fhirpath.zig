@@ -1,6 +1,6 @@
 {
   "meta": {
-    "status": "reviewed",
+    "status": "implemented",
     "feature": "indexer",
     "source": "spec/index.md#Subsetting"
   },
@@ -15,10 +15,10 @@
     ]
   },
   "todo": [
-    "[ ] Implement parsing of indexer expressions (e.g., path[0]).",
-    "[ ] Implement indexer evaluation with 0-based bounds checking.",
+    "[x] Implement parsing of indexer expressions (e.g., path[0]).",
+    "[x] Implement indexer evaluation with 0-based bounds checking.",
     "[ ] Add string indexing tests once string semantics are supported.",
-    "[ ] Improve passing rate (0/5 passing)."
+    "[x] Improve passing rate (5/5 passing)."
   ],
   "cases": [
     {

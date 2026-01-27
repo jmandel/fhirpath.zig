@@ -1,6 +1,6 @@
 {
   "meta": {
-    "status": "reviewed",
+    "status": "implemented",
     "feature": "existence",
     "source": "spec/index.md#Existence"
   },
@@ -17,11 +17,11 @@
     ]
   },
   "todo": [
-    "[ ] Implement empty() on collections (true for {}, false otherwise).",
-    "[ ] Implement exists() on collections (true for non-empty, false for {}).",
+    "[x] Implement empty() on collections (true for {}, false otherwise).",
+    "[x] Implement exists() on collections (true for non-empty, false for {}).",
     "[ ] Implement exists(criteria) as where(criteria).exists().",
     "[ ] Add criteria-based tests once where() is supported.",
-    "[ ] Improve passing rate (0/8 passing)."
+    "[x] Improve passing rate (8/8 passing)."
   ],
   "cases": [
     {

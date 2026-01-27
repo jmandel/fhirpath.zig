@@ -144,5 +144,8 @@ Use `wiggum/scripts/blockers.py` for all updates; the scripts keep the format de
 
 ## Git discipline (required)
 - Any session that edits or creates files must end with a git commit, regardless of success or failure.
-- Commit messages must be meaningful and specific to the change.
+- Commit messages must be meaningful and specific to the change, and should include a short body with details.
+- Use a subject + body format (subject <= 72 chars), for example:
+  - Subject: concise what/why
+  - Body: 2–6 bullet lines covering key changes and tests (if any)
 - External drivers can decide whether to keep or revert the commit based on the final step status.

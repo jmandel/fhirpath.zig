@@ -1,0 +1,260 @@
+{
+  "meta": {
+    "status": "drafted",
+    "spec_summary": "iif(criterion, true-result [, otherwise-result]) - Immediate if (conditional operator). Criterion must evaluate to a Boolean. Returns true-result if criterion is true; returns otherwise-result if criterion is false or empty; returns empty collection if otherwise-result is omitted and criterion is false/empty. Short-circuit evaluation: true-result only evaluated if true, otherwise-result only if false/empty. Criterion must be singleton boolean; multi-item collection or non-boolean is an error.",
+    "open_questions": [
+      "Does iif require exactly a boolean, or can it accept types that implicitly convert to boolean?",
+      "When input has multiple items and iif is called as a method, is this an error or does it process each item?"
+    ],
+    "todo": [
+      "Improve passing rate (0/35 passing)"
+    ]
+  },
+  "cases": [
+    {
+      "group": "basic true/false",
+      "name": "criterion true returns true-result",
+      "expr": "iif(true, 'yes', 'no')",
+      "input": null,
+      "expect": ["yes"]
+    },
+    {
+      "group": "basic true/false",
+      "name": "criterion false returns otherwise-result",
+      "expr": "iif(false, 'yes', 'no')",
+      "input": null,
+      "expect": ["no"]
+    },
+    {
+      "group": "basic true/false",
+      "name": "integer results - true case",
+      "expr": "iif(true, 1, 2)",
+      "input": null,
+      "expect": [1]
+    },
+    {
+      "group": "basic true/false",
+      "name": "integer results - false case",
+      "expr": "iif(false, 1, 2)",
+      "input": null,
+      "expect": [2]
+    },
+    {
+      "group": "empty criterion",
+      "name": "empty criterion treated as false",
+      "expr": "iif({}, 'yes', 'no')",
+      "input": null,
+      "expect": ["no"]
+    },
+    {
+      "group": "empty criterion",
+      "name": "union with true produces true",
+      "expr": "iif({} | true, 'yes', 'no')",
+      "input": null,
+      "expect": ["yes"]
+    },
+    {
+      "group": "empty criterion",
+      "name": "union with false produces false",
+      "expr": "iif({} | false, 'yes', 'no')",
+      "input": null,
+      "expect": ["no"]
+    },
+    {
+      "group": "missing otherwise",
+      "name": "true criterion with no otherwise returns true-result",
+      "expr": "iif(true, 'yes')",
+      "input": null,
+      "expect": ["yes"]
+    },
+    {
+      "group": "missing otherwise",
+      "name": "false criterion with no otherwise returns empty",
+      "expr": "iif(false, 'yes')",
+      "input": null,
+      "expect": []
+    },
+    {
+      "group": "missing otherwise",
+      "name": "empty criterion with no otherwise returns empty",
+      "expr": "iif({}, 'yes')",
+      "input": null,
+      "expect": []
+    },
+    {
+      "group": "missing otherwise",
+      "name": "false criterion with no otherwise - empty check",
+      "expr": "iif(false, 'yes').empty()",
+      "input": null,
+      "expect": [true]
+    },
+    {
+      "group": "short-circuit evaluation",
+      "name": "true criterion does not evaluate otherwise (div by zero)",
+      "expr": "iif(true, 'safe', 1/0)",
+      "input": null,
+      "expect": ["safe"]
+    },
+    {
+      "group": "short-circuit evaluation",
+      "name": "false criterion does not evaluate true-result (div by zero)",
+      "expr": "iif(false, 1/0, 'safe')",
+      "input": null,
+      "expect": ["safe"]
+    },
+    {
+      "group": "short-circuit evaluation",
+      "name": "empty criterion does not evaluate true-result",
+      "expr": "iif({}, 1/0, 'safe')",
+      "input": null,
+      "expect": ["safe"]
+    },
+    {
+      "group": "collection results",
+      "name": "true-result can be a collection",
+      "expr": "iif(true, 1 | 2 | 3, 0)",
+      "input": null,
+      "expect": [1, 2, 3]
+    },
+    {
+      "group": "collection results",
+      "name": "otherwise-result can be a collection",
+      "expr": "iif(false, 0, 1 | 2 | 3)",
+      "input": null,
+      "expect": [1, 2, 3]
+    },
+    {
+      "group": "collection results",
+      "name": "true-result can be empty collection",
+      "expr": "iif(true, {}, 'fallback')",
+      "input": null,
+      "expect": []
+    },
+    {
+      "group": "collection results",
+      "name": "otherwise-result can be empty collection",
+      "expr": "iif(false, 'never', {})",
+      "input": null,
+      "expect": []
+    },
+    {
+      "group": "context input",
+      "name": "iif as method on empty collection",
+      "expr": "{}.iif(true, 'yes', 'no')",
+      "input": null,
+      "expect": ["yes"]
+    },
+    {
+      "group": "context input",
+      "name": "iif as method on single item",
+      "expr": "('item').iif(true, 'yes', 'no')",
+      "input": null,
+      "expect": ["yes"]
+    },
+    {
+      "group": "context input",
+      "name": "$this accessible in criterion",
+      "expr": "('ctx').iif($this = 'ctx', 'match', 'no-match')",
+      "input": null,
+      "expect": ["match"]
+    },
+    {
+      "group": "context input",
+      "name": "$this accessible in true-result via select",
+      "expr": "('ctx').iif(true, select($this), 'fallback')",
+      "input": null,
+      "expect": ["ctx"]
+    },
+    {
+      "group": "context input",
+      "name": "$this accessible in otherwise-result via select",
+      "expr": "('ctx').iif(false, 'never', select($this))",
+      "input": null,
+      "expect": ["ctx"]
+    },
+    {
+      "group": "with JSON input",
+      "name": "criterion from input field - true case",
+      "expr": "iif(active, 'active', 'inactive')",
+      "input": {"active": true},
+      "expect": ["active"]
+    },
+    {
+      "group": "with JSON input",
+      "name": "criterion from input field - false case",
+      "expr": "iif(active, 'active', 'inactive')",
+      "input": {"active": false},
+      "expect": ["inactive"]
+    },
+    {
+      "group": "with JSON input",
+      "name": "criterion from missing field (empty)",
+      "expr": "iif(missing, 'found', 'not-found')",
+      "input": {"other": 1},
+      "expect": ["not-found"]
+    },
+    {
+      "group": "with JSON input",
+      "name": "use exists() in criterion",
+      "expr": "iif(name.exists(), 'has-name', 'no-name')",
+      "input": {"name": "Alice"},
+      "expect": ["has-name"]
+    },
+    {
+      "group": "with JSON input",
+      "name": "use empty() in criterion",
+      "expr": "iif(name.empty(), 'no-name', 'has-name')",
+      "input": {"name": "Alice"},
+      "expect": ["has-name"]
+    },
+    {
+      "group": "nested iif",
+      "name": "nested iif in otherwise branch",
+      "expr": "iif(false, 'first', iif(true, 'second', 'third'))",
+      "input": null,
+      "expect": ["second"]
+    },
+    {
+      "group": "nested iif",
+      "name": "nested iif in true-result branch",
+      "expr": "iif(true, iif(false, 'a', 'b'), 'c')",
+      "input": null,
+      "expect": ["b"]
+    },
+    {
+      "group": "nested iif",
+      "name": "chained iif for multiple conditions",
+      "expr": "iif(false, 1, iif(false, 2, iif(true, 3, 4)))",
+      "input": null,
+      "expect": [3]
+    },
+    {
+      "group": "error cases",
+      "name": "multi-item collection criterion is error",
+      "expr": "iif(1 | 2 | 3, 'yes', 'no')",
+      "input": null,
+      "expect_error": true
+    },
+    {
+      "group": "error cases",
+      "name": "non-boolean criterion (string) is error",
+      "expr": "iif('string', 'yes', 'no')",
+      "input": null,
+      "expect_error": true
+    },
+    {
+      "group": "error cases",
+      "name": "non-boolean criterion (integer) is error",
+      "expr": "iif(42, 'yes', 'no')",
+      "input": null,
+      "expect_error": true
+    },
+    {
+      "group": "error cases",
+      "name": "multi-item input when using iif as method is error",
+      "expr": "('a' | 'b').iif(true, 'yes', 'no')",
+      "input": null,
+      "expect_error": true
+    }
+  ]
+}

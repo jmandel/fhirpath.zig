@@ -14,5 +14,6 @@ Context:
 - Blockers are managed via wiggum/scripts/blockers.py (do not hand-edit the blockers file).
 - If choose_mode selects TACKLE_BLOCKER, it will print a Blocker slug; use the blockers script to show/update/resolve it.
 - Git commits must include a detailed body (not just a one-line subject). Use subject + blank line + bullet list of changes/tests.
+- In any mode, if you discover an urgent external blocker, add it via the blockers script with an excellent bug-report style description (clear steps, rationale, pointers).
 
 RECENT ONE-LINE LOGS (most recent last, up to 1000):

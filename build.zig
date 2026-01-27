@@ -89,6 +89,7 @@ pub fn build(b: *std.Build) void {
     b.installArtifact(bench);
 
     const run_bench = b.addRunArtifact(bench);
+    if (b.args) |args| run_bench.addArgs(args);
     b.step("bench", "Run performance benchmarks").dependOn(&run_bench.step);
 
     // Adapter verification test

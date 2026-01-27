@@ -1,13 +1,14 @@
 {
   "meta": {
-    "status": "drafted",
+    "status": "reviewed",
     "feature": "existence",
-    "source": "spec/index.adoc#Existence"
+    "source": "spec/index.md#Existence"
   },
   "spec": {
     "summary": [
       "empty() returns true when the input collection has no items; otherwise false.",
       "exists() returns true when the input collection has any items; otherwise false.",
+      "exists() is the opposite of empty() and is shorthand for empty().not().",
       "exists(criteria) is shorthand for where(criteria).exists()."
     ],
     "examples": [

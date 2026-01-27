@@ -23,7 +23,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "5"
+          "value": 5
         }
       ]
     },
@@ -34,7 +34,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "5"
+          "value": 5
         }
       ]
     },
@@ -45,7 +45,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "0"
+          "value": 0
         }
       ]
     },
@@ -56,7 +56,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": "5.5"
+          "value": 5.5
         }
       ]
     },
@@ -67,7 +67,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": "5.5"
+          "value": 5.5
         }
       ]
     },
@@ -84,7 +84,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "1"
+          "value": 1
         }
       ]
     },
@@ -95,7 +95,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "2"
+          "value": 2
         }
       ]
     },
@@ -106,7 +106,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "-1"
+          "value": -1
         }
       ]
     },
@@ -117,7 +117,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "2"
+          "value": 2
         }
       ]
     },
@@ -134,7 +134,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "1"
+          "value": 1
         }
       ]
     },
@@ -145,7 +145,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "2"
+          "value": 2
         }
       ]
     },
@@ -156,7 +156,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "-3"
+          "value": -3
         }
       ]
     },
@@ -167,7 +167,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "2"
+          "value": 2
         }
       ]
     },
@@ -184,7 +184,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "101"
+          "value": 101
         }
       ]
     },
@@ -195,7 +195,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "1"
+          "value": 1
         }
       ]
     },
@@ -206,7 +206,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "-1"
+          "value": -1
         }
       ]
     },
@@ -217,7 +217,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "99"
+          "value": 99
         }
       ]
     },
@@ -234,7 +234,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "1"
+          "value": 1
         }
       ]
     },
@@ -245,7 +245,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "4"
+          "value": 4
         }
       ]
     },
@@ -256,7 +256,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "3"
+          "value": 3
         }
       ]
     },
@@ -267,7 +267,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "-4"
+          "value": -4
         }
       ]
     },
@@ -278,7 +278,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": "3.142"
+          "value": 3.142
         }
       ]
     },
@@ -289,7 +289,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": "0.67"
+          "value": 0.67
         }
       ]
     },
@@ -306,7 +306,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": "1.0"
+          "value": 1.0
         }
       ]
     },
@@ -317,7 +317,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": "1.0"
+          "value": 1.0
         }
       ]
     },
@@ -334,7 +334,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": "0.0"
+          "value": 0.0
         }
       ]
     },
@@ -345,7 +345,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": "0.0"
+          "value": 0.0
         }
       ]
     },
@@ -362,7 +362,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": "4.0"
+          "value": 4.0
         }
       ]
     },
@@ -373,7 +373,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": "2.0"
+          "value": 2.0
         }
       ]
     },
@@ -402,7 +402,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": "9.0"
+          "value": 9.0
         }
       ]
     },
@@ -413,7 +413,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": "2.0"
+          "value": 2.0
         }
       ]
     },
@@ -436,7 +436,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "8"
+          "value": 8
         }
       ]
     },
@@ -447,7 +447,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": "6.25"
+          "value": 6.25
         }
       ]
     },

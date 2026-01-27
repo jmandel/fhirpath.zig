@@ -90,7 +90,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "345"
+          "value": 345
         }
       ]
     },
@@ -182,7 +182,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "3"
+          "value": 3
         }
       ]
     },

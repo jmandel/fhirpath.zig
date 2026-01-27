@@ -8,8 +8,8 @@
     "  - NO expectation of order in result - implementations may return any order",
     "  - Returns distinct list of elements from both inputs",
     "  - Can also be invoked using the | operator: x.union(y) is synonymous with x | y",
-    "  - A.union(B) where A:1,1,2,3 and B:2,3 → 1,2,3 (any order)",
-    "  - A.union({}) → distinct elements of A",
+    "  - A.union(B) where A:1,1,2,3 and B:2,3 \u2192 1,2,3 (any order)",
+    "  - A.union({}) \u2192 distinct elements of A",
     "  - union does NOT introduce iteration context (unlike select/where)",
     "",
     "=== COMBINE ===",
@@ -18,43 +18,43 @@
     "  - When preserveOrder is false/absent: NO order guarantee (STU)",
     "  - When preserveOrder is true: other is appended to input, order preserved (STU)",
     "  - Combining empty with non-empty returns non-empty",
-    "  - A.combine(B) where A:1,1,2,3 and B:2,3 → 1,1,2,3,2,3 (order not guaranteed)",
-    "  - A.combine(B, true) → 1,1,2,3,2,3 (order preserved)",
-    "  - A.combine({}) → 1,1,2,3 (unchanged)",
+    "  - A.combine(B) where A:1,1,2,3 and B:2,3 \u2192 1,1,2,3,2,3 (order not guaranteed)",
+    "  - A.combine(B, true) \u2192 1,1,2,3,2,3 (order preserved)",
+    "  - A.combine({}) \u2192 1,1,2,3 (unchanged)",
     "",
     "=== INTERSECT ===",
     "intersect(other: collection) : collection",
     "  - Returns elements that are in BOTH collections using equals (=)",
     "  - Duplicates ARE eliminated (result is always distinct)",
     "  - Order NOT guaranteed",
-    "  - Empty collection intersected with anything → empty",
-    "  - Disjoint collections → empty",
+    "  - Empty collection intersected with anything \u2192 empty",
+    "  - Disjoint collections \u2192 empty",
     "",
     "=== EXCLUDE ===",
     "exclude(other: collection) : collection",
     "  - Returns elements NOT in other collection using equals (=)",
     "  - Duplicates are NOT eliminated (preserves duplicates in input)",
     "  - Order IS preserved (unlike union/intersect)",
-    "  - (1|2|3).exclude(2) → (1|3) with order preserved",
-    "  - Empty exclusion set → returns original collection unchanged",
-    "  - Excluding from empty collection → empty",
+    "  - (1|2|3).exclude(2) \u2192 (1|3) with order preserved",
+    "  - Empty exclusion set \u2192 returns original collection unchanged",
+    "  - Excluding from empty collection \u2192 empty",
     "",
     "=== EQUALITY SEMANTICS ===",
     "All functions use equals (=) for comparison, NOT equivalence (~):",
-    "  - Integer 2 = Decimal 2.0 → true (implicit conversion)",
-    "  - Decimal trailing zeros ignored: 1.0 = 1.00 → true",
+    "  - Integer 2 = Decimal 2.0 \u2192 true (implicit conversion)",
+    "  - Decimal trailing zeros ignored: 1.0 = 1.00 \u2192 true",
     "  - String comparison based on Unicode values",
     "  - Complex types: all child properties must equal recursively",
     "",
     "=== EMPTY COLLECTION BEHAVIOR ===",
-    "  - union({}) → distinct elements of non-empty operand",
-    "  - {}.union(A) → distinct elements of A",
-    "  - combine({}) → returns non-empty operand unchanged",
-    "  - {}.combine(A) → returns A unchanged",
-    "  - intersect({}) → empty",
-    "  - {}.intersect(A) → empty",
-    "  - exclude({}) → returns original unchanged",
-    "  - {}.exclude(A) → empty"
+    "  - union({}) \u2192 distinct elements of non-empty operand",
+    "  - {}.union(A) \u2192 distinct elements of A",
+    "  - combine({}) \u2192 returns non-empty operand unchanged",
+    "  - {}.combine(A) \u2192 returns A unchanged",
+    "  - intersect({}) \u2192 empty",
+    "  - {}.intersect(A) \u2192 empty",
+    "  - exclude({}) \u2192 returns original unchanged",
+    "  - {}.exclude(A) \u2192 empty"
   ],
   "_todo": [
     "[ ] Improve passing rate (0/55 passing) - blocked by parser (| operator) and missing function implementations",
@@ -82,7 +82,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "4"
+          "value": 4
         }
       ]
     },
@@ -93,7 +93,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "4"
+          "value": 4
         }
       ]
     },
@@ -104,7 +104,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "2"
+          "value": 2
         }
       ]
     },
@@ -115,7 +115,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "2"
+          "value": 2
         }
       ]
     },
@@ -126,7 +126,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "2"
+          "value": 2
         }
       ]
     },
@@ -137,7 +137,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "0"
+          "value": 0
         }
       ]
     },
@@ -148,7 +148,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "2"
+          "value": 2
         }
       ]
     },
@@ -159,7 +159,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "1"
+          "value": 1
         }
       ]
     },
@@ -170,7 +170,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "3"
+          "value": 3
         }
       ]
     },
@@ -181,7 +181,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "3"
+          "value": 3
         }
       ]
     },
@@ -192,7 +192,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "3"
+          "value": 3
         }
       ]
     },
@@ -203,7 +203,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "2"
+          "value": 2
         }
       ]
     },
@@ -232,7 +232,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "4"
+          "value": 4
         }
       ]
     },
@@ -243,7 +243,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "6"
+          "value": 6
         }
       ]
     },
@@ -254,7 +254,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "4"
+          "value": 4
         }
       ]
     },
@@ -265,7 +265,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "2"
+          "value": 2
         }
       ]
     },
@@ -276,7 +276,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "2"
+          "value": 2
         }
       ]
     },
@@ -287,7 +287,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "0"
+          "value": 0
         }
       ]
     },
@@ -298,7 +298,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "2"
+          "value": 2
         }
       ]
     },
@@ -309,7 +309,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "2"
+          "value": 2
         }
       ]
     },
@@ -320,7 +320,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "4"
+          "value": 4
         }
       ]
     },
@@ -334,7 +334,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "2"
+          "value": 2
         }
       ],
       "_note": "combine creates [1,1], union with 2 deduplicates to [1,2]"
@@ -346,10 +346,10 @@
       "expect": [
         {
           "type": "integer",
-          "value": "3"
+          "value": 3
         }
       ],
-      "_note": "| creates [1,2], combine adds another 2 → [1,2,2]"
+      "_note": "| creates [1,2], combine adds another 2 \u2192 [1,2,2]"
     },
     {
       "_section": "=== INTERSECT BASIC ==="
@@ -361,7 +361,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "2"
+          "value": 2
         }
       ],
       "_note": "Common elements are 2 and 3"
@@ -384,7 +384,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "3"
+          "value": 3
         }
       ]
     },
@@ -428,7 +428,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "2"
+          "value": 2
         }
       ]
     },
@@ -439,7 +439,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "1"
+          "value": 1
         }
       ],
       "_note": "combine creates [1,1], intersect with 1 yields [1] (deduplicated)"
@@ -454,7 +454,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "2"
+          "value": 2
         }
       ]
     },
@@ -465,7 +465,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "2"
+          "value": 2
         }
       ],
       "_note": "Removes 2, 4 not present so ignored"
@@ -532,7 +532,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "2"
+          "value": 2
         }
       ],
       "_note": "combine creates [1,1], exclude 2 keeps both 1s"
@@ -544,7 +544,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "2"
+          "value": 2
         }
       ]
     },
@@ -567,7 +567,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "3"
+          "value": 3
         }
       ]
     },
@@ -587,7 +587,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "4"
+          "value": 4
         }
       ]
     },
@@ -609,7 +609,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "2"
+          "value": 2
         }
       ]
     },
@@ -629,7 +629,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "2"
+          "value": 2
         }
       ]
     },
@@ -655,7 +655,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "2"
+          "value": 2
         }
       ],
       "_note": "combine gives [1,2,2,3], exclude 2 gives [1,3]"
@@ -681,7 +681,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "2"
+          "value": 2
         }
       ],
       "_note": "union gives [1,2,3,4], intersect with [2,3,5] gives [2,3]"
@@ -706,7 +706,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "3"
+          "value": 3
         }
       ],
       "_note": "exclude gives [1,3], union with [3,4] gives [1,3,4]"
@@ -721,7 +721,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "3"
+          "value": 3
         }
       ],
       "_note": "2.0 should equal 2.0 and be deduplicated"
@@ -733,7 +733,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "1"
+          "value": 1
         }
       ],
       "_note": "2 = 2.0 per FHIRPath equality, so intersection has 1 element"
@@ -767,7 +767,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "4"
+          "value": 4
         }
       ],
       "_note": "Flattens to [1,2,3] union [2,4] = [1,2,3,4]"
@@ -788,7 +788,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "4"
+          "value": 4
         }
       ],
       "_note": "Per spec: when preserveOrder is false/absent, no order guarantee. Test count instead."
@@ -803,7 +803,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "5"
+          "value": 5
         }
       ],
       "_note": "Per spec: no expectation of order. Test count to verify deduplication."

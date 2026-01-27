@@ -367,7 +367,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "1"
+          "value": 1
         }
       ]
     },
@@ -384,7 +384,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": "1.0"
+          "value": 1.0
         }
       ]
     },
@@ -429,7 +429,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "1"
+          "value": 1
         }
       ]
     },
@@ -468,11 +468,11 @@
       "expect": [
         {
           "type": "integer",
-          "value": "1"
+          "value": 1
         },
         {
           "type": "integer",
-          "value": "2"
+          "value": 2
         }
       ],
       "note": "ofType filters collection to only items of specified type"
@@ -511,11 +511,11 @@
       "expect": [
         {
           "type": "integer",
-          "value": "1"
+          "value": 1
         },
         {
           "type": "integer",
-          "value": "2"
+          "value": 2
         }
       ]
     },
@@ -545,7 +545,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "1"
+          "value": 1
         }
       ]
     },

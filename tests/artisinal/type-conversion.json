@@ -445,7 +445,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "42"
+          "value": 42
         }
       ]
     },
@@ -456,7 +456,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "-17"
+          "value": -17
         }
       ]
     },
@@ -467,7 +467,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "5"
+          "value": 5
         }
       ]
     },
@@ -478,7 +478,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "0"
+          "value": 0
         }
       ]
     },
@@ -501,7 +501,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "42"
+          "value": 42
         }
       ]
     },
@@ -512,7 +512,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "1"
+          "value": 1
         }
       ]
     },
@@ -523,7 +523,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "0"
+          "value": 0
         }
       ]
     },
@@ -601,7 +601,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": "3.14"
+          "value": 3.14
         }
       ]
     },
@@ -612,7 +612,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": "-0.5"
+          "value": -0.5
         }
       ]
     },
@@ -623,7 +623,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "42"
+          "value": 42
         }
       ]
     },
@@ -646,7 +646,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": "42.0"
+          "value": 42.0
         }
       ]
     },
@@ -657,7 +657,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": "3.14"
+          "value": 3.14
         }
       ]
     },
@@ -668,7 +668,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": "1.0"
+          "value": 1.0
         }
       ]
     },
@@ -679,7 +679,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": "0.0"
+          "value": 0.0
         }
       ]
     },
@@ -746,7 +746,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "42"
+          "value": 42
         }
       ]
     },
@@ -757,7 +757,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "-1"
+          "value": -1
         }
       ],
       "skip": "Parser: parenthesized expressions not supported"
@@ -769,7 +769,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": "3.14"
+          "value": 3.14
         }
       ]
     },
@@ -780,7 +780,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": "1.0"
+          "value": 1.0
         }
       ]
     },

@@ -121,15 +121,15 @@
       "expect": [
         {
           "type": "integer",
-          "value": "0"
+          "value": 0
         },
         {
           "type": "integer",
-          "value": "1"
+          "value": 1
         },
         {
           "type": "integer",
-          "value": "2"
+          "value": 2
         }
       ]
     },

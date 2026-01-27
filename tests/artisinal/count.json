@@ -28,7 +28,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "0"
+          "value": 0
         }
       ]
     },
@@ -41,7 +41,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "0"
+          "value": 0
         }
       ]
     },
@@ -54,7 +54,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "1"
+          "value": 1
         }
       ]
     },
@@ -71,7 +71,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "3"
+          "value": 3
         }
       ]
     },
@@ -96,7 +96,7 @@
       "expect": [
         {
           "type": "integer",
-          "value": "3"
+          "value": 3
         }
       ]
     }

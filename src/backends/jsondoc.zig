@@ -7,80 +7,20 @@
 //! - Arena-based allocation for predictable memory
 
 const std = @import("std");
-
-/// Node kinds that any adapter must support
-pub const Kind = enum {
-    object,
-    array,
-    string,
-    number,
-    bool,
-    null,
-};
-
-/// Span into the original input buffer (for zero-copy results)
-pub const Span = struct {
-    pos: u32,
-    end: u32,
-};
-
-/// JsonDoc types from parent
-pub const NodeIndex = u32;
-
-pub const NodeKind = enum {
-    object,
-    array,
-    string,
-    number,
-    bool,
-    null,
-};
-
-pub const Field = struct {
-    key: []const u8,
-    value: NodeIndex,
-};
-
-pub const Node = struct {
-    kind: NodeKind,
-    start: u32,
-    end: u32,
-    data: Data,
-
-    pub const Data = union(NodeKind) {
-        object: []Field,
-        array: []NodeIndex,
-        string: []const u8,
-        number: []const u8,
-        bool: bool,
-        null: void,
-    };
-};
-
-pub const JsonDoc = struct {
-    nodes: std.ArrayListUnmanaged(Node),
-    text: []const u8,
-    root: NodeIndex,
-    
-    pub fn node(self: *JsonDoc, idx: NodeIndex) *Node {
-        return &self.nodes.items[idx];
-    }
-};
+const jsondoc = @import("../jsondoc.zig");
+const node = @import("../node.zig");
 
 /// Object field entry for iteration
-pub fn ObjectEntry(comptime NodeRef: type) type {
-    return struct {
-        key: []const u8,
-        value: NodeRef,
-    };
-}
+pub const ObjectEntry = node.ObjectEntry(NodeIndex);
+
+pub const NodeIndex = jsondoc.NodeIndex;
 
 pub const JsonDocAdapter = struct {
-    doc: *JsonDoc,
+    doc: *jsondoc.JsonDoc,
 
     pub const NodeRef = NodeIndex;
 
-    pub fn init(doc: *JsonDoc) JsonDocAdapter {
+    pub fn init(doc: *jsondoc.JsonDoc) JsonDocAdapter {
         return .{ .doc = doc };
     }
 
@@ -88,7 +28,7 @@ pub const JsonDocAdapter = struct {
         return self.doc.root;
     }
 
-    pub fn kind(self: *JsonDocAdapter, ref: NodeRef) Kind {
+    pub fn kind(self: *JsonDocAdapter, ref: NodeRef) node.Kind {
         const n = self.doc.node(ref);
         return switch (n.kind) {
             .object => .object,
@@ -118,10 +58,10 @@ pub const JsonDocAdapter = struct {
     }
 
     pub const ObjectIter = struct {
-        fields: []const Field,
+        fields: []const jsondoc.Field,
         index: usize,
 
-        pub fn next(self: *ObjectIter) ?ObjectEntry(NodeRef) {
+        pub fn next(self: *ObjectIter) ?ObjectEntry {
             if (self.index >= self.fields.len) return null;
             const f = self.fields[self.index];
             self.index += 1;
@@ -131,7 +71,7 @@ pub const JsonDocAdapter = struct {
 
     pub fn objectIter(self: *JsonDocAdapter, ref: NodeRef) ObjectIter {
         const n = self.doc.node(ref);
-        if (n.kind != .object) return .{ .fields = &[_]Field{}, .index = 0 };
+        if (n.kind != .object) return .{ .fields = &[_]jsondoc.Field{}, .index = 0 };
         return .{ .fields = n.data.object, .index = 0 };
     }
 
@@ -162,7 +102,7 @@ pub const JsonDocAdapter = struct {
     }
 
     // Optional: span support for zero-copy JSON slices
-    pub fn span(self: *JsonDocAdapter, ref: NodeRef) Span {
+    pub fn span(self: *JsonDocAdapter, ref: NodeRef) node.Span {
         const n = self.doc.node(ref);
         return .{ .pos = n.start, .end = n.end };
     }
@@ -173,3 +113,8 @@ pub const JsonDocAdapter = struct {
         return self.doc.text[n.start..n.end];
     }
 };
+
+// Verify JsonDocAdapter conforms to NodeAdapter interface
+comptime {
+    node.requireAdapter(JsonDocAdapter);
+}

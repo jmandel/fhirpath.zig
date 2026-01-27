@@ -42,20 +42,15 @@ pub fn requireAdapter(comptime A: type) void {
             @compileError("NodeAdapter must declare NodeRef type");
         }
 
-        // Must have document root accessor
-        if (!@hasDecl(A, "root")) {
-            @compileError("NodeAdapter must have root() method");
-        }
-
         // Core navigation methods
-        inline for (.{ "kind", "objectGet", "objectCount", "arrayLen", "arrayAt" }) |name| {
+        for (.{ "kind", "objectGet", "objectCount", "arrayLen", "arrayAt" }) |name| {
             if (!@hasDecl(A, name)) {
                 @compileError("NodeAdapter missing navigation method: " ++ name);
             }
         }
 
         // Scalar accessors
-        inline for (.{ "string", "numberText", "boolean" }) |name| {
+        for (.{ "string", "numberText", "boolean" }) |name| {
             if (!@hasDecl(A, name)) {
                 @compileError("NodeAdapter missing scalar accessor: " ++ name);
             }
@@ -69,6 +64,11 @@ pub fn requireAdapter(comptime A: type) void {
             @compileError("NodeAdapter must have objectIter() method");
         }
     }
+}
+
+/// Check if adapter has a root() method (optional - StdJsonAdapter doesn't need it)
+pub fn hasRootMethod(comptime A: type) bool {
+    return @hasDecl(A, "root");
 }
 
 /// Check if adapter supports span access (optional capability)

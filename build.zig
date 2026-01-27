@@ -76,4 +76,18 @@ pub fn build(b: *std.Build) void {
     if (b.args) |args| run_build_model.addArgs(args);
     b.step("build-model", "Build schema model from FHIR StructureDefinitions").dependOn(&run_build_model.step);
 
+    // Benchmark executable
+    const bench_module = b.createModule(.{
+        .root_source_file = b.path("src/bench.zig"),
+        .target = target,
+        .optimize = .ReleaseFast,
+    });
+    const bench = b.addExecutable(.{
+        .name = "bench",
+        .root_module = bench_module,
+    });
+    b.installArtifact(bench);
+
+    const run_bench = b.addRunArtifact(bench);
+    b.step("bench", "Run performance benchmarks").dependOn(&run_bench.step);
 }

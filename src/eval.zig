@@ -450,6 +450,53 @@ fn evalFunction(
         if (exp_opt == null) return ItemList.empty; // empty exponent yields empty
         return evalPower(ctx, input[0], exp_opt.?);
     }
+    // iif(criterion, true-result [, otherwise-result])
+    if (std.mem.eql(u8, call.name, "iif")) {
+        if (call.args.len < 2 or call.args.len > 3) return error.InvalidFunction;
+        // When called as method, input must be singleton or empty
+        if (input.len > 1) return error.SingletonRequired;
+        
+        // Context item for evaluating arguments (use first input item, or empty context)
+        const context_item: item.Item = if (input.len > 0) input[0] else item.Item{
+            .data_kind = .none,
+            .value_kind = .empty,
+            .type_id = 0,
+            .source_pos = 0,
+            .source_end = 0,
+            .data_pos = 0,
+            .data_end = 0,
+            .node = null,
+            .value = .{ .empty = {} },
+        };
+        
+        // Evaluate criterion
+        var criterion_result = try evalExpressionCtx(ctx, call.args[0], context_item, env, null);
+        defer criterion_result.deinit(ctx.allocator);
+        
+        // Criterion must be empty, singleton boolean, or error
+        if (criterion_result.items.len > 1) return error.SingletonRequired;
+        
+        var criterion_is_true = false;
+        if (criterion_result.items.len == 1) {
+            const crit_item = criterion_result.items[0];
+            if (!itemIsBool(ctx, crit_item)) return error.InvalidPredicate; // non-boolean criterion
+            criterion_is_true = itemBoolValue(ctx, crit_item);
+        }
+        // Empty criterion is treated as false
+        
+        // Short-circuit evaluation: only evaluate the appropriate branch
+        if (criterion_is_true) {
+            // Evaluate and return true-result
+            return evalExpressionCtx(ctx, call.args[1], context_item, env, null);
+        } else {
+            // Evaluate and return otherwise-result (or empty if not provided)
+            if (call.args.len == 3) {
+                return evalExpressionCtx(ctx, call.args[2], context_item, env, null);
+            } else {
+                return ItemList.empty;
+            }
+        }
+    }
     return error.InvalidFunction;
 }
 

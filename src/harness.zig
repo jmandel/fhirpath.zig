@@ -50,11 +50,17 @@ pub fn main() !void {
         const input_val = obj.get("input") orelse std.json.Value{ .null = {} };
         const env_val = obj.get("env");
         const expect_val = obj.get("expect");
+        const expect_error_val = obj.get("expect_error");
+        const expects_error = expect_error_val != null and expect_error_val.? == .bool and expect_error_val.?.bool == true;
         var empty_items = [_]std.json.Value{};
         const empty_expect: []const std.json.Value = empty_items[0..];
         var expect_items = empty_expect;
 
         const expr = lib.parseExpression(allocator, expr_val.string) catch {
+            if (expects_error) {
+                // Parse error is acceptable when we expect an error
+                continue;
+            }
             try reportCase(name, expr_val.string, "parse error", null, null);
             failures += 1;
             continue;
@@ -115,11 +121,22 @@ pub fn main() !void {
 
         var ctx = eval.EvalContext{ .allocator = allocator, .doc = &doc, .types = &types, .schema = null };
         var result = eval.evalExpression(&ctx, expr, root_idx, env_ptr) catch {
+            if (expects_error) {
+                // Eval error is expected
+                continue;
+            }
             try reportCase(name, expr_val.string, "eval error", null, null);
             failures += 1;
             continue;
         };
         defer result.deinit(allocator);
+
+        // If we expected an error but succeeded, that's a failure
+        if (expects_error) {
+            try reportCase(name, expr_val.string, "expected error but evaluation succeeded", null, null);
+            failures += 1;
+            continue;
+        }
 
         if (expect_val) |ev| {
             if (ev != .array) {

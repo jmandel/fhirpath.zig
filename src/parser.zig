@@ -194,7 +194,13 @@ pub const Parser = struct {
             }
         } else {
             const name = try self.parseIdentifierName();
-            try steps.append(self.allocator, .{ .Property = name });
+            // Check if this is a standalone function call (identifier followed by '(')
+            if (self.current.kind == .LParen) {
+                const call = try self.parseFunctionCall(name);
+                try steps.append(self.allocator, .{ .Function = call });
+            } else {
+                try steps.append(self.allocator, .{ .Property = name });
+            }
         }
 
         while (true) {

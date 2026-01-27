@@ -897,6 +897,43 @@ fn evalFunction(
         try out.append(ctx.allocator, makeBoolItem(ctx, !itemBoolValue(ctx, input[0])));
         return out;
     }
+    if (std.mem.eql(u8, call.name, "is")) {
+        if (call.args.len != 1) return error.InvalidFunction;
+        const type_name = try typeNameFromExpr(ctx, call.args[0]);
+        defer ctx.allocator.free(type_name);
+        var out = ItemList.empty;
+        if (input.len == 0) {
+            try out.append(ctx.allocator, makeBoolItem(ctx, false));
+            return out;
+        }
+        if (input.len != 1) return error.SingletonRequired;
+        try out.append(ctx.allocator, makeBoolItem(ctx, itemIsType(ctx, input[0], type_name)));
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "as")) {
+        if (call.args.len != 1) return error.InvalidFunction;
+        const type_name = try typeNameFromExpr(ctx, call.args[0]);
+        defer ctx.allocator.free(type_name);
+        var out = ItemList.empty;
+        if (input.len == 0) return out;
+        if (input.len != 1) return error.SingletonRequired;
+        if (itemIsType(ctx, input[0], type_name)) {
+            try out.append(ctx.allocator, input[0]);
+        }
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "ofType")) {
+        if (call.args.len != 1) return error.InvalidFunction;
+        const type_name = try typeNameFromExpr(ctx, call.args[0]);
+        defer ctx.allocator.free(type_name);
+        var out = ItemList.empty;
+        for (input) |it| {
+            if (itemIsType(ctx, it, type_name)) {
+                try out.append(ctx.allocator, it);
+            }
+        }
+        return out;
+    }
     if (std.mem.eql(u8, call.name, "distinct")) {
         return distinctItems(ctx, input);
     }
@@ -1362,6 +1399,34 @@ fn parseIntegerArg(call: ast.FunctionCall) EvalError!i64 {
     return integerLiteral(call.args[0]) orelse error.InvalidFunction;
 }
 
+fn typeNameFromExpr(ctx: *EvalContext, expr: ast.Expr) EvalError![]const u8 {
+    switch (expr) {
+        .Path => |p| {
+            if (p.root != .This) return error.InvalidFunction;
+            var out = std.ArrayList(u8).empty;
+            errdefer out.deinit(ctx.allocator);
+            var wrote = false;
+            for (p.steps) |step| {
+                switch (step) {
+                    .Property => |name| {
+                        if (wrote) try out.append(ctx.allocator, '.');
+                        try out.appendSlice(ctx.allocator, name);
+                        wrote = true;
+                    },
+                    else => return error.InvalidFunction,
+                }
+            }
+            if (!wrote) return error.InvalidFunction;
+            return out.toOwnedSlice(ctx.allocator);
+        },
+        .Literal => |lit| switch (lit) {
+            .String => |s| return ctx.allocator.dupe(u8, s),
+            else => return error.InvalidFunction,
+        },
+        else => return error.InvalidFunction,
+    }
+}
+
 fn itemStringValue(ctx: *EvalContext, it: item.Item) ?[]const u8 {
     const val = itemToValue(ctx, it);
     return switch (val) {
@@ -1593,6 +1658,7 @@ fn literalToItem(ctx: *EvalContext, lit: ast.Literal) item.Item {
         .Bool => |b| makeBoolItem(ctx, b),
         .String => |s| makeStringItem(ctx, s),
         .Number => |n| makeNumberItem(ctx, n),
+        .Quantity => |q| makeQuantityItem(ctx, q.value, q.unit),
         .Date => |d| makeDateItem(ctx, d),
         .DateTime => |d| makeDateTimeItem(ctx, d),
         .Time => |t| makeTimeItem(ctx, t),
@@ -1744,6 +1810,21 @@ fn makeTimeItem(ctx: *EvalContext, s: []const u8) item.Item {
         .data_end = 0,
         .node = null,
         .value = .{ .time = s },
+    };
+}
+
+fn makeQuantityItem(ctx: *EvalContext, value: []const u8, unit: []const u8) item.Item {
+    const type_id = ctx.types.getOrAdd("System.Quantity") catch 0;
+    return .{
+        .data_kind = .value,
+        .value_kind = .quantity,
+        .type_id = type_id,
+        .source_pos = 0,
+        .source_end = 0,
+        .data_pos = 0,
+        .data_end = 0,
+        .node = null,
+        .value = .{ .quantity = .{ .value = value, .unit = unit } },
     };
 }
 

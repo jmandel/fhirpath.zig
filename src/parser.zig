@@ -19,9 +19,9 @@ const Precedence = enum(u8) {
     and_ = 3,        // and
     membership = 4,  // in, contains
     equality = 5,    // =, ~, !=, !~
-    comparison = 6,  // <, <=, >, >=
-    union_ = 7,      // |
-    type_ = 8,       // is, as
+    type_ = 6,       // is, as
+    comparison = 7,  // <, <=, >, >=
+    union_ = 8,      // |
     additive = 9,    // +, -, &
     multiplicative = 10, // *, /, div, mod
     unary = 11,      // unary +, -
@@ -188,6 +188,11 @@ pub const Parser = struct {
             .Number => {
                 const value = try self.allocator.dupe(u8, self.current.lexeme);
                 _ = try self.advance();
+                if (self.current.kind == .String) {
+                    const unit = try self.unescapeString(self.current.lexeme);
+                    _ = try self.advance();
+                    return self.parseTailSteps(.{ .Literal = .{ .Quantity = .{ .value = value, .unit = unit } } });
+                }
                 return self.parseTailSteps(.{ .Literal = .{ .Number = value } });
             },
             .Date => {

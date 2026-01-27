@@ -42,7 +42,7 @@
     }
   },
   "_todo": [
-    "[ ] Improve passing rate (0/62 passing)",
+    "[x] Improve passing rate (62/62 passing)",
     "[ ] Test with FHIR model types once model is loaded",
     "[ ] Test error cases: multiple items in input collection for is/as",
     "[ ] Test unresolvable type identifiers (should error)",
@@ -704,7 +704,7 @@
       "input": {},
       "expect": [
         {
-          "type": "unknown",
+          "type": "Quantity",
           "value": {
             "value": 10,
             "unit": "mg"
@@ -726,7 +726,7 @@
       "input": {},
       "expect": [
         {
-          "type": "unknown",
+          "type": "Quantity",
           "value": {
             "value": 10,
             "unit": "mg"

@@ -242,6 +242,13 @@ pub const Lexer = struct {
     fn consumeDateTimeRun(self: *Lexer) void {
         while (self.index < self.input.len) {
             const c = self.input[self.index];
+            if (c == '.') {
+                if (self.index + 1 < self.input.len and isDigit(self.input[self.index + 1])) {
+                    self.index += 1;
+                    continue;
+                }
+                break;
+            }
             if (isDateTimeChar(c)) {
                 self.index += 1;
                 continue;
@@ -308,5 +315,5 @@ fn isIdentContinue(c: u8) bool {
 }
 
 fn isDateTimeChar(c: u8) bool {
-    return isDigit(c) or c == '-' or c == ':' or c == '.' or c == 'Z' or c == '+';
+    return isDigit(c) or c == '-' or c == ':' or c == 'Z' or c == '+';
 }

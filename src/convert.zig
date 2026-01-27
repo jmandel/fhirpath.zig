@@ -27,8 +27,10 @@ fn valueToJson(allocator: std.mem.Allocator, v: item.Value) !std.json.Value {
         .time => |s| std.json.Value{ .string = s },
         .dateTime => |s| std.json.Value{ .string = s },
         .quantity => |q| blk: {
-            _ = allocator;
-            break :blk std.json.Value{ .string = q.value };
+            var obj = std.json.ObjectMap.init(allocator);
+            try obj.put("value", parseNumber(q.value));
+            try obj.put("unit", .{ .string = q.unit });
+            break :blk std.json.Value{ .object = obj };
         },
     };
 }
@@ -86,8 +88,7 @@ pub fn itemToTypedJsonValue(
     var obj = std.json.ObjectMap.init(allocator);
     
     // Add type
-    const type_copy = try allocator.dupe(u8, type_name);
-    try obj.put("type", .{ .string = type_copy });
+    try obj.put("type", .{ .string = type_name });
     
     // Add value
     const val = try itemToJsonValue(allocator, doc, it);

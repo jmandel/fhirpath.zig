@@ -109,9 +109,15 @@ pub const Literal = union(enum) {
     Bool: bool,
     String: []const u8,
     Number: []const u8,
+    Quantity: QuantityLiteral,
     Date: []const u8,
     DateTime: []const u8,
     Time: []const u8,
+};
+
+pub const QuantityLiteral = struct {
+    value: []const u8,
+    unit: []const u8,
 };
 
 pub fn formatExpr(expr: Expr, writer: anytype) !void {
@@ -132,6 +138,7 @@ pub fn formatExpr(expr: Expr, writer: anytype) !void {
                         .Bool => |b| try writer.print("{}", .{b}),
                         .String => |s| try writer.print("'{s}'", .{s}),
                         .Number => |n| try writer.print("{s}", .{n}),
+                        .Quantity => |q| try writer.print("{s} '{s}'", .{ q.value, q.unit }),
                         .Date => |d| try writer.print("@{s}", .{d}),
                         .DateTime => |d| try writer.print("@{s}", .{d}),
                         .Time => |t| try writer.print("@T{s}", .{t}),
@@ -200,6 +207,7 @@ pub fn formatExpr(expr: Expr, writer: anytype) !void {
                 .Bool => |b| try writer.print("Bool({})", .{b}),
                 .String => |s| try writer.print("String('{s}')", .{s}),
                 .Number => |n| try writer.print("Number({s})", .{n}),
+                .Quantity => |q| try writer.print("Quantity({s} '{s}')", .{ q.value, q.unit }),
                 .Date => |d| try writer.print("Date({s})", .{d}),
                 .DateTime => |d| try writer.print("DateTime({s})", .{d}),
                 .Time => |t| try writer.print("Time({s})", .{t}),
@@ -270,6 +278,10 @@ pub fn deinitExpr(allocator: std.mem.Allocator, expr: Expr) void {
                     switch (lit) {
                         .String => |s| allocator.free(s),
                         .Number => |n| allocator.free(n),
+                        .Quantity => |q| {
+                            allocator.free(q.value);
+                            allocator.free(q.unit);
+                        },
                         .Date => |d| allocator.free(d),
                         .DateTime => |d| allocator.free(d),
                         .Time => |t| allocator.free(t),
@@ -302,6 +314,10 @@ pub fn deinitExpr(allocator: std.mem.Allocator, expr: Expr) void {
             switch (lit) {
                 .String => |s| allocator.free(s),
                 .Number => |n| allocator.free(n),
+                .Quantity => |q| {
+                    allocator.free(q.value);
+                    allocator.free(q.unit);
+                },
                 .Date => |d| allocator.free(d),
                 .DateTime => |d| allocator.free(d),
                 .Time => |t| allocator.free(t),

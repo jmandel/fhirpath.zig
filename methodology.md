@@ -31,6 +31,8 @@ The script uses a summary “state” to bias the choice toward where effort is 
 - how many have been reviewed,
 - how many have been implemented.
 
+If there are open blockers in `blockers.md`, the chooser will also include a **TACKLE_BLOCKER** mode and select a specific blocker to work on.
+
 By default the script derives this state from `tests/artisinal/*.json` using `meta.status` if present:
 - `drafted` → written only
 - `reviewed` → written + reviewed
@@ -84,6 +86,13 @@ Goal: verify correctness of existing tests.
 - Cross‑check each expectation against the spec text.
 - Tighten or correct tests when they diverge from the spec.
 
+### TACKLE_BLOCKER
+Goal: resolve a high‑level blocker.
+- Blockers live in `blockers.md` (YAML) and are managed via `wiggum/scripts/blockers.py` (do not hand‑edit).
+- Run `python wiggum/scripts/blockers.py list` to see open blockers.
+- Work the selected blocker to completion or move it forward (e.g., from `open` to `in_progress`).
+- Update the blocker via `python wiggum/scripts/blockers.py update <slug> ...` or `resolve <slug>`.
+
 ## Artisinal file structure & TODOs
 Each artisinal file should combine:
 - Spec distillation (plain‑language summary of expected behavior).
@@ -92,6 +101,24 @@ Each artisinal file should combine:
 
 Always include a TODO entry for the current pass/fail rate. If the pass rate is not 100%, add or update a TODO item that explicitly says:
 - “Improve passing rate (X/Y passing)” with the current counts.
+
+## Blockers file format
+`blockers.md` is simple YAML (single‑line values only), with this shape:
+
+```
+version: 1
+blockers:
+  - slug: parse-function-calls
+    status: open
+    severity: high
+    title: Parse function calls in expressions
+    description: One‑line description of the blocker.
+    created: 2026-01-27
+    updated: 2026-01-27
+    tags: [parser, tests]
+```
+
+Use `wiggum/scripts/blockers.py` for all updates; the scripts keep the format deterministic for tooling.
 
 ## Why this loop converges
 - Official tests seed coverage.

@@ -11,5 +11,7 @@ PROJECT FINISHED
 Context:
 - One-line logs accumulate across sessions for future prompts.
 - Full logs are in ./logs and are very verbose; use rg/grep if you need to inspect history.
+- Blockers are managed via wiggum/scripts/blockers.py (do not hand-edit blockers.md).
+- If choose_mode selects TACKLE_BLOCKER, it will print a Blocker slug; use the blockers script to show/update/resolve it.
 
 RECENT ONE-LINE LOGS (most recent last, up to 1000):

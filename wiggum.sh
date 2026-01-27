@@ -5,6 +5,9 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOG="$ROOT/driver.log"
 LOG_DIR="$ROOT/logs"
 ONE_LINE_LOG="$LOG_DIR/one-liners.log"
+CONFIG_DIR="$ROOT/wiggum.config"
+HEAD_FILE="$CONFIG_DIR/prompt-head.txt"
+TAIL_FILE="$CONFIG_DIR/prompt-tail.txt"
 
 recent_logs() {
   if [[ -f "$ONE_LINE_LOG" ]]; then
@@ -16,25 +19,22 @@ recent_logs() {
 
 build_prompt() {
   local history
+  local head
+  local tail
   history="$(recent_logs)"
-  cat <<EOF
-Read all mds in repo root and follow the methodology by running choose_mode, then proceed with this step autonomously making progress as long as you can.
+  if [[ -f "$HEAD_FILE" ]]; then
+    head="$(cat "$HEAD_FILE")"
+  else
+    head=$'Read all mds in repo root and follow the methodology by running choose_mode, then proceed with this step autonomously making progress as long as you can.\n\nBefore the final status line, output exactly one line:\nONE-LINE LOG: <high-signal summary of what changed or learned, <=140 chars>\n\nThen output exactly one of:\nSTEP COMPLETE\nSTEP FAILED\nPROJECT FINISHED\n\nContext:\n- One-line logs accumulate across sessions for future prompts.\n- Full logs are in ./logs and are very verbose; use rg/grep if you need to inspect history.\n\nRECENT ONE-LINE LOGS (most recent last, up to 1000):'
+  fi
 
-Before the final status line, output exactly one line:
-ONE-LINE LOG: <high-signal summary of what changed or learned, <=140 chars>
+  if [[ -f "$TAIL_FILE" ]]; then
+    tail="$(cat "$TAIL_FILE")"
+  else
+    tail=""
+  fi
 
-Then output exactly one of:
-STEP COMPLETE
-STEP FAILED
-PROJECT FINISHED
-
-Context:
-- One-line logs accumulate across sessions for future prompts.
-- Full logs are in ./logs and are very verbose; use rg/grep if you need to inspect history.
-
-RECENT ONE-LINE LOGS (most recent last, up to 1000):
-$history
-EOF
+  printf "%s\n%s\n%s" "$head" "$history" "$tail"
 }
 
 next_log_id() {

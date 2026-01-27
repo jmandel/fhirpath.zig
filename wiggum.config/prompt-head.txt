@@ -1,0 +1,15 @@
+Read all mds in repo root and follow the methodology by running choose_mode, then proceed with this step autonomously making progress as long as you can.
+
+Before the final status line, output exactly one line:
+ONE-LINE LOG: <high-signal summary of what changed or learned, <=140 chars>
+
+Then output exactly one of:
+STEP COMPLETE
+STEP FAILED
+PROJECT FINISHED
+
+Context:
+- One-line logs accumulate across sessions for future prompts.
+- Full logs are in ./logs and are very verbose; use rg/grep if you need to inspect history.
+
+RECENT ONE-LINE LOGS (most recent last, up to 1000):

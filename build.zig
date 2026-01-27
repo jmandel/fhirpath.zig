@@ -75,4 +75,5 @@ pub fn build(b: *std.Build) void {
     const run_build_model = b.addRunArtifact(build_model);
     if (b.args) |args| run_build_model.addArgs(args);
     b.step("build-model", "Build schema model from FHIR StructureDefinitions").dependOn(&run_build_model.step);
+
 }

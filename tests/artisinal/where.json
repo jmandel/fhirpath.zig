@@ -1,0 +1,78 @@
+{
+  "meta": {
+    "status": "drafted",
+    "feature": "where",
+    "source": "spec/index.md#where(criteria : expression)"
+  },
+  "spec": {
+    "summary": [
+      "where(criteria) filters the input collection to items whose criteria evaluates to true.",
+      "The criteria expression is evaluated per item with $this bound to the item and $index to its 0-based position.",
+      "Items are excluded when criteria evaluates to false or empty.",
+      "If criteria does not evaluate to a single boolean, evaluation errors.",
+      "Empty input yields an empty result."
+    ],
+    "examples": [
+      "Patient.telecom.where(use = 'official')"
+    ]
+  },
+  "todo": [
+    "[ ] Implement parsing of where() function calls.",
+    "[ ] Implement where() evaluation with per-item criteria and filtering.",
+    "[ ] Bind $this and $index within criteria evaluation.",
+    "[ ] Add error tests for non-boolean or multi-item criteria once harness supports errors.",
+    "[ ] Improve passing rate (0/6 passing)."
+  ],
+  "cases": [
+    {
+      "name": "where filters objects by equality",
+      "expr": "name.where(use = 'official')",
+      "input": {
+        "name": [
+          { "use": "official", "given": ["Ann"] },
+          { "use": "nickname", "given": ["Annie"] }
+        ]
+      },
+      "expect": [
+        { "use": "official", "given": ["Ann"] }
+      ]
+    },
+    {
+      "name": "where excludes items when criteria is empty",
+      "expr": "name.where(use = 'official')",
+      "input": {
+        "name": [
+          { "use": "official" },
+          { "given": ["Bob"] }
+        ]
+      },
+      "expect": [
+        { "use": "official" }
+      ]
+    },
+    {
+      "name": "where on empty collection returns empty",
+      "expr": "name.where(use = 'official')",
+      "input": { "name": [] },
+      "expect": []
+    },
+    {
+      "name": "where uses $this for scalar filtering",
+      "expr": "given.where($this = 'Bob')",
+      "input": { "given": ["Ann", "Bob", "Cyd"] },
+      "expect": ["Bob"]
+    },
+    {
+      "name": "where uses $index for position filtering",
+      "expr": "given.where($index = 1)",
+      "input": { "given": ["Ann", "Bob", "Cyd"] },
+      "expect": ["Bob"]
+    },
+    {
+      "name": "where keeps items with boolean true",
+      "expr": "flag.where($this)",
+      "input": { "flag": [true, false, true] },
+      "expect": [true, true]
+    }
+  ]
+}

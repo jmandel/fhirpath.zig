@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_BLOCKERS = ROOT / "blockers.yaml"
+DEFAULT_BLOCKERS = ROOT / "wiggum.config" / "blockers.yaml"
 
 
 def load_state_file(path: Path) -> dict:

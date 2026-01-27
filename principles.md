@@ -39,27 +39,33 @@ Zig FHIRPath engine. It is intentionally independent of the legacy WAT codebase.
    - Keep exported functions minimal and stable.
    - Add new features via versioned options or new exports.
 
-9) Lexer/Parser Discipline
+9) Schema-Aware Type System
+   - System types (Boolean, Integer, String, etc.) are built-in.
+   - FHIR model types are loaded from binary schema blobs.
+   - Every Item carries a type_id for full type tracking.
+   - Type names use prefix notation: System.String, FHIR.Patient.
+
+10) Lexer/Parser Discipline
    - Single-pass lexer, explicit comment handling.
    - Precedence-driven parser, no hidden backtracking.
    - AST nodes are compact and immutable.
 
-10) Explicit Evaluation Model
+11) Explicit Evaluation Model
    - Eval uses explicit `Context`, `Env`, `Collection`.
    - Per-item functions snapshot/restore env explicitly.
 
-11) Fast by Construction
+12) Fast by Construction
    - Avoid allocations in hot paths.
    - Use arenas and small fixed-size structs for core ops.
 
-12) Debuggability
+13) Debuggability
    - Optional debug checks (bounds, canaries).
    - Trace is a custom function, not a side channel.
 
-13) Policy-Driven Gray Areas
+14) Policy-Driven Gray Areas
    - Centralize policy flags for spec ambiguities.
 
-14) Layered Testing
+15) Layered Testing
    - Unit tests for decimals, quantity, string ops.
    - Golden tests for lexer/parser.
    - Spec tests for integration.

@@ -9,7 +9,7 @@
 version: 1
 blockers:
   - slug: result-nodes-lack-metadata
-    status: open
+    status: resolved
     severity: medium
     title: Result nodes lack metadata
     description: Evaluator returns raw std.json.Value with no type_id, source_pos, or data_kind. Blocks zero-copy spans and type-aware ops. See design.md Item layout.
@@ -17,7 +17,7 @@ blockers:
     updated: 2026-01-27
     tags: []
   - slug: artisinal-env-support
-    status: open
+    status: resolved
     severity: medium
     title: Artisinal env not supported
     description: Artisinal tests allow env entries but the harness ignores env; implement env parsing and evaluation so % vars work in tests and runtime.

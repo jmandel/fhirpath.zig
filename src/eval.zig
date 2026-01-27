@@ -11,6 +11,7 @@ pub const EvalContext = struct {
     doc: *jsondoc.JsonDoc,
     types: *item.TypeTable,
     schema: ?*schema.Schema,
+    root_item: item.Item = undefined,
 };
 
 pub const Env = struct {
@@ -62,6 +63,7 @@ pub fn evalExpression(
     env: ?*Env,
 ) EvalError!ItemList {
     const root_item = try itemFromNode(ctx, root);
+    ctx.root_item = root_item;
     return evalExpressionCtx(ctx, expr, root_item, env, null);
 }
 
@@ -641,6 +643,63 @@ fn evalFunction(
         try out.append(ctx.allocator, makeStringItem(ctx, joined));
         return out;
     }
+    // Collection combining functions
+    if (std.mem.eql(u8, call.name, "union")) {
+        if (call.args.len != 1) return error.InvalidFunction;
+        var other = try evalCollectionArg(ctx, call.args[0], env);
+        defer other.deinit(ctx.allocator);
+        // Collect all items from both collections, then deduplicate
+        var combined = ItemList.empty;
+        try combined.appendSlice(ctx.allocator, input);
+        try combined.appendSlice(ctx.allocator, other.items);
+        defer combined.deinit(ctx.allocator);
+        return distinctItems(ctx, combined.items);
+    }
+    if (std.mem.eql(u8, call.name, "combine")) {
+        if (call.args.len < 1 or call.args.len > 2) return error.InvalidFunction;
+        var other = try evalCollectionArg(ctx, call.args[0], env);
+        defer other.deinit(ctx.allocator);
+        // Merge without deduplication
+        var out = ItemList.empty;
+        try out.appendSlice(ctx.allocator, input);
+        try out.appendSlice(ctx.allocator, other.items);
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "intersect")) {
+        if (call.args.len != 1) return error.InvalidFunction;
+        var other = try evalCollectionArg(ctx, call.args[0], env);
+        defer other.deinit(ctx.allocator);
+        // Find items in both collections (using equals), deduplicate result
+        var matched = ItemList.empty;
+        defer matched.deinit(ctx.allocator);
+        for (input) |it| {
+            for (other.items) |other_it| {
+                if (itemsEqual(ctx, it, other_it)) {
+                    try matched.append(ctx.allocator, it);
+                    break;
+                }
+            }
+        }
+        return distinctItems(ctx, matched.items);
+    }
+    if (std.mem.eql(u8, call.name, "exclude")) {
+        if (call.args.len != 1) return error.InvalidFunction;
+        var other = try evalCollectionArg(ctx, call.args[0], env);
+        defer other.deinit(ctx.allocator);
+        // Return items NOT in other (preserves duplicates, preserves order)
+        var out = ItemList.empty;
+        for (input) |it| {
+            var in_other = false;
+            for (other.items) |other_it| {
+                if (itemsEqual(ctx, it, other_it)) {
+                    in_other = true;
+                    break;
+                }
+            }
+            if (!in_other) try out.append(ctx.allocator, it);
+        }
+        return out;
+    }
     return error.InvalidFunction;
 }
 
@@ -711,6 +770,11 @@ fn evalDecimalArg(ctx: *EvalContext, expr: ast.Expr, env: ?*Env) EvalError!?f64 
     defer result.deinit(ctx.allocator);
     if (result.items.len == 0) return null;
     return itemToFloat(ctx, result.items[0]);
+}
+
+fn evalCollectionArg(ctx: *EvalContext, expr: ast.Expr, env: ?*Env) EvalError!ItemList {
+    // Evaluate the expression with the root context and return the full result as a collection
+    return evalExpressionCtx(ctx, expr, ctx.root_item, env, null);
 }
 
 fn sliceItems(ctx: *EvalContext, values: []const item.Item) EvalError!ItemList {

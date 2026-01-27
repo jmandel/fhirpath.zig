@@ -12,7 +12,7 @@
       "Add test for paths starting with type name (e.g., Patient.name)",
       "Add test for deeply nested array flattening",
       "Add test for delimited identifier with escape sequences",
-      "Improve passing rate (4/4 passing)"
+      "[ ] Improve passing rate (3/4 passing) - 1 blocked by harness env support"
     ]
   },
   "cases": [

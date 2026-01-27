@@ -89,8 +89,8 @@
       "input": {},
       "expect": [
         {
-          "type": "integer",
-          "value": 345
+          "type": "string",
+          "value": "345"
         }
       ]
     },
@@ -181,8 +181,8 @@
       "input": {},
       "expect": [
         {
-          "type": "integer",
-          "value": 3
+          "type": "string",
+          "value": "3"
         }
       ]
     },

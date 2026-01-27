@@ -57,7 +57,8 @@
     "  - {}.exclude(A) \u2192 empty"
   ],
   "_todo": [
-    "[ ] Improve passing rate (0/55 passing) - blocked by parser (| operator) and missing function implementations",
+    "[ ] Improve passing rate (18/65 passing) - 37 blocked by parser (| and {} operators)",
+    "[x] Implement union/combine/intersect/exclude functions",
     "[x] Verify spec summary against official spec - enhanced with equality/empty semantics",
     "[x] Cross-check test expectations against spec and official tests",
     "[x] Fix tests that incorrectly assume order when spec says no order guarantee",
@@ -69,7 +70,7 @@
     "Is the preserveOrder parameter widely supported by implementations?"
   ],
   "meta": {
-    "status": "reviewed"
+    "status": "implemented"
   },
   "cases": [
     {

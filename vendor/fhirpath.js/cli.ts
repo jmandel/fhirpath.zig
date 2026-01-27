@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 // CLI wrapper for fhirpath.js to compare against our implementation
 import fhirpath from "fhirpath";
+import * as types from "fhirpath/src/types";
 
 function printUsage() {
   console.log(`Usage: cli.ts [options] <expression> [json]
@@ -15,27 +16,39 @@ Examples:
   cli.ts 'true'
   cli.ts 'name.given' '{"name":{"given":["Ann","Bob"]}}'
   cli.ts -t '1 + 2'
-  echo '{"x": 1}' | cli.ts 'x'
 `);
 }
 
-function getType(value: any): string {
-  if (value === null || value === undefined) return "null";
-  if (typeof value === "boolean") return "boolean";
-  if (typeof value === "number") {
-    return Number.isInteger(value) ? "integer" : "decimal";
+function getTypeAndValue(r: any): { type: string; value: any } {
+  // Check FHIRPath internal types first (when resolveInternalTypes: false)
+  if (r instanceof types.FP_Quantity) {
+    return {
+      type: "Quantity",
+      value: { value: r.value, unit: r.unit.replace(/^'|'$/g, '') }
+    };
   }
-  if (typeof value === "string") return "string";
-  if (Array.isArray(value)) return "array";
-  if (typeof value === "object") return "object";
-  return "unknown";
-}
-
-function formatTyped(results: any[]): any[] {
-  return results.map(v => ({
-    type: getType(v),
-    value: v
-  }));
+  if (r instanceof types.FP_DateTime) {
+    return { type: "dateTime", value: r.toString() };
+  }
+  if (r instanceof types.FP_Date) {
+    return { type: "date", value: r.toString() };
+  }
+  if (r instanceof types.FP_Time) {
+    return { type: "time", value: r.toString() };
+  }
+  
+  // Primitive types
+  if (r === null || r === undefined) return { type: "null", value: null };
+  if (typeof r === "boolean") return { type: "boolean", value: r };
+  if (typeof r === "number") {
+    // NOTE: JavaScript cannot distinguish Integer from Decimal - both are Number
+    // We report "number" to be honest about this limitation
+    return { type: "number", value: r };
+  }
+  if (typeof r === "string") return { type: "string", value: r };
+  if (Array.isArray(r)) return { type: "array", value: r };
+  if (typeof r === "object") return { type: "object", value: r };
+  return { type: "unknown", value: r };
 }
 
 async function main() {
@@ -59,26 +72,13 @@ async function main() {
   }
 
   if (positional.length === 0) {
-    // Try reading from stdin
-    const stdin = await Bun.stdin.text();
-    if (stdin.trim()) {
-      // Check if it's JSON (input) or expression
-      try {
-        JSON.parse(stdin);
-        jsonInput = stdin;
-      } catch {
-        expression = stdin.trim();
-      }
-    }
-    if (!expression) {
-      printUsage();
-      process.exit(1);
-    }
-  } else {
-    expression = positional[0];
-    if (positional.length > 1) {
-      jsonInput = positional[1];
-    }
+    printUsage();
+    process.exit(1);
+  }
+
+  expression = positional[0];
+  if (positional.length > 1) {
+    jsonInput = positional[1];
   }
 
   let input: any;
@@ -90,11 +90,16 @@ async function main() {
   }
 
   try {
-    const results = fhirpath.evaluate(input, expression);
+    // Use resolveInternalTypes: false to get proper FP_* types for Quantity, DateTime, etc.
+    const results = fhirpath.evaluate(input, expression, null, null, { resolveInternalTypes: false });
+    
     if (typed) {
-      console.log(JSON.stringify(formatTyped(results), null, 2));
+      const typedResults = results.map(r => getTypeAndValue(r));
+      console.log(JSON.stringify(typedResults, null, 2));
     } else {
-      console.log(JSON.stringify(results, null, 2));
+      // For non-typed output, resolve to simple values
+      const simpleResults = fhirpath.evaluate(input, expression);
+      console.log(JSON.stringify(simpleResults, null, 2));
     }
   } catch (e: any) {
     console.error(`FHIRPath error: ${e.message || e}`);

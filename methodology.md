@@ -223,3 +223,58 @@ Use `wiggum/scripts/blockers.py` for all updates; the scripts keep the format de
 - Include at least one line capturing insights, unexpected findings, or rationale (not just a diff summary).
 - Do not embed literal `\n` sequences in commit messages; use multiple `-m` flags or a here‑doc so the body has real line breaks.
 - External drivers can decide whether to keep or revert the commit based on the final step status.
+
+## CROSS_CHECK mode
+
+Compare our artisinal tests against fhirpath.js reference implementation and adjudicate differences.
+
+**Goal**: Ensure our expected values match the reference implementation, or document why they differ.
+
+**Setup**: Run `cd vendor/fhirpath.js && bun install` once to install fhirpath.js.
+
+**Steps**:
+1. The mode chooser will give you a sample of unadjudicated differences (typically 3)
+2. For each difference:
+   a. Check the FHIRPath spec to determine correct behavior
+   b. Add an `_adjudicated` annotation to the test case with your findings
+   c. If our test is wrong, fix the expected value AND record the old value in the annotation
+   d. If fhirpath.js is wrong, document why in the annotation
+
+**Running manually**:
+```bash
+python scripts/cross_check.py              # all unadjudicated diffs
+python scripts/cross_check.py -n 20        # limit to 20 tests
+python scripts/cross_check.py math         # filter by filename
+python scripts/cross_check.py --sample 3   # random sample of 3 diffs
+```
+
+**Adjudication annotation format** (add to the test case):
+```json
+{
+  "name": "round: negative decimal rounds away from zero",
+  "expr": "(-3.5).round()",
+  "expect": [{"type": "integer", "value": -4}],
+  "_adjudicated": {
+    "fhirpath_js": -3,
+    "our_old_value": null,
+    "verdict": "ours_correct",
+    "reason": "Spec says values <= -0.5 round away from zero. fhirpath.js rounds toward zero.",
+    "spec_ref": "§Math functions, round()"
+  }
+}
+```
+
+**Adjudication fields**:
+- `fhirpath_js`: What fhirpath.js returned
+- `our_old_value`: Our previous expected value if we changed it (null if unchanged)
+- `verdict`: One of the values below
+- `reason`: Explanation of the decision
+- `spec_ref`: Optional reference to spec section
+
+**Verdict values**:
+- `ours_correct` - our expected value is correct per spec, fhirpath.js is wrong
+- `theirs_correct` - fhirpath.js is correct, we fixed our test (record old value in `our_old_value`)
+- `both_valid` - both interpretations are valid (spec ambiguity)
+- `js_limitation` - difference due to JS limitations (e.g., Number type can't distinguish int/decimal)
+
+**Note**: The cross_check.py script automatically skips tests with `_adjudicated` annotations.

@@ -162,26 +162,42 @@ def choose_mode(state: dict, params: dict, seed: int | None, blockers: list[dict
         p_confirm = floor + scale * (raw_confirm / raw_sum)
         p_blocker = 0.0
 
+    # Add CROSS_CHECK mode with ~10% probability
+    p_cross_check = 0.10
+    
+    # Scale down other probabilities to make room for CROSS_CHECK
+    scale_factor = 1.0 - p_cross_check
+    p_explore *= scale_factor
+    p_develop *= scale_factor
+    p_confirm *= scale_factor
+    p_blocker *= scale_factor
+
     rng = random.Random(seed if seed is not None else time.time_ns())
     roll = rng.random()
-    if not blockers:
-        if roll < p_explore:
+    
+    # Check for CROSS_CHECK first
+    if roll < p_cross_check:
+        mode = "CROSS_CHECK"
+    elif not blockers:
+        adjusted_roll = (roll - p_cross_check) / scale_factor
+        if adjusted_roll < p_explore / scale_factor:
             mode = "EXPLORE"
-        elif roll < p_explore + p_develop:
+        elif adjusted_roll < (p_explore + p_develop) / scale_factor:
             mode = "DEVELOP"
         else:
             mode = "CONFIRM"
     else:
-        if roll < p_explore:
+        adjusted_roll = (roll - p_cross_check) / scale_factor
+        if adjusted_roll < p_explore / scale_factor:
             mode = "EXPLORE"
-        elif roll < p_explore + p_develop:
+        elif adjusted_roll < (p_explore + p_develop) / scale_factor:
             mode = "DEVELOP"
-        elif roll < p_explore + p_develop + p_confirm:
+        elif adjusted_roll < (p_explore + p_develop + p_confirm) / scale_factor:
             mode = "CONFIRM"
         else:
             mode = "TACKLE_BLOCKER"
 
-    return mode, (p_explore, p_develop, p_confirm, p_blocker)
+    return mode, (p_explore, p_develop, p_confirm, p_blocker, p_cross_check)
 
 
 def main() -> int:
@@ -218,7 +234,7 @@ def main() -> int:
     blocker_list = open_blockers(load_blockers(Path(args.blockers)))
 
     mode, probs = choose_mode(state, params, seed, blocker_list)
-    p_explore, p_develop, p_confirm, p_blocker = probs
+    p_explore, p_develop, p_confirm, p_blocker, p_cross_check = probs
 
     print("Mode:", mode)
     if blocker_list:
@@ -228,6 +244,7 @@ def main() -> int:
             f"DEVELOP={p_develop:.2f}",
             f"CONFIRM={p_confirm:.2f}",
             f"TACKLE_BLOCKER={p_blocker:.2f}",
+            f"CROSS_CHECK={p_cross_check:.2f}",
         )
     else:
         print(
@@ -235,6 +252,7 @@ def main() -> int:
             f"EXPLORE={p_explore:.2f}",
             f"DEVELOP={p_develop:.2f}",
             f"CONFIRM={p_confirm:.2f}",
+            f"CROSS_CHECK={p_cross_check:.2f}",
         )
     print(
         "State:",
@@ -259,6 +277,12 @@ def main() -> int:
         print("Blocker:", chosen.get("slug", ""))
         if chosen.get("title"):
             print("Blocker Title:", chosen.get("title", ""))
+    
+    if mode == "CROSS_CHECK":
+        print("\nCROSS_CHECK: Compare artisinal tests against fhirpath.js and adjudicate differences.")
+        print("Run: python scripts/cross_check.py --sample 3")
+        print("See methodology.md for adjudication format.")
+    
     return 0
 
 

@@ -15,6 +15,8 @@ pub const Root = union(enum) {
     This,
     Env: []const u8,
     Index,
+    Literal: Literal,
+    Empty, // {} empty collection
 };
 
 pub const Step = union(enum) {
@@ -59,6 +61,18 @@ pub fn formatExpr(expr: Expr, writer: anytype) !void {
                     try writer.writeAll(name);
                 },
                 .Index => try writer.writeAll("$index"),
+                .Literal => |lit| {
+                    switch (lit) {
+                        .Null => try writer.writeAll("null"),
+                        .Bool => |b| try writer.print("{}", .{b}),
+                        .String => |s| try writer.print("'{s}'", .{s}),
+                        .Number => |n| try writer.print("{s}", .{n}),
+                        .Date => |d| try writer.print("@{s}", .{d}),
+                        .DateTime => |d| try writer.print("@{s}", .{d}),
+                        .Time => |t| try writer.print("@T{s}", .{t}),
+                    }
+                },
+                .Empty => try writer.writeAll("{}"),
             }
             for (p.steps) |step| {
                 switch (step) {
@@ -120,7 +134,17 @@ pub fn deinitExpr(allocator: std.mem.Allocator, expr: Expr) void {
         .Path => |p| {
             switch (p.root) {
                 .Env => |name| allocator.free(name),
-                .This, .Index => {},
+                .This, .Index, .Empty => {},
+                .Literal => |lit| {
+                    switch (lit) {
+                        .String => |s| allocator.free(s),
+                        .Number => |n| allocator.free(n),
+                        .Date => |d| allocator.free(d),
+                        .DateTime => |d| allocator.free(d),
+                        .Time => |t| allocator.free(t),
+                        .Null, .Bool => {},
+                    }
+                },
             }
             for (p.steps) |step| {
                 switch (step) {

@@ -106,6 +106,12 @@ fn evalPath(
                 try current.append(ctx.allocator, makeIntegerItem(ctx, @intCast(idx)));
             }
         },
+        .Literal => |lit| {
+            try current.append(ctx.allocator, literalToItem(ctx, lit));
+        },
+        .Empty => {
+            // Empty collection - return nothing
+        },
     }
 
     for (path.steps) |step| {
@@ -315,12 +321,115 @@ fn evalFunction(
         const count: usize = @intCast(num);
         return sliceItems(ctx, input[0..count]);
     }
+    // String matching functions: startsWith, endsWith, contains
+    if (std.mem.eql(u8, call.name, "startsWith")) {
+        if (call.args.len != 1) return error.InvalidFunction;
+        if (input.len == 0) return ItemList.empty; // empty input yields empty
+        const str = itemStringValue(ctx, input[0]) orelse return error.InvalidFunction;
+        const prefix = try evalStringArg(ctx, call.args[0], env);
+        if (prefix == null) return ItemList.empty; // empty argument yields empty
+        var out = ItemList.empty;
+        try out.append(ctx.allocator, makeBoolItem(ctx, std.mem.startsWith(u8, str, prefix.?)));
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "endsWith")) {
+        if (call.args.len != 1) return error.InvalidFunction;
+        if (input.len == 0) return ItemList.empty;
+        const str = itemStringValue(ctx, input[0]) orelse return error.InvalidFunction;
+        const suffix = try evalStringArg(ctx, call.args[0], env);
+        if (suffix == null) return ItemList.empty;
+        var out = ItemList.empty;
+        try out.append(ctx.allocator, makeBoolItem(ctx, std.mem.endsWith(u8, str, suffix.?)));
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "contains")) {
+        if (call.args.len != 1) return error.InvalidFunction;
+        if (input.len == 0) return ItemList.empty;
+        const str = itemStringValue(ctx, input[0]) orelse return error.InvalidFunction;
+        const needle = try evalStringArg(ctx, call.args[0], env);
+        if (needle == null) return ItemList.empty;
+        var out = ItemList.empty;
+        const found = if (needle.?.len == 0) true else std.mem.indexOf(u8, str, needle.?) != null;
+        try out.append(ctx.allocator, makeBoolItem(ctx, found));
+        return out;
+    }
+    // substring(start [, length])
+    if (std.mem.eql(u8, call.name, "substring")) {
+        if (call.args.len < 1 or call.args.len > 2) return error.InvalidFunction;
+        if (input.len == 0) return ItemList.empty; // empty input yields empty
+        const str = itemStringValue(ctx, input[0]) orelse return error.InvalidFunction;
+        const start_opt = try evalIntegerArg(ctx, call.args[0], env);
+        if (start_opt == null) return ItemList.empty; // empty start yields empty
+        const start = start_opt.?;
+        // Negative start or start >= string length returns empty
+        if (start < 0) return ItemList.empty;
+        const str_len: i64 = @intCast(str.len);
+        if (start >= str_len) return ItemList.empty;
+        const start_usize: usize = @intCast(start);
+        // Length argument
+        var result_len: usize = str.len - start_usize;
+        if (call.args.len == 2) {
+            const len_opt = try evalIntegerArg(ctx, call.args[1], env);
+            if (len_opt == null) {
+                // empty length treated as omitted (take rest)
+            } else if (len_opt.? <= 0) {
+                // zero or negative length returns empty string
+                var out = ItemList.empty;
+                try out.append(ctx.allocator, makeStringItem(ctx, ""));
+                return out;
+            } else {
+                const req_len: usize = @intCast(len_opt.?);
+                if (req_len < result_len) result_len = req_len;
+            }
+        }
+        var out = ItemList.empty;
+        try out.append(ctx.allocator, makeStringItem(ctx, str[start_usize .. start_usize + result_len]));
+        return out;
+    }
     return error.InvalidFunction;
 }
 
 fn parseIntegerArg(call: ast.FunctionCall) EvalError!i64 {
     if (call.args.len != 1) return error.InvalidFunction;
     return integerLiteral(call.args[0]) orelse error.InvalidFunction;
+}
+
+fn itemStringValue(ctx: *EvalContext, it: item.Item) ?[]const u8 {
+    const val = itemToValue(ctx, it);
+    return switch (val) {
+        .string => |s| s,
+        else => null,
+    };
+}
+
+fn evalStringArg(ctx: *EvalContext, expr: ast.Expr, env: ?*Env) EvalError!?[]const u8 {
+    // For string literal, return directly
+    switch (expr) {
+        .Literal => |lit| switch (lit) {
+            .String => |s| return s,
+            else => {},
+        },
+        else => {},
+    }
+    // Evaluate the expression and get string value
+    var result = try evalExpressionCtx(ctx, expr, makeEmptyItem(ctx), env, null);
+    defer result.deinit(ctx.allocator);
+    if (result.items.len == 0) return null;
+    return itemStringValue(ctx, result.items[0]);
+}
+
+fn evalIntegerArg(ctx: *EvalContext, expr: ast.Expr, env: ?*Env) EvalError!?i64 {
+    // For integer literal, return directly
+    if (integerLiteral(expr)) |i| return i;
+    // Evaluate the expression and get integer value
+    var result = try evalExpressionCtx(ctx, expr, makeEmptyItem(ctx), env, null);
+    defer result.deinit(ctx.allocator);
+    if (result.items.len == 0) return null;
+    const val = itemToValue(ctx, result.items[0]);
+    return switch (val) {
+        .integer => |i| i,
+        else => null,
+    };
 }
 
 fn integerLiteral(expr: ast.Expr) ?i64 {

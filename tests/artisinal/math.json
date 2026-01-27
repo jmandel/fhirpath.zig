@@ -1,0 +1,323 @@
+{
+  "meta": {
+    "status": "drafted",
+    "spec_summary": "Math functions operate on numeric types (Integer, Long, Decimal, Quantity). All return empty on empty input. All signal error on multiple items. Key functions: abs() preserves type, ceiling/floor/truncate return Integer (or Quantity with integer value), exp/ln/log/sqrt/power return Decimal. Domain errors (negative sqrt, invalid log) return empty, not error.",
+    "open_questions": [
+      "How much precision should exp/ln/sqrt carry? Spec examples show 1 decimal place but practical implementations may vary.",
+      "round() precision for negative indices - spec unclear, presumed error."
+    ]
+  },
+  "todo": [
+    "Improve passing rate (0/49 passing) - not yet implemented",
+    "9 tests fail with parse error (parenthesized negative literals) - parser needs updating",
+    "40 tests fail with eval error - math functions not implemented",
+    "Add Long type tests when Long support is available",
+    "Add Quantity tests for ceiling/floor/truncate/round",
+    "Test error conditions for multiple items in input"
+  ],
+  "cases": [
+    {
+      "name": "abs: positive integer unchanged",
+      "expr": "5.abs()",
+      "input": {},
+      "expect": [5]
+    },
+    {
+      "name": "abs: negative integer becomes positive",
+      "expr": "(-5).abs()",
+      "input": {},
+      "expect": [5]
+    },
+    {
+      "name": "abs: zero stays zero",
+      "expr": "0.abs()",
+      "input": {},
+      "expect": [0]
+    },
+    {
+      "name": "abs: positive decimal unchanged",
+      "expr": "5.5.abs()",
+      "input": {},
+      "expect": [5.5]
+    },
+    {
+      "name": "abs: negative decimal becomes positive",
+      "expr": "(-5.5).abs()",
+      "input": {},
+      "expect": [5.5]
+    },
+    {
+      "name": "abs: empty input returns empty",
+      "expr": "{}.abs()",
+      "input": {},
+      "expect": []
+    },
+
+    {
+      "name": "ceiling: integer unchanged",
+      "expr": "1.ceiling()",
+      "input": {},
+      "expect": [1]
+    },
+    {
+      "name": "ceiling: positive decimal rounds up",
+      "expr": "1.1.ceiling()",
+      "input": {},
+      "expect": [2]
+    },
+    {
+      "name": "ceiling: negative decimal rounds toward zero",
+      "expr": "(-1.1).ceiling()",
+      "input": {},
+      "expect": [-1]
+    },
+    {
+      "name": "ceiling: exact decimal unchanged",
+      "expr": "2.0.ceiling()",
+      "input": {},
+      "expect": [2]
+    },
+    {
+      "name": "ceiling: empty input returns empty",
+      "expr": "{}.ceiling()",
+      "input": {},
+      "expect": []
+    },
+
+    {
+      "name": "floor: integer unchanged",
+      "expr": "1.floor()",
+      "input": {},
+      "expect": [1]
+    },
+    {
+      "name": "floor: positive decimal rounds down",
+      "expr": "2.1.floor()",
+      "input": {},
+      "expect": [2]
+    },
+    {
+      "name": "floor: negative decimal rounds away from zero",
+      "expr": "(-2.1).floor()",
+      "input": {},
+      "expect": [-3]
+    },
+    {
+      "name": "floor: exact decimal unchanged",
+      "expr": "2.0.floor()",
+      "input": {},
+      "expect": [2]
+    },
+    {
+      "name": "floor: empty input returns empty",
+      "expr": "{}.floor()",
+      "input": {},
+      "expect": []
+    },
+
+    {
+      "name": "truncate: integer unchanged",
+      "expr": "101.truncate()",
+      "input": {},
+      "expect": [101]
+    },
+    {
+      "name": "truncate: positive decimal drops fractional part",
+      "expr": "1.00000001.truncate()",
+      "input": {},
+      "expect": [1]
+    },
+    {
+      "name": "truncate: negative decimal drops fractional part (toward zero)",
+      "expr": "(-1.56).truncate()",
+      "input": {},
+      "expect": [-1]
+    },
+    {
+      "name": "truncate: large positive decimal",
+      "expr": "99.999.truncate()",
+      "input": {},
+      "expect": [99]
+    },
+    {
+      "name": "truncate: empty input returns empty",
+      "expr": "{}.truncate()",
+      "input": {},
+      "expect": []
+    },
+
+    {
+      "name": "round: integer with no precision unchanged",
+      "expr": "1.round()",
+      "input": {},
+      "expect": [1]
+    },
+    {
+      "name": "round: decimal default precision 0",
+      "expr": "3.5.round()",
+      "input": {},
+      "expect": [4]
+    },
+    {
+      "name": "round: decimal rounds down when < 0.5",
+      "expr": "3.4.round()",
+      "input": {},
+      "expect": [3]
+    },
+    {
+      "name": "round: negative decimal rounds away from zero at 0.5",
+      "expr": "(-3.5).round()",
+      "input": {},
+      "expect": [-4]
+    },
+    {
+      "name": "round: with precision 3",
+      "expr": "3.14159.round(3)",
+      "input": {},
+      "expect": [3.142]
+    },
+    {
+      "name": "round: precision 2 example from division",
+      "expr": "0.666666667.round(2)",
+      "input": {},
+      "expect": [0.67]
+    },
+    {
+      "name": "round: empty input returns empty",
+      "expr": "{}.round()",
+      "input": {},
+      "expect": []
+    },
+
+    {
+      "name": "exp: e^0 = 1",
+      "expr": "0.exp()",
+      "input": {},
+      "expect": [1]
+    },
+    {
+      "name": "exp: e^(-0) = 1",
+      "expr": "(-0.0).exp()",
+      "input": {},
+      "expect": [1]
+    },
+    {
+      "name": "exp: empty input returns empty",
+      "expr": "{}.exp()",
+      "input": {},
+      "expect": []
+    },
+
+    {
+      "name": "ln: ln(1) = 0",
+      "expr": "1.ln()",
+      "input": {},
+      "expect": [0.0]
+    },
+    {
+      "name": "ln: ln(1.0) = 0",
+      "expr": "1.0.ln()",
+      "input": {},
+      "expect": [0.0]
+    },
+    {
+      "name": "ln: empty input returns empty",
+      "expr": "{}.ln()",
+      "input": {},
+      "expect": []
+    },
+
+    {
+      "name": "log: log base 2 of 16 = 4",
+      "expr": "16.log(2)",
+      "input": {},
+      "expect": [4.0]
+    },
+    {
+      "name": "log: log base 10 of 100 = 2",
+      "expr": "100.0.log(10.0)",
+      "input": {},
+      "expect": [2.0]
+    },
+    {
+      "name": "log: empty input returns empty",
+      "expr": "{}.log(10)",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "log: empty base returns empty",
+      "expr": "16.log({})",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "log: both empty returns empty",
+      "expr": "{}.log({})",
+      "input": {},
+      "expect": []
+    },
+
+    {
+      "name": "sqrt: sqrt(81) = 9",
+      "expr": "81.sqrt()",
+      "input": {},
+      "expect": [9.0]
+    },
+    {
+      "name": "sqrt: sqrt(4) = 2",
+      "expr": "4.sqrt()",
+      "input": {},
+      "expect": [2.0]
+    },
+    {
+      "name": "sqrt: sqrt of negative returns empty (domain error)",
+      "expr": "(-1).sqrt()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "sqrt: empty input returns empty",
+      "expr": "{}.sqrt()",
+      "input": {},
+      "expect": []
+    },
+
+    {
+      "name": "power: 2^3 = 8",
+      "expr": "2.power(3)",
+      "input": {},
+      "expect": [8]
+    },
+    {
+      "name": "power: 2.5^2 = 6.25",
+      "expr": "2.5.power(2)",
+      "input": {},
+      "expect": [6.25]
+    },
+    {
+      "name": "power: negative base with fractional exponent returns empty",
+      "expr": "(-1).power(0.5)",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "power: empty input returns empty",
+      "expr": "{}.power(2)",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "power: empty exponent returns empty",
+      "expr": "2.5.power({})",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "power: both empty returns empty",
+      "expr": "{}.power({})",
+      "input": {},
+      "expect": []
+    }
+  ]
+}

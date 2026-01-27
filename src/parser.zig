@@ -54,54 +54,105 @@ pub const Parser = struct {
             .String => {
                 const value = try self.unescapeString(self.current.lexeme);
                 _ = try self.advance();
-                return ast.Expr{ .Literal = .{ .String = value } };
+                return self.parseTailSteps(.{ .Literal = .{ .String = value } });
             },
             .Number => {
                 const value = try self.allocator.dupe(u8, self.current.lexeme);
                 _ = try self.advance();
-                return ast.Expr{ .Literal = .{ .Number = value } };
+                return self.parseTailSteps(.{ .Literal = .{ .Number = value } });
             },
             .Date => {
                 const value = try self.allocator.dupe(u8, self.current.lexeme);
                 _ = try self.advance();
-                return ast.Expr{ .Literal = .{ .Date = value } };
+                return self.parseTailSteps(.{ .Literal = .{ .Date = value } });
             },
             .DateTime => {
                 const value = try self.allocator.dupe(u8, self.current.lexeme);
                 _ = try self.advance();
-                return ast.Expr{ .Literal = .{ .DateTime = value } };
+                return self.parseTailSteps(.{ .Literal = .{ .DateTime = value } });
             },
             .Time => {
                 const value = try self.allocator.dupe(u8, self.current.lexeme);
                 _ = try self.advance();
-                return ast.Expr{ .Literal = .{ .Time = value } };
+                return self.parseTailSteps(.{ .Literal = .{ .Time = value } });
             },
             .Identifier => {
                 const lex = self.current.lexeme;
                 if (std.mem.eql(u8, lex, "true")) {
                     _ = try self.advance();
-                    return ast.Expr{ .Literal = .{ .Bool = true } };
+                    return self.parseTailSteps(.{ .Literal = .{ .Bool = true } });
                 }
                 if (std.mem.eql(u8, lex, "false")) {
                     _ = try self.advance();
-                    return ast.Expr{ .Literal = .{ .Bool = false } };
+                    return self.parseTailSteps(.{ .Literal = .{ .Bool = false } });
                 }
                 if (std.mem.eql(u8, lex, "null")) {
                     _ = try self.advance();
-                    return ast.Expr{ .Literal = .{ .Null = {} } };
+                    return self.parseTailSteps(.{ .Literal = .{ .Null = {} } });
                 }
                 return self.parsePathExpression();
             },
             .DelimitedIdentifier, .Percent, .Dollar => return self.parsePathExpression(),
+            .LBrace => {
+                _ = try self.advance();
+                if (self.current.kind != .RBrace) return error.UnexpectedToken;
+                _ = try self.advance();
+                return self.parseTailSteps(.Empty);
+            },
             .LParen => {
                 _ = try self.advance();
                 const expr = try self.parseEquality();
                 if (self.current.kind != .RParen) return error.UnexpectedToken;
                 _ = try self.advance();
+                // TODO: support chaining on parenthesized expressions
                 return expr;
             },
             else => return error.UnexpectedToken,
         }
+    }
+
+    fn parseTailSteps(self: *Parser, root: ast.Root) ParseErrorSet!ast.Expr {
+        var steps = std.ArrayList(ast.Step).empty;
+        defer steps.deinit(self.allocator);
+
+        while (true) {
+            switch (self.current.kind) {
+                .Dot => {
+                    _ = try self.advance();
+                    const name = try self.parseIdentifierName();
+                    if (self.current.kind == .LParen) {
+                        const call = try self.parseFunctionCall(name);
+                        try steps.append(self.allocator, .{ .Function = call });
+                    } else {
+                        try steps.append(self.allocator, .{ .Property = name });
+                    }
+                },
+                .LBracket => {
+                    _ = try self.advance();
+                    if (self.current.kind != .Number) return error.UnexpectedToken;
+                    const idx = std.fmt.parseInt(usize, self.current.lexeme, 10) catch {
+                        return error.UnexpectedToken;
+                    };
+                    _ = try self.advance();
+                    if (self.current.kind != .RBracket) return error.UnexpectedToken;
+                    _ = try self.advance();
+                    try steps.append(self.allocator, .{ .Index = idx });
+                },
+                else => break,
+            }
+        }
+
+        // If there are no steps and root is a literal, return Literal directly for simpler AST
+        // Note: .Empty is kept as Path with root=.Empty to represent empty collection
+        if (steps.items.len == 0) {
+            switch (root) {
+                .Literal => |lit| return ast.Expr{ .Literal = lit },
+                else => {},
+            }
+        }
+
+        const step_slice = try self.allocator.dupe(ast.Step, steps.items);
+        return ast.Expr{ .Path = .{ .root = root, .steps = step_slice } };
     }
 
     fn parsePathExpression(self: *Parser) ParseErrorSet!ast.Expr {

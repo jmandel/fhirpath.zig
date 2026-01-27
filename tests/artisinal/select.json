@@ -1,6 +1,6 @@
 {
   "meta": {
-    "status": "drafted",
+    "status": "reviewed",
     "feature": "select",
     "source": "spec/index.md#select(projection: expression)"
   },

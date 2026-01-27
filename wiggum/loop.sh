@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LOG="$ROOT/driver.log"
 LOG_DIR="$ROOT/logs"
 ONE_LINE_LOG="$LOG_DIR/one-liners.log"

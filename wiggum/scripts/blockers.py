@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_FILE = ROOT / "wiggum.config" / "blockers.yaml"
+DEFAULT_FILE = ROOT / "wiggum" / "blockers.yaml"
 
 STATUS_VALUES = {"open", "in_progress", "blocked", "resolved", "wontfix"}
 SEVERITY_VALUES = {"low", "medium", "high", "critical"}

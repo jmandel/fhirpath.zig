@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_BLOCKERS = ROOT / "wiggum.config" / "blockers.yaml"
+DEFAULT_BLOCKERS = ROOT / "wiggum" / "blockers.yaml"
 DEFAULT_STATE = ROOT / "wiggum" / "state.json"
 
 

@@ -5,7 +5,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOG="$ROOT/driver.log"
 LOG_DIR="$ROOT/logs"
 ONE_LINE_LOG="$LOG_DIR/one-liners.log"
-CONFIG_DIR="$ROOT/wiggum.config"
+CONFIG_DIR="$ROOT/wiggum"
 HEAD_FILE="$CONFIG_DIR/prompt-head.txt"
 TAIL_FILE="$CONFIG_DIR/prompt-tail.txt"
 

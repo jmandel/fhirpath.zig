@@ -14,7 +14,7 @@ This project is spec‑driven. Official tests are treated as pointers to require
    - then exactly one of: `STEP COMPLETE`, `STEP FAILED`, or `PROJECT FINISHED`.
 
 Notes:
-- Do not edit files under `wiggum/` or `wiggum.config/` unless explicitly asked; use scripts there instead.
+- Do not edit files under `wiggum/` unless explicitly asked; use scripts there instead.
 - Skim relevant spec sections in `spec/` and existing artisinal tests before changing behavior.
 
 ## Official tests and source data

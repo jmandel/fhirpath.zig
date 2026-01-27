@@ -1,0 +1,381 @@
+{
+  "meta": {
+    "status": "drafted",
+    "spec_summary": "lowBoundary(), highBoundary(), and precision() return bounds and precision info for Decimal, Date, DateTime, and Time values. lowBoundary returns the least possible value to the given precision. highBoundary returns the greatest possible value. precision() returns the number of digits of precision. All three operate on singleton input and return empty for empty input. Multiple items signal an error.",
+    "spec_refs": [
+      "spec/index.md - lowBoundary, highBoundary, precision sections"
+    ],
+    "notes": [
+      "For decimals: precision is digits after decimal point. lowBoundary subtracts 0.5 at the next digit position; highBoundary adds 0.5.",
+      "For dates/times: precision is total digit count (4=year, 6=month, 8=day, 10=hour, 12=minute, 14=second, 17=millisecond for DateTime; 4=hour:minute, 6=seconds, 9=milliseconds for Time).",
+      "Negative precision returns empty. Precision > max implementation precision returns empty.",
+      "Date/DateTime literals start with @; Time literals with @T."
+    ],
+    "open_questions": [
+      "What is the max precision for decimals? Spec says 'at least 8' - we assume 8 for now.",
+      "HighBoundary of (-1.587).highBoundary(0) spec example shows 1, but seems like it should be -1. Need to verify."
+    ],
+    "todo": [
+      "Improve passing rate (0/59 passing) - functions not yet implemented",
+      "Parser blockers: date/time literals (@2014, @T10:30) not supported yet"
+    ]
+  },
+  "cases": [
+    {
+      "name": "precision_decimal_basic",
+      "expr": "1.58700.precision()",
+      "input": {},
+      "expect": [5]
+    },
+    {
+      "name": "precision_decimal_no_trailing",
+      "expr": "1.587.precision()",
+      "input": {},
+      "expect": [3]
+    },
+    {
+      "name": "precision_decimal_integer_converted",
+      "expr": "1.0.precision()",
+      "input": {},
+      "expect": [1]
+    },
+    {
+      "name": "precision_date_year",
+      "expr": "@2014.precision()",
+      "input": {},
+      "expect": [4]
+    },
+    {
+      "name": "precision_date_month",
+      "expr": "@2014-01.precision()",
+      "input": {},
+      "expect": [6]
+    },
+    {
+      "name": "precision_date_day",
+      "expr": "@2014-01-05.precision()",
+      "input": {},
+      "expect": [8]
+    },
+    {
+      "name": "precision_datetime_milliseconds",
+      "expr": "@2014-01-05T10:30:00.000.precision()",
+      "input": {},
+      "expect": [17]
+    },
+    {
+      "name": "precision_datetime_seconds",
+      "expr": "@2014-01-05T10:30:00.precision()",
+      "input": {},
+      "expect": [14]
+    },
+    {
+      "name": "precision_datetime_minutes",
+      "expr": "@2014-01-05T10:30.precision()",
+      "input": {},
+      "expect": [12]
+    },
+    {
+      "name": "precision_datetime_hours",
+      "expr": "@2014-01-05T10.precision()",
+      "input": {},
+      "expect": [10]
+    },
+    {
+      "name": "precision_time_minutes",
+      "expr": "@T10:30.precision()",
+      "input": {},
+      "expect": [4]
+    },
+    {
+      "name": "precision_time_seconds",
+      "expr": "@T10:30:00.precision()",
+      "input": {},
+      "expect": [6]
+    },
+    {
+      "name": "precision_time_milliseconds",
+      "expr": "@T10:30:00.000.precision()",
+      "input": {},
+      "expect": [9]
+    },
+    {
+      "name": "precision_empty_input",
+      "expr": "{}.precision()",
+      "input": {},
+      "expect": []
+    },
+
+    {
+      "name": "lowBoundary_decimal_default",
+      "expr": "1.587.lowBoundary()",
+      "input": {},
+      "expect": [1.5865]
+    },
+    {
+      "name": "lowBoundary_decimal_precision_6",
+      "expr": "1.587.lowBoundary(6)",
+      "input": {},
+      "expect": [1.5865]
+    },
+    {
+      "name": "lowBoundary_decimal_precision_2",
+      "expr": "1.587.lowBoundary(2)",
+      "input": {},
+      "expect": [1.58]
+    },
+    {
+      "name": "lowBoundary_decimal_precision_0",
+      "expr": "1.587.lowBoundary(0)",
+      "input": {},
+      "expect": [1]
+    },
+    {
+      "name": "lowBoundary_decimal_negative_precision_returns_empty",
+      "expr": "1.587.lowBoundary(-1)",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "lowBoundary_decimal_precision_exceeds_max_returns_empty",
+      "expr": "1.587.lowBoundary(39)",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "lowBoundary_negative_decimal_default",
+      "expr": "(-1.587).lowBoundary()",
+      "input": {},
+      "expect": [-1.5875]
+    },
+    {
+      "name": "lowBoundary_negative_decimal_precision_6",
+      "expr": "(-1.587).lowBoundary(6)",
+      "input": {},
+      "expect": [-1.5875]
+    },
+    {
+      "name": "lowBoundary_negative_decimal_precision_2",
+      "expr": "(-1.587).lowBoundary(2)",
+      "input": {},
+      "expect": [-1.59]
+    },
+    {
+      "name": "lowBoundary_negative_decimal_precision_0",
+      "expr": "(-1.587).lowBoundary(0)",
+      "input": {},
+      "expect": [-2]
+    },
+    {
+      "name": "lowBoundary_integer_as_decimal",
+      "expr": "1.toDecimal().lowBoundary()",
+      "input": {},
+      "expect": [0.5]
+    },
+    {
+      "name": "lowBoundary_integer_precision_0",
+      "expr": "1.lowBoundary(0)",
+      "input": {},
+      "expect": [0]
+    },
+    {
+      "name": "lowBoundary_integer_precision_5",
+      "expr": "1.lowBoundary(5)",
+      "input": {},
+      "expect": [0.5]
+    },
+    {
+      "name": "lowBoundary_larger_decimal",
+      "expr": "12.587.lowBoundary(2)",
+      "input": {},
+      "expect": [12.58]
+    },
+    {
+      "name": "lowBoundary_decimal_with_trailing_zeros",
+      "expr": "12.500.lowBoundary(4)",
+      "input": {},
+      "expect": [12.4995]
+    },
+    {
+      "name": "lowBoundary_integer_larger",
+      "expr": "120.lowBoundary(2)",
+      "input": {},
+      "expect": [119.5]
+    },
+    {
+      "name": "lowBoundary_negative_integer",
+      "expr": "(-120).lowBoundary(2)",
+      "input": {},
+      "expect": [-120.5]
+    },
+    {
+      "name": "lowBoundary_empty_input",
+      "expr": "{}.lowBoundary()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "lowBoundary_date_to_month",
+      "expr": "@2014.lowBoundary(6)",
+      "input": {},
+      "expect": ["@2014-01"]
+    },
+    {
+      "name": "lowBoundary_datetime_to_millisecond",
+      "expr": "@2014-01-01T08.lowBoundary(17)",
+      "input": {},
+      "expect": ["@2014-01-01T08:00:00.000+14:00"]
+    },
+    {
+      "name": "lowBoundary_datetime_with_tz",
+      "expr": "@2014-01-01T08:05+08:00.lowBoundary(17)",
+      "input": {},
+      "expect": ["@2014-01-01T08:05:00.000+08:00"]
+    },
+    {
+      "name": "lowBoundary_datetime_to_day",
+      "expr": "@2014-01-01T08.lowBoundary(8)",
+      "input": {},
+      "expect": ["@2014-01-01"]
+    },
+    {
+      "name": "lowBoundary_time_to_millisecond",
+      "expr": "@T10:30.lowBoundary(9)",
+      "input": {},
+      "expect": ["@T10:30:00.000"]
+    },
+
+    {
+      "name": "highBoundary_decimal_default",
+      "expr": "1.587.highBoundary()",
+      "input": {},
+      "expect": [1.5875]
+    },
+    {
+      "name": "highBoundary_decimal_precision_2",
+      "expr": "1.587.highBoundary(2)",
+      "input": {},
+      "expect": [1.59]
+    },
+    {
+      "name": "highBoundary_decimal_precision_6",
+      "expr": "1.587.highBoundary(6)",
+      "input": {},
+      "expect": [1.5875]
+    },
+    {
+      "name": "highBoundary_decimal_negative_precision_returns_empty",
+      "expr": "1.587.highBoundary(-1)",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "highBoundary_decimal_precision_exceeds_max_returns_empty",
+      "expr": "1.587.highBoundary(39)",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "highBoundary_negative_decimal_default",
+      "expr": "(-1.587).highBoundary()",
+      "input": {},
+      "expect": [-1.5865]
+    },
+    {
+      "name": "highBoundary_negative_decimal_precision_2",
+      "expr": "(-1.587).highBoundary(2)",
+      "input": {},
+      "expect": [-1.58]
+    },
+    {
+      "name": "highBoundary_negative_decimal_precision_6",
+      "expr": "(-1.587).highBoundary(6)",
+      "input": {},
+      "expect": [-1.5865]
+    },
+    {
+      "name": "highBoundary_integer_default",
+      "expr": "1.highBoundary()",
+      "input": {},
+      "expect": [1.5]
+    },
+    {
+      "name": "highBoundary_integer_precision_0",
+      "expr": "1.highBoundary(0)",
+      "input": {},
+      "expect": [2]
+    },
+    {
+      "name": "highBoundary_integer_precision_5",
+      "expr": "1.highBoundary(5)",
+      "input": {},
+      "expect": [1.5]
+    },
+    {
+      "name": "highBoundary_larger_decimal",
+      "expr": "12.587.highBoundary(2)",
+      "input": {},
+      "expect": [12.59]
+    },
+    {
+      "name": "highBoundary_decimal_with_trailing_zeros",
+      "expr": "12.500.highBoundary(4)",
+      "input": {},
+      "expect": [12.5005]
+    },
+    {
+      "name": "highBoundary_integer_larger",
+      "expr": "120.highBoundary(2)",
+      "input": {},
+      "expect": [120.5]
+    },
+    {
+      "name": "highBoundary_negative_integer",
+      "expr": "-120.highBoundary(2)",
+      "input": {},
+      "expect": [-120.5]
+    },
+    {
+      "name": "highBoundary_small_positive_decimal",
+      "expr": "0.0034.highBoundary(1)",
+      "input": {},
+      "expect": [0.0]
+    },
+    {
+      "name": "highBoundary_small_negative_decimal",
+      "expr": "-0.0034.highBoundary(1)",
+      "input": {},
+      "expect": [0.0]
+    },
+    {
+      "name": "highBoundary_empty_input",
+      "expr": "{}.highBoundary()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "highBoundary_date_to_month",
+      "expr": "@2014.highBoundary(6)",
+      "input": {},
+      "expect": ["@2014-12"]
+    },
+    {
+      "name": "highBoundary_datetime_to_millisecond",
+      "expr": "@2014-01-01T08.highBoundary(17)",
+      "input": {},
+      "expect": ["@2014-01-01T08:00:59.999-12:00"]
+    },
+    {
+      "name": "highBoundary_datetime_with_tz",
+      "expr": "@2014-01-01T08:05-05:00.highBoundary(17)",
+      "input": {},
+      "expect": ["@2014-01-01T08:05:59.999-05:00"]
+    },
+    {
+      "name": "highBoundary_time_to_millisecond",
+      "expr": "@T10:30.highBoundary(9)",
+      "input": {},
+      "expect": ["@T10:30:59.999"]
+    }
+  ]
+}

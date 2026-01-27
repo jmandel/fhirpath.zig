@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
+# Ensure zig and bun are on PATH
+export PATH="$PATH:$HOME/.local/bin:$HOME/.bun/bin"
+
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Prevent multiple instances
@@ -13,11 +16,15 @@ if [ -f "$LOCKFILE" ]; then
   fi
 fi
 echo $$ > "$LOCKFILE"
-trap 'rm -f "$LOCKFILE"' EXIT
 
 # Log errors to a file
 ERROR_LOG="$ROOT/wiggum-errors.log"
-trap 'echo "$(date -Is) ERROR at line $LINENO: $BASH_COMMAND (exit $?)" >> "$ERROR_LOG"; rm -f "$LOCKFILE"' ERR
+
+# Clean up lock on exit or error
+cleanup() { rm -f "$LOCKFILE"; }
+trap cleanup EXIT
+# Log errors but don't exit - let the loop handle failures via STATUS
+trap 'echo "$(date -Is) ERR trap at line $LINENO: $BASH_COMMAND (exit $?)" >> "$ERROR_LOG"' ERR
 LOG="$ROOT/driver.log"
 LOG_DIR="$ROOT/logs"
 ONE_LINE_LOG="$LOG_DIR/one-liners.log"

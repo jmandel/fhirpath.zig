@@ -1,18 +1,19 @@
 {
   "meta": {
-    "status": "drafted",
-    "spec_summary": "Math functions operate on numeric types (Integer, Long, Decimal, Quantity). All return empty on empty input. All signal error on multiple items. Key functions: abs() preserves type, ceiling/floor/truncate return Integer (or Quantity with integer value), exp/ln/log/sqrt/power return Decimal. Domain errors (negative sqrt, invalid log) return empty, not error.",
+    "status": "reviewed",
+    "spec_summary": "Math functions operate on numeric types (Integer, Long, Decimal, Quantity). All return empty on empty input. All signal error on multiple items. Key functions: abs() preserves type, ceiling/floor/truncate return Integer (or Quantity with integer value), exp/ln/log/sqrt/power return Decimal. Domain handling differs by function: sqrt/power return empty on domain errors (negative sqrt, -1^0.5); log signals error on invalid input (≤0) or base (≤0) per spec, though official tests don't cover these error cases.",
     "open_questions": [
       "How much precision should exp/ln/sqrt carry? Spec examples show 1 decimal place but practical implementations may vary.",
-      "round() precision for negative indices - spec unclear, presumed error."
+      "ln(0) and ln(-1) behavior not explicitly specified - probably error like log, but no official tests."
     ]
   },
   "todo": [
-    "Improve passing rate (40/49 passing)",
-    "Parser needs support for method calls on parenthesized expressions (9 parse errors)",
+    "Improve passing rate (40/49 passing) - 9 blocked by parser (parenthesized method calls)",
+    "Parser needs support for method calls on parenthesized expressions like (-5).abs()",
     "Memory leak in makeDecimalItem needs arena-based allocation",
     "Add Long type tests when Long support is available",
-    "Add Quantity tests for ceiling/floor/truncate/round"
+    "Add Quantity tests for abs/ceiling/floor/truncate/round (e.g., (-5.5 'mg').abs() from official tests)",
+    "round() with negative precision should signal error per spec (precision >= 0 required)"
   ],
   "cases": [
     {

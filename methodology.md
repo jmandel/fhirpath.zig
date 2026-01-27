@@ -86,19 +86,49 @@ Goal: resolve a high‑level blocker.
 
 ## Artisinal file structure & TODOs
 Each artisinal file should combine:
-- Spec distillation (plain‑language summary of expected behavior).
-- A TODO checklist (future work and open questions).
-- Tests that must pass.
+- **Comprehensive spec documentation** (see below)
+- A TODO checklist using checkbox format (see below)
+- Tests that must pass
 
-Optional meta fields:
+### Spec documentation in artisinal files (critical)
+The `_spec_summary` field is not just a brief note—it should be a **thorough, standalone explanation** of how this part of the spec works. Include:
+
+1. **Core behavior**: What the function/operator does in plain language.
+2. **Type handling**: What input types are accepted, how type coercion works.
+3. **Empty collection semantics**: What happens with empty inputs (this is often surprising!).
+4. **Edge cases**: Boundary conditions, special values, error conditions.
+5. **Surprising behaviors**: Anything that might trip up an implementer:
+   - Does empty string `''` behave differently from empty collection `{}`?
+   - Are results ordered or unordered?
+   - Does the function eliminate duplicates?
+   - What happens with negative indices, out-of-bounds, etc.?
+6. **Relationships to other functions**: e.g., "union uses `=` equality, not `~` equivalence"
+7. **Direct spec quotes**: Include line numbers or section references when useful.
+
+The goal is that someone implementing this feature can read the `_spec_summary` and understand the full behavior **without needing to read the spec themselves**. Future sessions will rely on this documentation.
+
+### TODO checklist format
+Use checkbox format in the `_todo` array so progress is trackable:
+```json
+"_todo": [
+  "[ ] Improve passing rate (5/20 passing)",
+  "[ ] Add tests for negative index edge case",
+  "[x] Verify empty collection behavior against spec",
+  "[ ] Open question: does this apply to DateTime?"
+]
+```
+- `[ ]` = not done
+- `[x]` = done
+- Update checkboxes as work progresses across sessions
+
+### Meta fields
 - `meta.status` informs `scripts/choose_mode.py`:
-  - `drafted` → written only
-  - `reviewed` → written + reviewed
-  - `implemented` → written + reviewed + implemented
+  - `drafted` = written only
+  - `reviewed` = written + reviewed
+  - `implemented` = written + reviewed + implemented
 
 Always include a TODO entry for the current pass/fail rate. If the pass rate is not 100%, add or update a TODO item that explicitly says:
-- “Improve passing rate (X/Y passing)” with the current counts.
-
+- `"[ ] Improve passing rate (X/Y passing)"` with the current counts.
 ## Blockers file format
 Blockers are simple YAML (single‑line values only), with this shape:
 

@@ -76,3 +76,22 @@ fn parseNumber(text: []const u8) std.json.Value {
     };
     return .{ .integer = value };
 }
+
+pub fn itemToTypedJsonValue(
+    allocator: std.mem.Allocator,
+    doc: *jsondoc.JsonDoc,
+    it: item.Item,
+    type_name: []const u8,
+) !std.json.Value {
+    var obj = std.json.ObjectMap.init(allocator);
+    
+    // Add type
+    const type_copy = try allocator.dupe(u8, type_name);
+    try obj.put("type", .{ .string = type_copy });
+    
+    // Add value
+    const val = try itemToJsonValue(allocator, doc, it);
+    try obj.put("value", val);
+    
+    return .{ .object = obj };
+}

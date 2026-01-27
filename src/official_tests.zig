@@ -67,15 +67,14 @@ pub fn main() !void {
     defer types.deinit();
 
     var schema_obj: ?schema.Schema = null;
+    var model_bytes: ?[]u8 = null;
     if (model_path) |path| {
-        var model_bytes: ?[]u8 = null;
         if (std.fs.cwd().readFileAlloc(allocator, path, 128 * 1024 * 1024)) |bytes| {
             model_bytes = bytes;
         } else |err| {
             std.debug.print("Schema model load failed: {s} ({})\n", .{ path, err });
         }
         if (model_bytes) |bytes| {
-            defer allocator.free(bytes);
             if (schema.Schema.init(allocator, "default", schema_prefix, bytes)) |schema_val| {
                 schema_obj = schema_val;
             } else |err| {
@@ -83,6 +82,7 @@ pub fn main() !void {
             }
         }
     }
+    defer if (model_bytes) |bytes| allocator.free(bytes);
     defer if (schema_obj) |*s| s.deinit();
 
     var total: usize = 0;

@@ -146,7 +146,7 @@ pub fn main() !void {
             expect_items = ev.array.items;
         }
 
-        var actual_values = try itemsToJsonArray(allocator, &doc, result.items);
+        var actual_values = try itemsToJsonArray(allocator, &doc, result.items, &types);
         defer actual_values.deinit(allocator);
 
         const matched = compareExpected(expect_items, actual_values.items);
@@ -181,10 +181,12 @@ fn itemsToJsonArray(
     allocator: std.mem.Allocator,
     doc: *jsondoc.JsonDoc,
     items: []const item.Item,
+    types: *item.TypeTable,
 ) !std.ArrayList(std.json.Value) {
     var out = std.ArrayList(std.json.Value).empty;
     for (items) |it| {
-        const val = try convert.itemToJsonValue(allocator, doc, it);
+        const type_name = types.name(it.type_id);
+        const val = try convert.itemToTypedJsonValue(allocator, doc, it, type_name);
         try out.append(allocator, val);
     }
     return out;
@@ -194,23 +196,49 @@ fn compareExpected(expected: []const std.json.Value, actual: []const std.json.Va
     if (expected.len != actual.len) return false;
     var i: usize = 0;
     while (i < expected.len) : (i += 1) {
-        // Unwrap {type, value} format if present
-        const exp_val = unwrapTypedValue(expected[i]);
-        if (!jsonEqual(exp_val, actual[i])) return false;
+        if (!compareTypedValue(expected[i], actual[i])) return false;
     }
     return true;
 }
 
-fn unwrapTypedValue(val: std.json.Value) std.json.Value {
-    // If val is {type: ..., value: ...}, return just the value
-    if (val != .object) return val;
-    const obj = val.object;
-    if (obj.get("value")) |v| {
-        // For Quantity, value is {value: num, unit: str} - keep as-is for now
-        // since actual output won't have this structure yet
-        return v;
+fn compareTypedValue(expected: std.json.Value, actual: std.json.Value) bool {
+    // Both should be {type, value} objects
+    if (expected != .object or actual != .object) {
+        return jsonEqual(expected, actual);
     }
-    return val;
+    
+    const exp_obj = expected.object;
+    const act_obj = actual.object;
+    
+    // Compare types (normalize System.X to lowercase x for compatibility)
+    const exp_type = exp_obj.get("type") orelse return false;
+    const act_type = act_obj.get("type") orelse return false;
+    if (exp_type != .string or act_type != .string) return false;
+    
+    if (!typesMatch(exp_type.string, act_type.string)) return false;
+    
+    // Compare values
+    const exp_val = exp_obj.get("value") orelse return false;
+    const act_val = act_obj.get("value") orelse return false;
+    return jsonEqual(exp_val, act_val);
+}
+
+fn typesMatch(expected: []const u8, actual: []const u8) bool {
+    // Direct match
+    if (std.mem.eql(u8, expected, actual)) return true;
+    
+    // If expected has no ".", match against final segment of actual
+    // e.g., "string" matches "System.String" or "FHIR.string"
+    if (std.mem.indexOfScalar(u8, expected, '.') == null) {
+        // Find last '.' in actual
+        if (std.mem.lastIndexOfScalar(u8, actual, '.')) |dot_pos| {
+            const actual_suffix = actual[dot_pos + 1 ..];
+            // Case-insensitive compare
+            if (std.ascii.eqlIgnoreCase(expected, actual_suffix)) return true;
+        }
+    }
+    
+    return false;
 }
 
 fn jsonEqual(a: std.json.Value, b: std.json.Value) bool {

@@ -71,6 +71,9 @@ while true; do
   chmod 444 "$OUT_LOG"
 
   STATUS=$(grep -Eo 'STEP COMPLETE|STEP FAILED|PROJECT FINISHED' "$OUT_LOG" | tail -n 1 || true)
+  if [[ -z "$STATUS" ]]; then
+    STATUS="UNKNOWN"
+  fi
   ONE_LINE_RAW=$(grep -E '^ONE-LINE LOG:' "$OUT_LOG" | tail -n 1 || true)
   ONE_LINE="${ONE_LINE_RAW#ONE-LINE LOG: }"
   AFTER=$(git rev-parse HEAD)
@@ -93,10 +96,17 @@ while true; do
     echo "MESSAGE: $MSG"
     echo ""
     echo "GIT ONE-LINE:"
-    git log -1 --oneline
+    git log -1 --no-color --oneline
     echo ""
-    echo "GIT DETAILS:"
-    git log -1 --decorate --stat
+    echo "GIT MESSAGE:"
+    git log -1 --no-color --pretty=%B | python - <<'PY'
+import sys
+text = sys.stdin.read()
+sys.stdout.write(text.replace("\\\\n", "\n"))
+PY
+    echo ""
+    echo "GIT STATS:"
+    git log -1 --no-color --stat --pretty=format:
   } > "$GIT_LOG"
   chmod 444 "$GIT_LOG"
 

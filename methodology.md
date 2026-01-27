@@ -2,18 +2,28 @@
 
 This project is spec‑driven. Official tests are treated as pointers to required behavior, not as the full definition.
 
-## Always (before any change)
-- Read the design docs: `zig/design.md`, `zig/principles.md`, `zig/tests/artisinal/README.md`.
-- Skim the relevant spec section(s) in `zig/spec/` for the feature you’re touching.
-- Check the current artisinal tests for the feature to avoid duplicating or contradicting expectations.
+## For each session (required)
+1. Read the root MDs: `design.md`, `principles.md`, `tests/artisinal/README.md`, and this file.
+2. Run the chooser: `python scripts/choose_mode.py`.
+3. Perform exactly one mode (see “The work loop”).
+4. Run relevant tests for your change (at least the focused Zig harness for affected artisinal files).
+5. If you discover urgent external blockers, add them via `wiggum/scripts/blockers.py` with bug‑report quality detail (clear steps, rationale, pointers).
+6. Commit any changes with a subject + detailed body (see Git discipline).
+7. End output with:
+   - `ONE-LINE LOG: <high-signal summary, <=140 chars>`
+   - then exactly one of: `STEP COMPLETE`, `STEP FAILED`, or `PROJECT FINISHED`.
+
+Notes:
+- Do not edit files under `wiggum/` or `wiggum.config/` unless explicitly asked; use scripts there instead.
+- Skim relevant spec sections in `spec/` and existing artisinal tests before changing behavior.
 
 ## Official tests and source data
 - Converted official tests live at:
-  - `zig/tests/r5/tests-fhir-r5.json`
-  - example inputs `zig/tests/r5/input/`
-  - (original XML, used to generate tests-fhir-r5.josn) `zig/tests/r5/tests-fhir-r5.xml`
-- These are produced by `zig/scripts/prepare_tests_json.py` after `zig/scripts/fetch_spec.sh`.
-- `zig/build/tmp-spec/` is a scratch checkout used by the fetch script; don’t treat it as the authoritative test location.
+  - `tests/r5/tests-fhir-r5.json`
+  - example inputs `tests/r5/input/`
+  - (original XML, used to generate tests-fhir-r5.json) `tests/r5/tests-fhir-r5.xml`
+- These are produced by `scripts/prepare_tests_json.py` after `scripts/fetch_spec.sh`.
+- `build/tmp-spec/` is a scratch checkout used by the fetch script; don’t treat it as the authoritative test location.
 
 ## The work loop
 
@@ -23,7 +33,7 @@ Choose one mode per session:
 Start by running the chooser script:
 
 ```
-python zig/scripts/choose_mode.py
+python scripts/choose_mode.py
 ```
 
 The script uses a summary “state” to bias the choice toward where effort is most needed, while **always keeping at least a 15% chance** for each mode. The state is a summary of:

@@ -20,11 +20,11 @@ Avoid duplicating policies in the prompt. The prompt should **point** to methodo
 ## What belongs in methodology
 Methodology is the **policy and procedure** source:
 - **Per‑session checklist** (read docs, choose mode, run tests, commit, end with status).
-- **Modes** and their goals (EXPLORE/DEVELOP/CONFIRM/TACKLE_BLOCKER).
+- **Modes** and their goals (EXPLORE/DEVELOP/CONFIRM/FIX_BUG).
 - **How to select modes** (randomized chooser, floors, inputs).
 - **Testing posture** (what to run, how to report skips).
 - **Git discipline** (subject+body, test reporting, learnings).
-- **Artifact formats** (artisinal tests, blockers schema).
+- **Artifact formats** (artisinal tests, bug backlog schema).
 - **Rework policy** (blocking vs non‑blocking).
 - **Completion signaling** (STEP COMPLETE / FAILED / PROJECT FINISHED).
 
@@ -32,12 +32,12 @@ If a rule is important for compliance, it should be in methodology. The prompt s
 
 ## DRY principles
 - **Prompt = thin wrapper**, methodology = full policy.
-- **Scripts for edits** (blockers, state) to keep format deterministic.
+- **Scripts for edits** (bug backlog, state) to keep format deterministic.
 - **Logs drive prompts**, not the other way around (one‑line logs feed future prompts).
 
 ## Tooling patterns
-- **choose_mode script**: randomized selection with floors; outputs selected mode (+ blocker slug if applicable).
-- **blockers script**: add/update/resolve blockers by slug; never hand‑edit the YAML.
+- **choose_mode script**: randomized selection with floors; outputs selected mode (+ bug slug if applicable).
+- **bug_backlog script**: add/update/resolve bugs by slug; never hand‑edit the YAML.
 - **logging**: one‑line logs and git logs per iteration to enable replay and forensic debugging.
 
 <example kind="prompt:minimal">
@@ -46,8 +46,8 @@ Run choose_mode, perform the selected mode, and end with the required output lin
 </example>
 
 <example kind="prompt:overstuffed:bad">
-Read all docs, run choose_mode, do EXPLORE/DEVELOP/CONFIRM/TACKLE_BLOCKER, remember to run tests, commit with
-subject+body, add blockers via script, update YAML, include one-line log, output STEP COMPLETE, do not forget...
+Read all docs, run choose_mode, do EXPLORE/DEVELOP/CONFIRM/FIX_BUG, remember to run tests, commit with
+subject+body, add bugs via script, update YAML, include one-line log, output STEP COMPLETE, do not forget...
 </example>
 <note>Why bad: duplicates policy, drifts from methodology, and becomes stale.</note>
 
@@ -59,7 +59,7 @@ subject+body, add blockers via script, update YAML, include one-line log, output
 2) Run choose_mode
 3) Execute one mode
 4) Run relevant tests
-5) Record blockers if urgent
+5) Record bugs if urgent
 6) Commit with subject+body
 7) Output ONE-LINE LOG + STEP status
 
@@ -68,7 +68,7 @@ subject+body, add blockers via script, update YAML, include one-line log, output
 - EXPLORE…
 - DEVELOP…
 - CONFIRM…
-- TACKLE_BLOCKER…
+- FIX_BUG…
 
 ## Testing posture
 ## Rework policy
@@ -106,13 +106,13 @@ Add select tests
 - Tests: skipped (reason: only doc edit; no code changes)
 </example>
 
-<example kind="blocker:command">
-python wiggum/scripts/blockers.py add --title "Parser fails on function calls" \
+<example kind="bug:command">
+python wiggum/scripts/bug_backlog.py add --title "Parser fails on function calls" \
   --severity high \
   --description "Expressions like name.empty() fail to parse; blocks many tests. Repro: zig build harness -- tests/artisinal/existence.json. See spec: index.md#functions."
 </example>
 
-<example kind="blocker:yaml">
+<example kind="bug:yaml">
 - slug: parser-fails-on-function-calls
   status: open
   severity: high
@@ -120,11 +120,11 @@ python wiggum/scripts/blockers.py add --title "Parser fails on function calls" \
   description: Expressions like name.empty() fail to parse; blocks many tests...
 </example>
 
-<example kind="flow:tackle_blocker">
-1. python scripts/choose_mode.py → Mode: TACKLE_BLOCKER + slug
-2. python wiggum/scripts/blockers.py show <slug>
+<example kind="flow:fix_bug">
+1. python scripts/choose_mode.py → Mode: FIX_BUG + slug
+2. python wiggum/scripts/bug_backlog.py show <slug>
 3. Work the fix (code + tests)
-4. python wiggum/scripts/blockers.py update <slug> --status in_progress (or resolve)
+4. python wiggum/scripts/bug_backlog.py update <slug> --status in_progress (or resolve)
 5. Commit with test info + one-line log
 </example>
 
@@ -144,15 +144,15 @@ python wiggum/scripts/blockers.py add --title "Parser fails on function calls" \
 </example>
 
 <example kind="rework:blocking">
-You start DEVELOP but discover the parser can’t handle any function calls (blocks most tests).
-Action: add a blocker, do the minimal parser fix needed, then return to the original task.
+You start DEVELOP but discover the parser can't handle any function calls (blocks most tests).
+Action: add a bug to the backlog, do the minimal parser fix needed, then return to the original task.
 </example>
 
 ## Common failure modes (and how to avoid them)
 - **No status line** → always end with `STEP COMPLETE` / `STEP FAILED` / `PROJECT FINISHED`.
 - **No tests run** → include a reason in commit body and one‑line log.
 - **One‑line commit** → use subject + body with bullet list.
-- **Hand‑editing blockers** → always use `wiggum/scripts/blockers.py`.
+- **Hand‑editing bug backlog** → always use `wiggum/scripts/bug_backlog.py`.
 
 ## Porting to a new project
 1. Copy the wiggum driver and scripts.

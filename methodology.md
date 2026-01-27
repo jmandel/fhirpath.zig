@@ -8,9 +8,10 @@ This project is spec‑driven. Official tests are treated as pointers to require
 3. Perform exactly one mode (see “The work loop”).
 4. Run relevant tests for your change:
    - `zig build harness` - all artisinal tests
-   - `zig build harness -- -f <pattern>` - filter by name
+   - `zig build harness -- -F <pattern>` - filter by filename
+   - `zig build harness -- -t <pattern>` - filter by test name
    - `zig build harness -- tests/r5/tests-fhir-r5.json` - official R5 tests
-5. If you discover urgent external blockers, add them via `wiggum/scripts/blockers.py` with bug‑report quality detail (clear steps, rationale, pointers).
+5. If you discover urgent bugs, add them via `wiggum/scripts/bug_backlog.py` with bug‑report quality detail (clear steps, rationale, pointers).
 6. Commit any changes with a subject + detailed body (see Git discipline).
 7. End output with:
    - `ONE-LINE LOG: <high-signal summary, <=140 chars>`
@@ -45,7 +46,7 @@ The script uses a summary “state” to bias the choice toward where effort is 
 - how many have been reviewed,
 - how many have been implemented.
 
-If there are open blockers, the chooser will also include a **TACKLE_BLOCKER** mode and select a specific blocker to work on.
+If there are open bugs, the chooser will also include a **FIX_BUG** mode and select a specific bug to work on.
 
 By default the script derives this state from `tests/artisinal/*.json` using `meta.status` if present:
 - `drafted` → written only
@@ -100,11 +101,16 @@ Pick one and expand from there.
 3. Pivot to implementing the dependency instead
 4. Return STEP COMPLETE - you made progress on a real blocker
 
+**Discovered bugs**: While working, you may discover bugs unrelated to your sampled issue:
+- **Blocking bug** (prevents progress on current issue) or **engine bug** (underlying problem affecting correctness): Fix it instead, return STEP COMPLETE. You made real progress.
+- **Incidental bug** (matters but doesn't block you): File a backlog issue via `wiggum/scripts/bug_backlog.py add`, then continue on your original issue.
+
 **Commands**:
 ```bash
 zig build harness                    # summary of all artisinal
 zig build harness -- -n 5            # show first 5 failures
-zig build harness -- -f string       # focus on string-related tests
+zig build harness -- -F string       # filter by filename (string-*.json)
+zig build harness -- -t divide       # filter by test name
 grep -r '"skip":' tests/artisinal/   # find skipped tests
 ```
 
@@ -119,12 +125,12 @@ Goal: verify correctness of existing tests.
 - Cross‑check each expectation against the spec text.
 - Tighten or correct tests when they diverge from the spec.
 
-### TACKLE_BLOCKER
-Goal: resolve a high‑level blocker.
-- Blockers are managed via `wiggum/scripts/blockers.py` (do not hand‑edit).
-- Run `python wiggum/scripts/blockers.py list` to see open blockers.
-- Work the selected blocker to completion or move it forward (e.g., from `open` to `in_progress`).
-- Update the blocker via `python wiggum/scripts/blockers.py update <slug> ...` or `resolve <slug>`.
+### FIX_BUG
+Goal: resolve a bug from the backlog.
+- Bugs are managed via `wiggum/scripts/bug_backlog.py` (do not hand‑edit).
+- Run `python wiggum/scripts/bug_backlog.py list` to see open bugs.
+- Work the selected bug to completion or move it forward (e.g., from `open` to `in_progress`).
+- Update the bug via `python wiggum/scripts/bug_backlog.py update <slug> ...` or `resolve <slug>`.
 
 ## Artisinal file structure & TODOs
 Each artisinal file should combine:
@@ -147,7 +153,7 @@ The harness supports both artisinal and official test formats. It auto-detects b
 | `expect` or `outputs` | array | Expected output items |
 | `env` | object | Environment variables (keys without `%` prefix) |
 | `skip` | string | Skip test with this reason |
-| `invalid` | boolean | If true, expect parse or eval error |
+| `expect_error` | boolean | If true, expect parse or eval error |
 | `unordered` | boolean | Compare results as unordered set |
 | `mode` | string | Parsing mode (for FHIR-specific tests) |
 
@@ -159,14 +165,14 @@ The harness supports both artisinal and official test formats. It auto-detects b
 
 ### Expecting errors
 
-Use `invalid: true` when the expression should fail to parse or evaluate:
+Use `expect_error: true` when the expression should fail to parse or evaluate:
 
 ```json
 {
   "name": "type error on comparison",
   "expr": "1 > 'hello'",
   "input": {},
-  "invalid": true
+  "expect_error": true
 }
 ```
 
@@ -262,23 +268,23 @@ With `unordered: true`, the harness checks that:
 
 Always include a TODO entry for the current pass/fail rate. If the pass rate is not 100%, add or update a TODO item that explicitly says:
 - `"[ ] Improve passing rate (X/Y passing)"` with the current counts.
-## Blockers file format
-Blockers are simple YAML (single‑line values only), with this shape:
+## Bug backlog file format
+Bugs are simple YAML (single‑line values only), with this shape:
 
 ```
 version: 1
-blockers:
+bugs:
   - slug: parse-function-calls
     status: open
     severity: high
     title: Parse function calls in expressions
-    description: One‑line description of the blocker.
+    description: One‑line description of the bug.
     created: 2026-01-27
     updated: 2026-01-27
     tags: [parser, tests]
 ```
 
-Use `wiggum/scripts/blockers.py` for all updates; the scripts keep the format deterministic for tooling.
+Use `wiggum/scripts/bug_backlog.py` for all updates; the scripts keep the format deterministic for tooling.
 
 ## Upstream issues (spec bugs, test discrepancies)
 
@@ -296,7 +302,7 @@ File an upstream issue when you find:
 **Do NOT file upstream for**:
 - Differences between our artisinal tests and official tests (our tests might be wrong)
 - Implementation bugs in fhirpath.zig
-- Internal blockers (use `blockers.py` instead)
+- Internal bugs (use `bug_backlog.py` instead)
 
 ### Target: fhirpath-editors
 

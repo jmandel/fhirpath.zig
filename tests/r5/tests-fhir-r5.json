@@ -126,28 +126,28 @@
       "expression": "defineVariable('n1', name.first()).active | defineVariable('n2', name.skip(1).first()).select(%n1.given)",
       "inputfile": "patient-example.xml",
       "envfile": "",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "defineVariable10",
       "expression": "select(%fam.given)",
       "inputfile": "patient-example.xml",
       "envfile": "",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "dvRedefiningVariableThrowsError",
       "expression": "defineVariable('v1').defineVariable('v1').select(%v1)",
       "inputfile": "patient-example.xml",
       "envfile": "",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "defineVariable12",
       "expression": "Patient.name.defineVariable('n1', first()).active | Patient.name.defineVariable('n2', skip(1).first()).select(%n1.given)",
       "inputfile": "patient-example.xml",
       "envfile": "",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "defineVariable13",
@@ -206,14 +206,14 @@
       "expression": "defineVariable('root', 'r1-').select(defineVariable('v1', 'v1').defineVariable('v2', 'v2').select(%v1 | %v2)).select(%root & $this & %v1)",
       "inputfile": "patient-example.xml",
       "envfile": "",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "dvCantOverwriteSystemVar",
       "expression": "defineVariable('context', 'oops')",
       "inputfile": "patient-example.xml",
       "envfile": "",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "dvConceptMapExample",
@@ -256,7 +256,7 @@
       "expression": "defineVariable('n1', 'v1').active | defineVariable('n2', 'v2').select(%n1)",
       "inputfile": "patient-example.xml",
       "envfile": "",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "testComment1",
@@ -335,14 +335,14 @@
       "expression": "2 + 2 /",
       "inputfile": "patient-example.xml",
       "envfile": "",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "testComment8",
       "expression": "2 + 2 /* not finished",
       "inputfile": "patient-example.xml",
       "envfile": "",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "testComment9",
@@ -489,7 +489,7 @@
       "inputfile": "patient-example.xml",
       "envfile": "",
       "mode": "strict",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "testSimpleWithContext",
@@ -525,7 +525,7 @@
       "inputfile": "patient-example.xml",
       "envfile": "",
       "mode": "strict",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "testPolymorphismA",
@@ -545,7 +545,7 @@
       "inputfile": "observation-example.xml",
       "envfile": "",
       "mode": "strict",
-      "invalid": true,
+      "expect_error": true,
       "outputs": [
         {
           "type": "string",
@@ -625,7 +625,7 @@
       "inputfile": "observation-example.xml",
       "envfile": "",
       "mode": "strict",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "testPolymorphismAsBFunction",
@@ -687,7 +687,7 @@
       "inputfile": "patient-example.xml",
       "envfile": "",
       "mode": "strict",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "testLiteralTrue",
@@ -766,7 +766,7 @@
       "expression": "-1.convertsToInteger()",
       "inputfile": "patient-example.xml",
       "envfile": "",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "testLiteralIntegerMax",
@@ -881,7 +881,7 @@
       "expression": "-0.1.convertsToDecimal()",
       "inputfile": "patient-example.xml",
       "envfile": "",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "testLiteralDecimalMax",
@@ -1104,14 +1104,14 @@
       "expression": "@T14:34:28Z.is(Time)",
       "inputfile": "patient-example.xml",
       "envfile": "",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "testLiteralTimeTimezoneOffset",
       "expression": "@T14:34:28+10:00.is(Time)",
       "inputfile": "patient-example.xml",
       "envfile": "",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "testLiteralQuantityDecimal",
@@ -1310,7 +1310,7 @@
       "expression": "Observation.value.value < 'test'",
       "inputfile": "observation-example.xml",
       "envfile": "",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "testDateEqual",
@@ -1621,7 +1621,7 @@
       "expression": "(1|2).not() = false",
       "inputfile": "patient-example.xml",
       "envfile": "",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "testStringYearConvertsToDate",
@@ -3095,7 +3095,7 @@
       "expression": "iif(1 | 2 | 3, true, false)",
       "inputfile": "patient-example.xml",
       "envfile": "",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "testCollectionBoolean2",
@@ -3518,7 +3518,7 @@
       "expression": "Patient.name.single().exists()",
       "inputfile": "patient-example.xml",
       "envfile": "",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "testFirstLast1",
@@ -3765,7 +3765,7 @@
       "expression": "iif('non boolean criteria', 'true-result', 'false-result')",
       "inputfile": "patient-example.xml",
       "envfile": "",
-      "invalid": true,
+      "expect_error": true,
       "outputs": [
         {
           "type": "string",
@@ -3814,7 +3814,7 @@
       "expression": "('item1' | 'item2').iif(true, 'true-result', 'false-result')",
       "inputfile": "patient-example.xml",
       "envfile": "",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "testIif11",
@@ -4265,7 +4265,7 @@
       "expression": "Patient.name.family.first().substring(2, length()-5)",
       "inputfile": "patient-example.xml",
       "envfile": "",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "testSubstring11",
@@ -4440,14 +4440,14 @@
       "expression": "'987654321'.startsWith(length().toString())",
       "inputfile": "patient-example.xml",
       "envfile": "",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "testStartsWithNonString1",
       "expression": "Appointment.identifier.startsWith('rand')",
       "inputfile": "appointment-examplereq.json",
       "envfile": "",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "testEndsWith1",
@@ -4574,14 +4574,14 @@
       "expression": "'123456789'.endsWith(length().toString())",
       "inputfile": "patient-example.xml",
       "envfile": "",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "testEndsWithNonString1",
       "expression": "Appointment.identifier.endsWith('rand')",
       "inputfile": "appointment-examplereq.json",
       "envfile": "",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "testContainsString1",
@@ -4708,14 +4708,14 @@
       "expression": "'123456789'.contains(length().toString())",
       "inputfile": "patient-example.xml",
       "envfile": "",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "testContainsNonString1",
       "expression": "Appointment.identifier.contains('rand')",
       "inputfile": "appointment-examplereq.json",
       "envfile": "",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "testMatchesCaseSensitive1",
@@ -8408,7 +8408,7 @@
       "expression": "('a' | 'c' | 'd') in 'b'",
       "inputfile": "patient-example.xml",
       "envfile": "",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "testInEmptyCollection",
@@ -9183,7 +9183,7 @@
       "expression": "@1973-12-25 + 1 'mo'",
       "inputfile": "patient-example.xml",
       "envfile": "",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "testPlusDate15",
@@ -9202,14 +9202,14 @@
       "expression": "@1973-12-25 + 1 'a'",
       "inputfile": "patient-example.xml",
       "envfile": "",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "testPlusDate17",
       "expression": "@1975-12-25 + 1 'a'",
       "inputfile": "patient-example.xml",
       "envfile": "",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "testPlusDate18",
@@ -9276,7 +9276,7 @@
       "expression": "@1974-12-25 + 7",
       "inputfile": "patient-example.xml",
       "envfile": "",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "testPlusTime1",
@@ -9373,7 +9373,7 @@
       "expression": "(1 | 2 | 3) & 'b' = '1,2,3b'",
       "inputfile": "patient-example.xml",
       "envfile": "",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "testMinus1",
@@ -9416,7 +9416,7 @@
       "expression": "'a'-'b' = 'ab'",
       "inputfile": "patient-example.xml",
       "envfile": "",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "testMinus5",
@@ -9435,7 +9435,7 @@
       "expression": "@1974-12-25 - 1 'cm'",
       "inputfile": "patient-example.xml",
       "envfile": "",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "testMinus7",
@@ -10222,7 +10222,7 @@
       "expression": "-1.convertsToInteger()",
       "inputfile": "patient-example.xml",
       "envfile": "",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "testPrecedence2",
@@ -10247,7 +10247,7 @@
           "value": "true"
         }
       ],
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "testPrecedence4",
@@ -10758,7 +10758,7 @@
       "expression": "conformsTo('http://trash')",
       "inputfile": "patient-example.xml",
       "envfile": "",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "LowBoundaryDecimalDefault",
@@ -11473,7 +11473,7 @@
       "expression": "(true | 'foo').allTrue()",
       "inputfile": "patient-example.xml",
       "envfile": "",
-      "invalid": true,
+      "expect_error": true,
       "outputs": [
         {
           "type": "boolean",
@@ -11498,7 +11498,7 @@
       "expression": "Observation.valueQuantity.exists()",
       "inputfile": "observation-example.xml",
       "envfile": "",
-      "invalid": true,
+      "expect_error": true,
       "outputs": [
         {
           "type": "boolean",
@@ -11751,7 +11751,7 @@
       "expression": "Patient.name.as(HumanName).use",
       "inputfile": "patient-example.xml",
       "envfile": "",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "testFHIRPathAsFunction22",
@@ -11778,14 +11778,14 @@
       "expression": "Patient.gender.as(string1)",
       "inputfile": "patient-example.xml",
       "envfile": "",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "testFHIRPathAsFunction24",
       "expression": "Patient.gender.ofType(string1)",
       "inputfile": "patient-example.xml",
       "envfile": "",
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "testContainedId",

@@ -571,13 +571,13 @@
       "name": "comparison: multi-item left operand is error",
       "expr": "(1 | 2) > 1",
       "input": {},
-      "invalid": true
+      "expect_error": true
     },
     {
       "name": "comparison: non-convertible types are error",
       "expr": "1 > 'test'",
       "input": {},
-      "invalid": true
+      "expect_error": true
     }
   ]
 }

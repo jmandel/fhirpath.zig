@@ -11,7 +11,8 @@ const schema = @import("schema.zig");
 const Options = struct {
     show_failures: bool = true,
     max_failures: usize = 0,
-    filter: ?[]const u8 = null,
+    filter_file: ?[]const u8 = null,
+    filter_test: ?[]const u8 = null,
     verbose: bool = false,
     model_path: ?[]const u8 = null,
     input_dir: ?[]const u8 = null,
@@ -59,9 +60,12 @@ pub fn main() !void {
         } else if (std.mem.eql(u8, arg, "--max") or std.mem.eql(u8, arg, "-n")) {
             i += 1;
             if (i < args.len) opts.max_failures = std.fmt.parseInt(usize, args[i], 10) catch 10;
-        } else if (std.mem.eql(u8, arg, "--filter") or std.mem.eql(u8, arg, "-f")) {
+        } else if (std.mem.eql(u8, arg, "--filter-file") or std.mem.eql(u8, arg, "-F")) {
             i += 1;
-            if (i < args.len) opts.filter = args[i];
+            if (i < args.len) opts.filter_file = args[i];
+        } else if (std.mem.eql(u8, arg, "--filter-test") or std.mem.eql(u8, arg, "-t")) {
+            i += 1;
+            if (i < args.len) opts.filter_test = args[i];
         } else if (std.mem.eql(u8, arg, "--verbose") or std.mem.eql(u8, arg, "-v")) {
             opts.verbose = true;
         } else if (std.mem.eql(u8, arg, "--model") or std.mem.eql(u8, arg, "-m")) {
@@ -130,7 +134,7 @@ pub fn main() !void {
         while (try iter.next()) |entry| {
             if (entry.kind != .file) continue;
             if (!std.mem.endsWith(u8, entry.name, ".json")) continue;
-            if (opts.filter) |f| {
+            if (opts.filter_file) |f| {
                 if (std.mem.indexOf(u8, entry.name, f) == null) continue;
             }
 
@@ -182,21 +186,23 @@ fn printUsage() void {
         \\Run FHIRPath tests (artisinal or official r5 format).
         \\
         \\Options:
-        \\  -q, --no-failures    Don't show failure details
-        \\  -n, --max N          Show at most N failures (default: all)
-        \\  -f, --filter PATTERN Filter files/tests by pattern
-        \\  -v, --verbose        Show passing tests too
-        \\  -m, --model PATH     Load FHIR model for type resolution
-        \\  -i, --input-dir DIR  Directory for inputfile references
-        \\  -h, --help           Show this help
+        \\  -F, --filter-file PATTERN  Filter by filename (substring match)
+        \\  -t, --filter-test PATTERN  Filter by test name (substring match)
+        \\  -n, --max N                Show at most N failures (default: all)
+        \\  -q, --no-failures          Don't show failure details
+        \\  -v, --verbose              Show passing tests too
+        \\  -m, --model PATH           Load FHIR model for type resolution
+        \\  -i, --input-dir DIR        Directory for inputfile references
+        \\  -h, --help                 Show this help
         \\
         \\If no files specified, runs all tests/artisinal/*.json
         \\
         \\Examples:
         \\  harness                              # all artisinal tests
-        \\  harness -f string                    # filter by "string"
+        \\  harness -F string                    # only string-*.json files
+        \\  harness -t substring                 # only tests with "substring" in name
+        \\  harness -F math -t divide            # math files, divide tests
         \\  harness tests/r5/tests-fhir-r5.json  # official r5 tests
-        \\  harness -m models/r5/model.bin -i tests/r5/input tests/r5/tests-fhir-r5.json
         \\
     ;
     std.debug.print("{s}", .{usage});
@@ -313,13 +319,9 @@ fn runTestFile(
         const name_val = obj.get("name") orelse std.json.Value{ .string = "(unnamed)" };
         const name_str = if (name_val == .string) name_val.string else "(unnamed)";
 
-        // Apply filter
-        if (opts.filter) |f| {
-            if (std.mem.indexOf(u8, name_str, f) == null and
-                std.mem.indexOf(u8, result.name, f) == null)
-            {
-                continue;
-            }
+        // Apply test name filter
+        if (opts.filter_test) |f| {
+            if (std.mem.indexOf(u8, name_str, f) == null) continue;
         }
 
         // Skip tests with predicate flag (not supported)
@@ -338,8 +340,8 @@ fn runTestFile(
             }
         }
 
-        // Check for invalid marker (expect error)
-        const expect_error = if (obj.get("invalid")) |inv| inv == .bool and inv.bool else false;
+        // Check for expect_error marker
+        const expect_error = if (obj.get("expect_error")) |inv| inv == .bool and inv.bool else false;
 
         const expr_val = obj.get(expr_key) orelse {
             result.failed += 1;

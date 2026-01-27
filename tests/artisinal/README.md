@@ -4,7 +4,7 @@ Hand-authored tests for validating core FHIRPath semantics.
 
 See `methodology.md` in the project root for:
 - Complete test format specification
-- Field reference (input, expect, skip, invalid, etc.)
+- Field reference (input, expect, skip, expect_error, etc.)
 - Expected value format
 - Spec documentation guidelines
 
@@ -14,11 +14,14 @@ See `methodology.md` in the project root for:
 # Run all artisinal tests
 zig build harness
 
-# Run a specific file
-zig build harness -- tests/artisinal/string-matching.json
+# Filter by filename
+zig build harness -- -F string
 
-# Filter by pattern
-zig build harness -- -f substring
+# Filter by test name
+zig build harness -- -t substring
+
+# Combine filters
+zig build harness -- -F math -t divide
 
 # Run official tests
 zig build harness -- -m models/r5/model.bin -i tests/r5/input tests/r5/tests-fhir-r5.json

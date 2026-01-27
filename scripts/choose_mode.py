@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_BLOCKERS = ROOT / "wiggum" / "blockers.yaml"
+DEFAULT_BUG_BACKLOG = ROOT / "wiggum" / "bug_backlog.yaml"
 DEFAULT_STATE = ROOT / "wiggum" / "state.json"
 
 
@@ -31,24 +31,24 @@ def _parse_value(raw: str):
     return raw
 
 
-def load_blockers(path: Path) -> list[dict]:
+def load_bugs(path: Path) -> list[dict]:
     if not path.exists():
         return []
-    blockers = []
+    bugs = []
     current = None
-    in_blockers = False
+    in_bugs = False
     for raw_line in path.read_text(encoding="utf-8").splitlines():
         line = raw_line.rstrip()
         if not line or line.lstrip().startswith("#"):
             continue
-        if line.startswith("blockers:"):
-            in_blockers = True
+        if line.startswith("bugs:"):
+            in_bugs = True
             continue
-        if not in_blockers:
+        if not in_bugs:
             continue
         if line.startswith("  - "):
             current = {}
-            blockers.append(current)
+            bugs.append(current)
             rest = line[4:]
             if rest and ":" in rest:
                 key, val = rest.split(":", 1)
@@ -59,15 +59,15 @@ def load_blockers(path: Path) -> list[dict]:
             if ":" in rest:
                 key, val = rest.split(":", 1)
                 current[key.strip()] = _parse_value(val)
-    return blockers
+    return bugs
 
 
-def open_blockers(blockers: list[dict]) -> list[dict]:
+def open_bugs(bugs: list[dict]) -> list[dict]:
     open_list = []
-    for blk in blockers:
-        status = str(blk.get("status", "open")).strip().lower()
+    for bug in bugs:
+        status = str(bug.get("status", "open")).strip().lower()
         if status not in ("resolved", "wontfix"):
-            open_list.append(blk)
+            open_list.append(bug)
     return open_list
 
 
@@ -109,20 +109,20 @@ def clamp(v: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, v))
 
 
-def choose_mode(state: dict, params: dict, seed: int | None, blockers: list[dict]):
+def choose_mode(state: dict, params: dict, seed: int | None, bugs: list[dict]):
     total = int(state.get("artisinal_total", 0) or 0)
     reviewed = int(state.get("reviewed_total", 0) or 0)
     implemented = int(state.get("implemented_total", 0) or 0)
 
     floor = float(params.get("floor", 0.15))
-    max_floor = 1.0 / (4.0 if blockers else 3.0)
+    max_floor = 1.0 / (4.0 if bugs else 3.0)
     floor = clamp(floor, 0.0, max_floor)
     explore_scale = float(params.get("explore_scale", 10.0))
     if explore_scale <= 0:
         explore_scale = 10.0
-    blocker_scale = float(params.get("blocker_scale", 6.0))
-    if blocker_scale <= 0:
-        blocker_scale = 6.0
+    bug_scale = float(params.get("bug_scale", 6.0))
+    if bug_scale <= 0:
+        bug_scale = 6.0
 
     if total <= 0:
         raw_explore = 1.0
@@ -135,22 +135,22 @@ def choose_mode(state: dict, params: dict, seed: int | None, blockers: list[dict
         raw_develop = max(0.0, 1.0 - implemented_ratio)
         raw_confirm = max(0.0, 1.0 - reviewed_ratio)
 
-    if blockers:
+    if bugs:
         severity_weights = {"critical": 4.0, "high": 3.0, "medium": 2.0, "low": 1.0}
         total_weight = 0.0
-        for blk in blockers:
-            sev = str(blk.get("severity", "medium")).strip().lower()
+        for bug in bugs:
+            sev = str(bug.get("severity", "medium")).strip().lower()
             total_weight += severity_weights.get(sev, 1.0)
-        raw_blocker = min(1.0, total_weight / blocker_scale)
-        raw_sum = raw_explore + raw_develop + raw_confirm + raw_blocker
+        raw_bug = min(1.0, total_weight / bug_scale)
+        raw_sum = raw_explore + raw_develop + raw_confirm + raw_bug
         if raw_sum <= 0:
-            raw_explore = raw_develop = raw_confirm = raw_blocker = 1.0
+            raw_explore = raw_develop = raw_confirm = raw_bug = 1.0
             raw_sum = 4.0
         scale = 1.0 - 4.0 * floor
         p_explore = floor + scale * (raw_explore / raw_sum)
         p_develop = floor + scale * (raw_develop / raw_sum)
         p_confirm = floor + scale * (raw_confirm / raw_sum)
-        p_blocker = floor + scale * (raw_blocker / raw_sum)
+        p_fix_bug = floor + scale * (raw_bug / raw_sum)
     else:
         raw_sum = raw_explore + raw_develop + raw_confirm
         if raw_sum <= 0:
@@ -160,25 +160,25 @@ def choose_mode(state: dict, params: dict, seed: int | None, blockers: list[dict
         p_explore = floor + scale * (raw_explore / raw_sum)
         p_develop = floor + scale * (raw_develop / raw_sum)
         p_confirm = floor + scale * (raw_confirm / raw_sum)
-        p_blocker = 0.0
+        p_fix_bug = 0.0
 
     # Add CROSS_CHECK mode with ~10% probability
     p_cross_check = 0.10
-    
+
     # Scale down other probabilities to make room for CROSS_CHECK
     scale_factor = 1.0 - p_cross_check
     p_explore *= scale_factor
     p_develop *= scale_factor
     p_confirm *= scale_factor
-    p_blocker *= scale_factor
+    p_fix_bug *= scale_factor
 
     rng = random.Random(seed if seed is not None else time.time_ns())
     roll = rng.random()
-    
+
     # Check for CROSS_CHECK first
     if roll < p_cross_check:
         mode = "CROSS_CHECK"
-    elif not blockers:
+    elif not bugs:
         adjusted_roll = (roll - p_cross_check) / scale_factor
         if adjusted_roll < p_explore / scale_factor:
             mode = "EXPLORE"
@@ -195,9 +195,9 @@ def choose_mode(state: dict, params: dict, seed: int | None, blockers: list[dict
         elif adjusted_roll < (p_explore + p_develop + p_confirm) / scale_factor:
             mode = "CONFIRM"
         else:
-            mode = "TACKLE_BLOCKER"
+            mode = "FIX_BUG"
 
-    return mode, (p_explore, p_develop, p_confirm, p_blocker, p_cross_check)
+    return mode, (p_explore, p_develop, p_confirm, p_fix_bug, p_cross_check)
 
 
 def main() -> int:
@@ -205,7 +205,7 @@ def main() -> int:
     parser.add_argument("--state", type=str, default=str(DEFAULT_STATE), help="Path to a JSON state summary.")
     parser.add_argument("--root", type=str, default="tests/artisinal", help="Artisinal tests root.")
     parser.add_argument("--seed", type=int, default=None, help="Optional RNG seed.")
-    parser.add_argument("--blockers", type=str, default=str(DEFAULT_BLOCKERS), help="Path to blockers.yaml")
+    parser.add_argument("--bugs", type=str, default=str(DEFAULT_BUG_BACKLOG), help="Path to bug_backlog.yaml")
     args = parser.parse_args()
 
     state = {}
@@ -231,19 +231,19 @@ def main() -> int:
 
     rng = random.Random(seed if seed is not None else time.time_ns())
 
-    blocker_list = open_blockers(load_blockers(Path(args.blockers)))
+    bug_list = open_bugs(load_bugs(Path(args.bugs)))
 
-    mode, probs = choose_mode(state, params, seed, blocker_list)
-    p_explore, p_develop, p_confirm, p_blocker, p_cross_check = probs
+    mode, probs = choose_mode(state, params, seed, bug_list)
+    p_explore, p_develop, p_confirm, p_fix_bug, p_cross_check = probs
 
     print("Mode:", mode)
-    if blocker_list:
+    if bug_list:
         print(
             "Probabilities:",
             f"EXPLORE={p_explore:.2f}",
             f"DEVELOP={p_develop:.2f}",
             f"CONFIRM={p_confirm:.2f}",
-            f"TACKLE_BLOCKER={p_blocker:.2f}",
+            f"FIX_BUG={p_fix_bug:.2f}",
             f"CROSS_CHECK={p_cross_check:.2f}",
         )
     else:
@@ -259,13 +259,13 @@ def main() -> int:
         f"written={state.get('artisinal_total', 0)}",
         f"reviewed={state.get('reviewed_total', 0)}",
         f"implemented={state.get('implemented_total', 0)}",
-        f"blockers_open={len(blocker_list)}",
+        f"bugs_open={len(bug_list)}",
     )
-    if mode == "TACKLE_BLOCKER" and blocker_list:
+    if mode == "FIX_BUG" and bug_list:
         severity_weights = {"critical": 4.0, "high": 3.0, "medium": 2.0, "low": 1.0}
-        weights = [severity_weights.get(str(b.get("severity", "medium")).lower(), 1.0) for b in blocker_list]
+        weights = [severity_weights.get(str(b.get("severity", "medium")).lower(), 1.0) for b in bug_list]
         total = sum(weights)
-        pick = rng.random() * total if total > 0 else rng.random() * len(blocker_list)
+        pick = rng.random() * total if total > 0 else rng.random() * len(bug_list)
         idx = 0
         acc = 0.0
         for i, w in enumerate(weights):
@@ -273,16 +273,16 @@ def main() -> int:
             if pick <= acc:
                 idx = i
                 break
-        chosen = blocker_list[idx]
-        print("Blocker:", chosen.get("slug", ""))
+        chosen = bug_list[idx]
+        print("Bug:", chosen.get("slug", ""))
         if chosen.get("title"):
-            print("Blocker Title:", chosen.get("title", ""))
-    
+            print("Bug Title:", chosen.get("title", ""))
+
     if mode == "CROSS_CHECK":
         print("\nCROSS_CHECK: Compare artisinal tests against fhirpath.js and adjudicate differences.")
         print("Run: python scripts/cross_check.py --sample 3")
         print("See methodology.md for adjudication format.")
-    
+
     return 0
 
 

@@ -194,7 +194,7 @@ def parse_tests_xml(path: Path):
                     entry["predicate"] = str(predicate_attr).lower() == "true"
                 invalid_attr = expr_attrs.get("invalid") or attrs.get("invalid")
                 if invalid_attr is not None and str(invalid_attr).lower() != "false":
-                    entry["invalid"] = True
+                    entry["expect_error"] = True
                 expected_status = expr_attrs.get("expectedStatus") or attrs.get("expectedStatus")
                 if expected_status not in (None, ""):
                     entry["expectedStatus"] = expected_status
@@ -239,7 +239,7 @@ def parse_tests_xml(path: Path):
             entry["predicate"] = predicate_attr.lower() == "true"
         invalid_attr = expr_elem.get("invalid") or test.get("invalid")
         if invalid_attr is not None and str(invalid_attr).lower() != "false":
-            entry["invalid"] = True
+            entry["expect_error"] = True
         expected_status = expr_elem.get("expectedStatus") or test.get("expectedStatus")
         if expected_status not in (None, ""):
             entry["expectedStatus"] = expected_status

@@ -1,6 +1,6 @@
 {
   "meta": {
-    "status": "drafted",
+    "status": "reviewed",
     "feature": "count",
     "source": "spec/index.md#count() : Integer"
   },
@@ -18,7 +18,7 @@
     "[ ] Implement parsing of count() function calls.",
     "[ ] Implement count() evaluation to return the number of items in the input collection.",
     "[ ] Confirm count() on scalar values follows singleton collection semantics.",
-    "[ ] Improve passing rate (0/5 passing)."
+    "[ ] Improve passing rate (0/5 passing; parse errors for function calls)."
   ],
   "cases": [
     {

@@ -92,7 +92,7 @@ Pick one and expand from there.
 - Do NOT try to understand the full system before fixing one test
 - Do NOT fix test expectations unless you're certain they're wrong
 - Do NOT implement multiple unrelated functions in one session
-- If you find yourself reading more than 3-4 files to understand one failure, you're going too deep - just try a fix and see what happens
+- If you find yourself reading more than ~5 files to understand one failure, stop and form a hypothesis - then make a focused change to test it
 
 **Commands**:
 ```bash

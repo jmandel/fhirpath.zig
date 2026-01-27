@@ -31,7 +31,7 @@ The script uses a summary “state” to bias the choice toward where effort is 
 - how many have been reviewed,
 - how many have been implemented.
 
-If there are open blockers in `blockers.md`, the chooser will also include a **TACKLE_BLOCKER** mode and select a specific blocker to work on.
+If there are open blockers in `blockers.yaml`, the chooser will also include a **TACKLE_BLOCKER** mode and select a specific blocker to work on.
 
 By default the script derives this state from `tests/artisinal/*.json` using `meta.status` if present:
 - `drafted` → written only
@@ -88,7 +88,7 @@ Goal: verify correctness of existing tests.
 
 ### TACKLE_BLOCKER
 Goal: resolve a high‑level blocker.
-- Blockers live in `blockers.md` (YAML) and are managed via `wiggum/scripts/blockers.py` (do not hand‑edit).
+- Blockers live in `blockers.yaml` (YAML) and are managed via `wiggum/scripts/blockers.py` (do not hand‑edit).
 - Run `python wiggum/scripts/blockers.py list` to see open blockers.
 - Work the selected blocker to completion or move it forward (e.g., from `open` to `in_progress`).
 - Update the blocker via `python wiggum/scripts/blockers.py update <slug> ...` or `resolve <slug>`.
@@ -103,7 +103,7 @@ Always include a TODO entry for the current pass/fail rate. If the pass rate is 
 - “Improve passing rate (X/Y passing)” with the current counts.
 
 ## Blockers file format
-`blockers.md` is simple YAML (single‑line values only), with this shape:
+`blockers.yaml` is simple YAML (single‑line values only), with this shape:
 
 ```
 version: 1

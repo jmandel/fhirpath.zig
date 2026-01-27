@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_FILE = ROOT / "blockers.md"
+DEFAULT_FILE = ROOT / "blockers.yaml"
 
 STATUS_VALUES = {"open", "in_progress", "blocked", "resolved", "wontfix"}
 SEVERITY_VALUES = {"low", "medium", "high", "critical"}
@@ -140,8 +140,8 @@ def find_blocker(data: dict, slug: str):
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Manage blockers.md")
-    parser.add_argument("--file", default=str(DEFAULT_FILE), help="Path to blockers.md")
+    parser = argparse.ArgumentParser(description="Manage blockers.yaml")
+    parser.add_argument("--file", default=str(DEFAULT_FILE), help="Path to blockers.yaml")
 
     sub = parser.add_subparsers(dest="cmd", required=True)
 

@@ -1,15 +1,14 @@
 {
   "meta": {
-    "status": "drafted",
-    "spec_summary": "String manipulation functions for FHIRPath. All functions operate on a single string; if input is empty, result is empty; if multiple items, signals error.",
-    "spec_sections": ["String Manipulation", "Additional String Functions"],
+    "status": "reviewed",
+    "spec_summary": "String manipulation functions for FHIRPath: length, indexOf, lastIndexOf, upper, lower, replace, trim, toChars, split, join. All single-string functions return empty if input is empty collection; multiple items signal error. The spec defines: indexOf returns 0 for empty substring, lastIndexOf returns length for empty substring.",
+    "spec_sections": ["5.7. String Manipulation", "Additional String Functions"],
     "todo": [
-      "Improve passing rate (0/68 passing)",
-      "Verify edge cases for empty string inputs vs empty collection inputs",
+      "Improve passing rate (0/70 passing) - functions not yet implemented",
       "Add tests for error signaling on multiple items (when harness supports error expectations)"
     ],
     "open_questions": [
-      "split() with empty separator - spec doesn't specify behavior, test assumes empty result"
+      "split() with empty separator - spec doesn't specify behavior; no official test coverage"
     ]
   },
   "cases": [
@@ -140,6 +139,18 @@
       "expr": "''.lastIndexOf('')",
       "input": {},
       "expect": [0]
+    },
+    {
+      "name": "lastIndexOf - empty collection input returns empty",
+      "expr": "{}.lastIndexOf('x').empty()",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "lastIndexOf - empty collection substring returns empty",
+      "expr": "'abc'.lastIndexOf({}).empty()",
+      "input": {},
+      "expect": [true]
     },
 
     {

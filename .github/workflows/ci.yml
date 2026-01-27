@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: master
+
+      - name: Fetch FHIR models
+        run: ./scripts/fetch_models.sh
+
+      - name: Build
+        run: zig build
+
+      - name: Run library tests
+        run: zig build test
+
+      - name: Run artisinal test harness
+        run: zig build harness
+
+      - name: Smoke test CLI
+        run: |
+          zig build run -- 'name.given' '{"name":{"given":["Ann","Bob"]}}'
+          zig build run -- 'items.count()' '{"items":[1,2,3,4,5]}'

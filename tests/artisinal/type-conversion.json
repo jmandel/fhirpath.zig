@@ -1,0 +1,699 @@
+{
+  "meta": {
+    "status": "drafted",
+    "spec_summary": [
+      "Type conversion functions transform values between FHIRPath types.",
+      "Two patterns: toX() performs conversion (empty if not convertible), convertsToX() returns boolean.",
+      "All functions require singleton input; multiple items signal an error.",
+      "Empty input → empty result (for both toX and convertsToX).",
+      "toBoolean: String (true/t/yes/y/1/1.0 → true; false/f/no/n/0/0.0 → false), Integer (0→false, 1→true), Decimal (0.0→false, 1.0→true).",
+      "toInteger: Integer passthrough, String matching (\\+|-)?\\d+, Boolean (true→1, false→0). Decimal strings not convertible.",
+      "toDecimal: Integer/Decimal passthrough, String matching (\\+|-)?\\d+(\\.\\d+)?, Boolean (true→1.0, false→0.0).",
+      "toString: All primitive types convert. Integer/Decimal use standard representation. Quantity uses format: value 'unit' or value unit for calendar durations.",
+      "toQuantity: Integer/Decimal → quantity with unit '1'. String parsed via regex. Optional unit argument for UCUM conversion.",
+      "toDate: Date passthrough, DateTime extracts date part without timezone conversion, String in YYYY-MM-DD format.",
+      "toDateTime: DateTime passthrough, Date promoted (time components empty), String in ISO format.",
+      "toTime: Time passthrough, String in hh:mm:ss.fff format.",
+      "toLong (STU): Like toInteger but 64-bit."
+    ],
+    "todos": [
+      "Improve passing rate (0/111 passing) - conversion functions not yet implemented",
+      "Test edge cases for numeric range limits",
+      "Verify UCUM unit conversion behavior for toQuantity(unit)",
+      "Add tests for partial date/time precision preservation"
+    ],
+    "open_questions": [
+      "What happens when toQuantity unit conversion is not supported? Spec says return empty.",
+      "Should 1.0 and 1.00 both convert to true via toBoolean? Spec says 'decimal equivalent'."
+    ]
+  },
+  "cases": [
+    {
+      "name": "toBoolean: string 'true'",
+      "expr": "'true'.toBoolean()",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "toBoolean: string 'false'",
+      "expr": "'false'.toBoolean()",
+      "input": {},
+      "expect": [false]
+    },
+    {
+      "name": "toBoolean: string 't' (case insensitive)",
+      "expr": "'t'.toBoolean()",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "toBoolean: string 'T' (uppercase)",
+      "expr": "'T'.toBoolean()",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "toBoolean: string 'yes'",
+      "expr": "'yes'.toBoolean()",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "toBoolean: string 'YES' (case insensitive)",
+      "expr": "'YES'.toBoolean()",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "toBoolean: string 'y'",
+      "expr": "'y'.toBoolean()",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "toBoolean: string '1'",
+      "expr": "'1'.toBoolean()",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "toBoolean: string '1.0'",
+      "expr": "'1.0'.toBoolean()",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "toBoolean: string 'f'",
+      "expr": "'f'.toBoolean()",
+      "input": {},
+      "expect": [false]
+    },
+    {
+      "name": "toBoolean: string 'no'",
+      "expr": "'no'.toBoolean()",
+      "input": {},
+      "expect": [false]
+    },
+    {
+      "name": "toBoolean: string 'n'",
+      "expr": "'n'.toBoolean()",
+      "input": {},
+      "expect": [false]
+    },
+    {
+      "name": "toBoolean: string '0'",
+      "expr": "'0'.toBoolean()",
+      "input": {},
+      "expect": [false]
+    },
+    {
+      "name": "toBoolean: string '0.0'",
+      "expr": "'0.0'.toBoolean()",
+      "input": {},
+      "expect": [false]
+    },
+    {
+      "name": "toBoolean: string 'invalid' returns empty",
+      "expr": "'invalid'.toBoolean()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "toBoolean: integer 1",
+      "expr": "1.toBoolean()",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "toBoolean: integer 0",
+      "expr": "0.toBoolean()",
+      "input": {},
+      "expect": [false]
+    },
+    {
+      "name": "toBoolean: integer 2 returns empty",
+      "expr": "2.toBoolean()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "toBoolean: integer -1 returns empty",
+      "expr": "(-1).toBoolean()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "toBoolean: decimal 1.0",
+      "expr": "1.0.toBoolean()",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "toBoolean: decimal 0.0",
+      "expr": "0.0.toBoolean()",
+      "input": {},
+      "expect": [false]
+    },
+    {
+      "name": "toBoolean: decimal 1.5 returns empty",
+      "expr": "1.5.toBoolean()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "toBoolean: boolean passthrough true",
+      "expr": "true.toBoolean()",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "toBoolean: boolean passthrough false",
+      "expr": "false.toBoolean()",
+      "input": {},
+      "expect": [false]
+    },
+    {
+      "name": "toBoolean: empty input returns empty",
+      "expr": "{}.toBoolean()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "convertsToBoolean: string 'true'",
+      "expr": "'true'.convertsToBoolean()",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "convertsToBoolean: string 'invalid'",
+      "expr": "'invalid'.convertsToBoolean()",
+      "input": {},
+      "expect": [false]
+    },
+    {
+      "name": "convertsToBoolean: integer 1",
+      "expr": "1.convertsToBoolean()",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "convertsToBoolean: integer 2 (not convertible)",
+      "expr": "2.convertsToBoolean()",
+      "input": {},
+      "expect": [false]
+    },
+    {
+      "name": "convertsToBoolean: decimal 1.0",
+      "expr": "1.0.convertsToBoolean()",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "convertsToBoolean: empty returns empty",
+      "expr": "{}.convertsToBoolean()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "toInteger: string '42'",
+      "expr": "'42'.toInteger()",
+      "input": {},
+      "expect": [42]
+    },
+    {
+      "name": "toInteger: string '-17'",
+      "expr": "'-17'.toInteger()",
+      "input": {},
+      "expect": [-17]
+    },
+    {
+      "name": "toInteger: string '+5'",
+      "expr": "'+5'.toInteger()",
+      "input": {},
+      "expect": [5]
+    },
+    {
+      "name": "toInteger: string '0'",
+      "expr": "'0'.toInteger()",
+      "input": {},
+      "expect": [0]
+    },
+    {
+      "name": "toInteger: string '1.0' returns empty (decimal not convertible)",
+      "expr": "'1.0'.toInteger()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "toInteger: string 'abc' returns empty",
+      "expr": "'abc'.toInteger()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "toInteger: integer passthrough",
+      "expr": "42.toInteger()",
+      "input": {},
+      "expect": [42]
+    },
+    {
+      "name": "toInteger: boolean true",
+      "expr": "true.toInteger()",
+      "input": {},
+      "expect": [1]
+    },
+    {
+      "name": "toInteger: boolean false",
+      "expr": "false.toInteger()",
+      "input": {},
+      "expect": [0]
+    },
+    {
+      "name": "toInteger: empty returns empty",
+      "expr": "{}.toInteger()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "convertsToInteger: string '42'",
+      "expr": "'42'.convertsToInteger()",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "convertsToInteger: string '1.0' (not convertible)",
+      "expr": "'1.0'.convertsToInteger()",
+      "input": {},
+      "expect": [false]
+    },
+    {
+      "name": "convertsToInteger: string 'abc' (not convertible)",
+      "expr": "'abc'.convertsToInteger()",
+      "input": {},
+      "expect": [false]
+    },
+    {
+      "name": "convertsToInteger: integer always true",
+      "expr": "42.convertsToInteger()",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "convertsToInteger: boolean always true",
+      "expr": "true.convertsToInteger()",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "convertsToInteger: empty returns empty",
+      "expr": "{}.convertsToInteger()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "toDecimal: string '3.14'",
+      "expr": "'3.14'.toDecimal()",
+      "input": {},
+      "expect": [3.14]
+    },
+    {
+      "name": "toDecimal: string '-0.5'",
+      "expr": "'-0.5'.toDecimal()",
+      "input": {},
+      "expect": [-0.5]
+    },
+    {
+      "name": "toDecimal: string '42' (integer format ok)",
+      "expr": "'42'.toDecimal()",
+      "input": {},
+      "expect": [42]
+    },
+    {
+      "name": "toDecimal: string 'abc' returns empty",
+      "expr": "'abc'.toDecimal()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "toDecimal: string '1.a' returns empty",
+      "expr": "'1.a'.toDecimal()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "toDecimal: integer promotes to decimal",
+      "expr": "42.toDecimal()",
+      "input": {},
+      "expect": [42.0]
+    },
+    {
+      "name": "toDecimal: decimal passthrough",
+      "expr": "3.14.toDecimal()",
+      "input": {},
+      "expect": [3.14]
+    },
+    {
+      "name": "toDecimal: boolean true",
+      "expr": "true.toDecimal()",
+      "input": {},
+      "expect": [1.0]
+    },
+    {
+      "name": "toDecimal: boolean false",
+      "expr": "false.toDecimal()",
+      "input": {},
+      "expect": [0.0]
+    },
+    {
+      "name": "toDecimal: empty returns empty",
+      "expr": "{}.toDecimal()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "convertsToDecimal: string '3.14'",
+      "expr": "'3.14'.convertsToDecimal()",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "convertsToDecimal: string 'abc'",
+      "expr": "'abc'.convertsToDecimal()",
+      "input": {},
+      "expect": [false]
+    },
+    {
+      "name": "convertsToDecimal: integer always true",
+      "expr": "42.convertsToDecimal()",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "convertsToDecimal: boolean always true",
+      "expr": "true.convertsToDecimal()",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "convertsToDecimal: empty returns empty",
+      "expr": "{}.convertsToDecimal()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "toString: integer",
+      "expr": "42.toString()",
+      "input": {},
+      "expect": ["42"]
+    },
+    {
+      "name": "toString: negative integer",
+      "expr": "(-1).toString()",
+      "input": {},
+      "expect": ["-1"]
+    },
+    {
+      "name": "toString: decimal",
+      "expr": "3.14.toString()",
+      "input": {},
+      "expect": ["3.14"]
+    },
+    {
+      "name": "toString: decimal 1.0 preserves precision",
+      "expr": "1.0.toString()",
+      "input": {},
+      "expect": ["1.0"]
+    },
+    {
+      "name": "toString: boolean true",
+      "expr": "true.toString()",
+      "input": {},
+      "expect": ["true"]
+    },
+    {
+      "name": "toString: boolean false",
+      "expr": "false.toString()",
+      "input": {},
+      "expect": ["false"]
+    },
+    {
+      "name": "toString: string passthrough",
+      "expr": "'hello'.toString()",
+      "input": {},
+      "expect": ["hello"]
+    },
+    {
+      "name": "toString: empty returns empty",
+      "expr": "{}.toString()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "convertsToString: integer",
+      "expr": "42.convertsToString()",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "convertsToString: decimal",
+      "expr": "3.14.convertsToString()",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "convertsToString: boolean",
+      "expr": "true.convertsToString()",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "convertsToString: string",
+      "expr": "'hello'.convertsToString()",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "convertsToString: empty returns empty",
+      "expr": "{}.convertsToString()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "toQuantity: integer becomes quantity with unit '1'",
+      "expr": "42.toQuantity()",
+      "input": {},
+      "expect": [{"value": 42, "unit": "1"}]
+    },
+    {
+      "name": "toQuantity: decimal becomes quantity with unit '1'",
+      "expr": "3.14.toQuantity()",
+      "input": {},
+      "expect": [{"value": 3.14, "unit": "1"}]
+    },
+    {
+      "name": "toQuantity: string '10 kg'",
+      "expr": "'10 \\'kg\\''.toQuantity()",
+      "input": {},
+      "expect": [{"value": 10, "unit": "kg"}],
+      "skip": "Parser: string escape in quantity string literal"
+    },
+    {
+      "name": "toQuantity: string '4 days' (calendar duration)",
+      "expr": "'4 days'.toQuantity()",
+      "input": {},
+      "expect": [{"value": 4, "unit": "days"}]
+    },
+    {
+      "name": "toQuantity: boolean true",
+      "expr": "true.toQuantity()",
+      "input": {},
+      "expect": [{"value": 1.0, "unit": "1"}]
+    },
+    {
+      "name": "toQuantity: boolean false",
+      "expr": "false.toQuantity()",
+      "input": {},
+      "expect": [{"value": 0.0, "unit": "1"}]
+    },
+    {
+      "name": "toQuantity: string 'abc' returns empty",
+      "expr": "'abc'.toQuantity()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "toQuantity: empty returns empty",
+      "expr": "{}.toQuantity()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "convertsToQuantity: integer",
+      "expr": "42.convertsToQuantity()",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "convertsToQuantity: decimal",
+      "expr": "3.14.convertsToQuantity()",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "convertsToQuantity: string '4 days'",
+      "expr": "'4 days'.convertsToQuantity()",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "convertsToQuantity: string 'abc'",
+      "expr": "'abc'.convertsToQuantity()",
+      "input": {},
+      "expect": [false]
+    },
+    {
+      "name": "convertsToQuantity: boolean",
+      "expr": "true.convertsToQuantity()",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "convertsToQuantity: empty returns empty",
+      "expr": "{}.convertsToQuantity()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "toDate: string '2024-01-15'",
+      "expr": "'2024-01-15'.toDate()",
+      "input": {},
+      "expect": ["@2024-01-15"]
+    },
+    {
+      "name": "toDate: string '2024-01' (partial)",
+      "expr": "'2024-01'.toDate()",
+      "input": {},
+      "expect": ["@2024-01"]
+    },
+    {
+      "name": "toDate: string '2024' (year only)",
+      "expr": "'2024'.toDate()",
+      "input": {},
+      "expect": ["@2024"]
+    },
+    {
+      "name": "toDate: string 'invalid' returns empty",
+      "expr": "'invalid'.toDate()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "toDate: empty returns empty",
+      "expr": "{}.toDate()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "convertsToDate: string '2024-01-15'",
+      "expr": "'2024-01-15'.convertsToDate()",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "convertsToDate: string 'invalid'",
+      "expr": "'invalid'.convertsToDate()",
+      "input": {},
+      "expect": [false]
+    },
+    {
+      "name": "convertsToDate: empty returns empty",
+      "expr": "{}.convertsToDate()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "toDateTime: string '2024-01-15T10:30:00'",
+      "expr": "'2024-01-15T10:30:00'.toDateTime()",
+      "input": {},
+      "expect": ["@2024-01-15T10:30:00"]
+    },
+    {
+      "name": "toDateTime: string '2024-01-15' (date promoted)",
+      "expr": "'2024-01-15'.toDateTime()",
+      "input": {},
+      "expect": ["@2024-01-15"]
+    },
+    {
+      "name": "toDateTime: string 'invalid' returns empty",
+      "expr": "'invalid'.toDateTime()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "toDateTime: empty returns empty",
+      "expr": "{}.toDateTime()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "convertsToDateTime: string '2024-01-15T10:30:00'",
+      "expr": "'2024-01-15T10:30:00'.convertsToDateTime()",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "convertsToDateTime: string 'invalid'",
+      "expr": "'invalid'.convertsToDateTime()",
+      "input": {},
+      "expect": [false]
+    },
+    {
+      "name": "convertsToDateTime: empty returns empty",
+      "expr": "{}.convertsToDateTime()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "toTime: string '10:30:00'",
+      "expr": "'10:30:00'.toTime()",
+      "input": {},
+      "expect": ["@T10:30:00"]
+    },
+    {
+      "name": "toTime: string '10:30' (partial)",
+      "expr": "'10:30'.toTime()",
+      "input": {},
+      "expect": ["@T10:30"]
+    },
+    {
+      "name": "toTime: string 'invalid' returns empty",
+      "expr": "'invalid'.toTime()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "toTime: empty returns empty",
+      "expr": "{}.toTime()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "convertsToTime: string '10:30:00'",
+      "expr": "'10:30:00'.convertsToTime()",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "convertsToTime: string 'invalid'",
+      "expr": "'invalid'.convertsToTime()",
+      "input": {},
+      "expect": [false]
+    },
+    {
+      "name": "convertsToTime: empty returns empty",
+      "expr": "{}.convertsToTime()",
+      "input": {},
+      "expect": []
+    }
+  ]
+}

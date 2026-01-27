@@ -107,6 +107,22 @@ pub const Parser = struct {
                 // TODO: support chaining on parenthesized expressions
                 return expr;
             },
+            .Minus => {
+                // Unary minus: - expression
+                _ = try self.advance();
+                // For now, only support negative number literals
+                if (self.current.kind != .Number) return error.UnexpectedToken;
+                const num = self.current.lexeme;
+                _ = try self.advance();
+                // Allocate string with leading minus
+                const neg_num = try std.fmt.allocPrint(self.allocator, "-{s}", .{num});
+                return self.parseTailSteps(.{ .Literal = .{ .Number = neg_num } });
+            },
+            .Plus => {
+                // Unary plus: + expression (just consume the +)
+                _ = try self.advance();
+                return self.parsePrimary();
+            },
             else => return error.UnexpectedToken,
         }
     }

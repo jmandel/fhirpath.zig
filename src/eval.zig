@@ -361,9 +361,15 @@ fn evalFunction(
         const start_opt = try evalIntegerArg(ctx, call.args[0], env);
         if (start_opt == null) return ItemList.empty; // empty start yields empty
         const start = start_opt.?;
-        // Negative start or start >= string length returns empty
+        // Negative start or start >= string length returns empty collection
+        // Special case: empty string with start=0 returns the empty string
         if (start < 0) return ItemList.empty;
         const str_len: i64 = @intCast(str.len);
+        if (str_len == 0 and start == 0) {
+            var out = ItemList.empty;
+            try out.append(ctx.allocator, makeStringItem(ctx, ""));
+            return out;
+        }
         if (start >= str_len) return ItemList.empty;
         const start_usize: usize = @intCast(start);
         // Length argument

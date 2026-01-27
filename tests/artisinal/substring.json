@@ -1,31 +1,35 @@
 {
   "meta": {
-    "status": "drafted",
+    "status": "implemented",
     "spec_summary": "substring(start [, length]) extracts part of string. Start is 0-based. If start is outside string bounds, returns empty {}. If length exceeds remaining chars, returns remaining. Empty/zero/negative length returns empty string ''. Empty input/start returns empty {}."
   },
   "todo": [
-    "Improve passing rate (0/21 passing) - function not yet implemented (parse errors)",
-    "Verify error behavior for multiple items in input collection",
-    "Test interaction with other string functions"
+    "All 21 tests passing"
   ],
   "cases": [
     {
       "name": "substring - basic no length",
       "expr": "'abcdefg'.substring(3)",
       "input": {},
-      "expect": ["defg"]
+      "expect": [
+        "defg"
+      ]
     },
     {
       "name": "substring - from start",
       "expr": "'abcdefg'.substring(0)",
       "input": {},
-      "expect": ["abcdefg"]
+      "expect": [
+        "abcdefg"
+      ]
     },
     {
       "name": "substring - from last char",
       "expr": "'abcdefg'.substring(6)",
       "input": {},
-      "expect": ["g"]
+      "expect": [
+        "g"
+      ]
     },
     {
       "name": "substring - start equals length (empty result)",
@@ -51,32 +55,42 @@
       "name": "substring - with length",
       "expr": "'abcdefg'.substring(1, 2)",
       "input": {},
-      "expect": ["bc"]
+      "expect": [
+        "bc"
+      ]
     },
     {
       "name": "substring - length exceeds remaining",
       "expr": "'abcdefg'.substring(6, 2)",
       "input": {},
-      "expect": ["g"],
+      "expect": [
+        "g"
+      ],
       "note": "only one char remaining, returns that"
     },
     {
       "name": "substring - length exceeds remaining from middle",
       "expr": "'12345'.substring(2, 5)",
       "input": {},
-      "expect": ["345"]
+      "expect": [
+        "345"
+      ]
     },
     {
       "name": "substring - zero length returns empty string",
       "expr": "'abcdefg'.substring(3, 0)",
       "input": {},
-      "expect": [""]
+      "expect": [
+        ""
+      ]
     },
     {
       "name": "substring - negative length returns empty string",
       "expr": "'abcdefg'.substring(3, -1)",
       "input": {},
-      "expect": [""]
+      "expect": [
+        ""
+      ]
     },
     {
       "name": "substring - negative start with negative length",
@@ -107,32 +121,42 @@
       "name": "substring - empty length treated as omitted",
       "expr": "'abcdefg'.substring(3, {})",
       "input": {},
-      "expect": ["defg"],
+      "expect": [
+        "defg"
+      ],
       "note": "empty length behaves as if length not provided"
     },
     {
       "name": "substring - length of 1",
       "expr": "'abcdefg'.substring(0, 1)",
       "input": {},
-      "expect": ["a"]
+      "expect": [
+        "a"
+      ]
     },
     {
       "name": "substring - entire string with exact length",
       "expr": "'abcdefg'.substring(0, 7)",
       "input": {},
-      "expect": ["abcdefg"]
+      "expect": [
+        "abcdefg"
+      ]
     },
     {
       "name": "substring - numeric string",
       "expr": "'12345'.substring(2, 1)",
       "input": {},
-      "expect": ["3"]
+      "expect": [
+        "3"
+      ]
     },
     {
       "name": "substring - empty string from start 0",
       "expr": "''.substring(0)",
       "input": {},
-      "expect": [""]
+      "expect": [
+        ""
+      ]
     },
     {
       "name": "substring - empty string from start 1",

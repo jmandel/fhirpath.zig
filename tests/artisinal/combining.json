@@ -2,40 +2,74 @@
   "_spec_summary": [
     "Collection combining functions: union, combine, intersect, exclude",
     "",
+    "=== UNION ===",
     "union(other: collection) : collection",
-    "  - Merges two collections, eliminating duplicates using equals (=)",
-    "  - No expectation of order in result",
+    "  - Merges two collections, eliminating duplicates using equals (=) not equivalence (~)",
+    "  - NO expectation of order in result - implementations may return any order",
     "  - Returns distinct list of elements from both inputs",
-    "  - Can also be invoked using the | operator",
-    "  - A.union(B) where A:1,1,2,3 and B:2,3 \u2192 1,2,3",
-    "  - A.union({}) \u2192 distinct elements of A",
+    "  - Can also be invoked using the | operator: x.union(y) is synonymous with x | y",
+    "  - A.union(B) where A:1,1,2,3 and B:2,3 → 1,2,3 (any order)",
+    "  - A.union({}) → distinct elements of A",
+    "  - union does NOT introduce iteration context (unlike select/where)",
     "",
+    "=== COMBINE ===",
     "combine(other: collection, [preserveOrder: Boolean]) : collection",
-    "  - Merges without eliminating duplicates",
-    "  - When preserveOrder is false/absent: no order guarantee",
-    "  - When preserveOrder is true: other appended to input (STU)",
+    "  - Merges WITHOUT eliminating duplicates",
+    "  - When preserveOrder is false/absent: NO order guarantee (STU)",
+    "  - When preserveOrder is true: other is appended to input, order preserved (STU)",
     "  - Combining empty with non-empty returns non-empty",
-    "  - A.combine(B) \u2192 all elements from both (with duplicates)",
+    "  - A.combine(B) where A:1,1,2,3 and B:2,3 → 1,1,2,3,2,3 (order not guaranteed)",
+    "  - A.combine(B, true) → 1,1,2,3,2,3 (order preserved)",
+    "  - A.combine({}) → 1,1,2,3 (unchanged)",
     "",
+    "=== INTERSECT ===",
     "intersect(other: collection) : collection",
-    "  - Returns elements that are in BOTH collections",
-    "  - Duplicates eliminated",
-    "  - Order not guaranteed",
+    "  - Returns elements that are in BOTH collections using equals (=)",
+    "  - Duplicates ARE eliminated (result is always distinct)",
+    "  - Order NOT guaranteed",
+    "  - Empty collection intersected with anything → empty",
+    "  - Disjoint collections → empty",
     "",
+    "=== EXCLUDE ===",
     "exclude(other: collection) : collection",
-    "  - Returns elements NOT in other collection",
-    "  - Duplicates NOT eliminated",
-    "  - Order IS preserved",
-    "  - (1|2|3).exclude(2) \u2192 (1|3)"
+    "  - Returns elements NOT in other collection using equals (=)",
+    "  - Duplicates are NOT eliminated (preserves duplicates in input)",
+    "  - Order IS preserved (unlike union/intersect)",
+    "  - (1|2|3).exclude(2) → (1|3) with order preserved",
+    "  - Empty exclusion set → returns original collection unchanged",
+    "  - Excluding from empty collection → empty",
+    "",
+    "=== EQUALITY SEMANTICS ===",
+    "All functions use equals (=) for comparison, NOT equivalence (~):",
+    "  - Integer 2 = Decimal 2.0 → true (implicit conversion)",
+    "  - Decimal trailing zeros ignored: 1.0 = 1.00 → true",
+    "  - String comparison based on Unicode values",
+    "  - Complex types: all child properties must equal recursively",
+    "",
+    "=== EMPTY COLLECTION BEHAVIOR ===",
+    "  - union({}) → distinct elements of non-empty operand",
+    "  - {}.union(A) → distinct elements of A",
+    "  - combine({}) → returns non-empty operand unchanged",
+    "  - {}.combine(A) → returns A unchanged",
+    "  - intersect({}) → empty",
+    "  - {}.intersect(A) → empty",
+    "  - exclude({}) → returns original unchanged",
+    "  - {}.exclude(A) → empty"
   ],
   "_todo": [
-    "Improve passing rate (0/55 passing)",
-    "Verify equality semantics for union/intersect with complex objects",
-    "Test preserveOrder parameter for combine (STU feature)",
-    "Confirm behavior with mixed types in collections"
+    "[ ] Improve passing rate (0/55 passing) - blocked by parser (| operator) and missing function implementations",
+    "[x] Verify spec summary against official spec - enhanced with equality/empty semantics",
+    "[x] Cross-check test expectations against spec and official tests",
+    "[x] Fix tests that incorrectly assume order when spec says no order guarantee",
+    "[ ] Test preserveOrder parameter for combine (STU feature) - not yet tested",
+    "[ ] Add tests for complex object equality in union/intersect"
+  ],
+  "_open_questions": [
+    "How should complex objects (FHIR resources) be compared for equality in union/intersect?",
+    "Is the preserveOrder parameter widely supported by implementations?"
   ],
   "meta": {
-    "status": "drafted"
+    "status": "reviewed"
   },
   "cases": [
     {
@@ -315,7 +349,7 @@
           "value": "3"
         }
       ],
-      "_note": "| creates [1,2], combine adds another 2 \u2192 [1,2,2]"
+      "_note": "| creates [1,2], combine adds another 2 → [1,2,2]"
     },
     {
       "_section": "=== INTERSECT BASIC ==="
@@ -739,8 +773,8 @@
       "_note": "Flattens to [1,2,3] union [2,4] = [1,2,3,4]"
     },
     {
-      "name": "combine: preserves order with path input",
-      "expr": "first.combine(second)",
+      "name": "combine: count with path input (order not guaranteed)",
+      "expr": "first.combine(second).count()",
       "input": {
         "first": [
           "a",
@@ -753,54 +787,26 @@
       },
       "expect": [
         {
-          "type": "string",
-          "value": "a"
-        },
-        {
-          "type": "string",
-          "value": "b"
-        },
-        {
-          "type": "string",
-          "value": "c"
-        },
-        {
-          "type": "string",
-          "value": "d"
+          "type": "integer",
+          "value": "4"
         }
       ],
-      "_note": "Order preserved when preserveOrder not specified but input is ordered"
+      "_note": "Per spec: when preserveOrder is false/absent, no order guarantee. Test count instead."
     },
     {
       "_section": "=== BOOLEAN AND MIXED TYPES ==="
     },
     {
-      "name": "union: mixed integers",
-      "expr": "(1 | 2 | 3).union(3 | 4 | 5)",
+      "name": "union: mixed integers (count only - order not guaranteed)",
+      "expr": "(1 | 2 | 3).union(3 | 4 | 5).count()",
       "input": {},
       "expect": [
-        {
-          "type": "integer",
-          "value": "1"
-        },
-        {
-          "type": "integer",
-          "value": "2"
-        },
-        {
-          "type": "integer",
-          "value": "3"
-        },
-        {
-          "type": "integer",
-          "value": "4"
-        },
         {
           "type": "integer",
           "value": "5"
         }
       ],
-      "_note": "Order not guaranteed but all 5 distinct values present"
+      "_note": "Per spec: no expectation of order. Test count to verify deduplication."
     },
     {
       "name": "combine: result can be used with isDistinct",

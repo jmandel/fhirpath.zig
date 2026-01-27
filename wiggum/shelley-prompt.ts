@@ -215,10 +215,11 @@ function printMessage(msg: APIMessage, verbose: boolean): void {
     case "error":
       for (const content of llmMsg.Content) {
         if (content.Type === ContentTypeText && content.Text) {
-          process.stdout.write(`[ERROR: ${content.Text}]\n`);
+          process.stderr.write(`[ERROR: ${content.Text}]\n`);
         }
       }
-      break;
+      // Exit immediately on error messages
+      process.exit(1);
 
     case "user":
       // Tool results come back as user messages with tool_result content
@@ -265,6 +266,7 @@ async function streamConversation(
   const seenMessages = new Set<string>();
   let buffer = "";
 
+  let sawEndOfTurn = false;
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -296,12 +298,19 @@ async function streamConversation(
 
         // Check if this message marks end of turn
         if (msg.end_of_turn === true) {
+          sawEndOfTurn = true;
           console.log(); // Final newline
           await reader.cancel();
           process.exit(0);
         }
       }
     }
+  }
+
+  // Stream ended without end_of_turn - this is an error (EOF, connection lost, etc.)
+  if (!sawEndOfTurn) {
+    process.stderr.write("[ERROR: LLM request failed: EOF]\n");
+    process.exit(1);
   }
 }
 

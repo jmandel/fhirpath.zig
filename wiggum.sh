@@ -41,7 +41,7 @@ next_log_id() {
   mkdir -p "$LOG_DIR"
   local max=0
   local base
-  for base in "$LOG_DIR"/[0-9][0-9][0-9][0-9]-output.log; do
+  for base in "$LOG_DIR"/[0-9][0-9][0-9][0-9]-*; do
     [[ -e "$base" ]] || continue
     local name
     name="$(basename "$base")"

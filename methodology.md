@@ -6,7 +6,10 @@ This project is spec‑driven. Official tests are treated as pointers to require
 1. Read the root MDs: `design.md`, `principles.md`, `tests/artisinal/README.md`, and this file.
 2. Run the chooser: `python scripts/choose_mode.py`.
 3. Perform exactly one mode (see “The work loop”).
-4. Run relevant tests for your change (at least the focused Zig harness for affected artisinal files).
+4. Run relevant tests for your change:
+   - `zig build harness` - all artisinal tests
+   - `zig build harness -- -f <pattern>` - filter by name
+   - `zig build harness -- tests/r5/tests-fhir-r5.json` - official R5 tests
 5. If you discover urgent external blockers, add them via `wiggum/scripts/blockers.py` with bug‑report quality detail (clear steps, rationale, pointers).
 6. Commit any changes with a subject + detailed body (see Git discipline).
 7. End output with:
@@ -67,7 +70,12 @@ Goal: expand coverage.
 
 ### DEVELOP
 Goal: implement to pass existing artisinal tests.
-- Run the Zig harness and identify failing tests.
+- Run the harness to identify failing tests:
+  ```bash
+  zig build harness          # summary of all artisinal
+  zig build harness -- -n 5  # show first 5 failures
+  zig build harness -- -f string  # focus on string-related tests
+  ```
 - Implement the smallest correct change to make the tests pass.
 - Add/adjust tests only if they clarify the spec or correct a wrong assumption.
 

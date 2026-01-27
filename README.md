@@ -75,46 +75,52 @@ Note: FHIRPath string literals use single quotes (`'official'`), not double quot
 zig build test
 ```
 
-### Tests (Artisinal)
+### Test Harness
 
-Run a single artisinal test file (default is `tests/artisinal/basic.json`):
-
-```bash
-zig build harness -- tests/artisinal/where.json
-```
-
-Run all artisinal tests:
+The unified test harness runs both artisinal and official R5 tests:
 
 ```bash
-for f in tests/artisinal/*.json; do
-  zig build harness -- "$f" || exit 1
-done
+# Run all artisinal tests (default)
+zig build harness
+
+# Run a specific test file
+zig build harness -- tests/artisinal/string-matching.json
+
+# Run official R5 tests
+zig build harness -- tests/r5/tests-fhir-r5.json
+
+# Filter by test/file name pattern
+zig build harness -- -f testSimple
+zig build harness -- -f string tests/r5/tests-fhir-r5.json
+
+# Quiet mode (summary only, no failure details)
+zig build harness -- -q
+
+# Limit number of failures shown
+zig build harness -- -n 10
+
+# With FHIR model for type resolution
+zig build harness -- -m models/r5/model.bin tests/r5/tests-fhir-r5.json
+
+# Verbose mode (show passing tests)
+zig build harness -- -v
 ```
 
-Run a filtered subset (example: only files matching "where"):
+The harness auto-detects the test format:
+- **Artisinal**: `cases` array with `expr`, `input`, `expect`
+- **Official R5**: `tests` array with `expression`, `inputfile`, `outputs`
 
-```bash
-for f in tests/artisinal/*where*.json; do
-  zig build harness -- "$f" || exit 1
-done
-```
+Output shows pass/fail counts per file and failure breakdown (parse errors, eval errors, mismatches).
 
-### Tests (Official FHIRPath Suite)
+### Tests (Official FHIRPath Suite - Legacy Runner)
 
-Full suite (defaults to R5 tests + R5 input + `models/r5/model.bin`):
+The legacy `official-tests` runner is still available:
 
 ```bash
 zig build official-tests
-```
 
-Common filters:
-
-```bash
 # Limit to N tests
 zig build official-tests -- --limit 50
-
-# Filter by mode (if the JSON test entry has "mode")
-zig build official-tests -- --mode myMode
 
 # Use a specific model + prefix
 zig build official-tests -- --model models/r4/model.bin --prefix FHIR

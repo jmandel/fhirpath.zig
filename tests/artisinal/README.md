@@ -37,7 +37,29 @@ Each item in `expect` must have explicit `type` and `value` fields:
 
 **Important**: Do NOT use FHIRPath literal prefixes like `@` for dates or `@T` for times in expected values. The `type` field makes these redundant.
 
-Notes:
+## Running tests
+
+```bash
+# Run all artisinal tests
+zig build harness
+
+# Run a specific file
+zig build harness -- tests/artisinal/string-matching.json
+
+# Filter by pattern (matches file or test names)
+zig build harness -- -f substring
+
+# Show only summary (no failure details)
+zig build harness -- -q
+
+# Limit failures shown
+zig build harness -- -n 10
+```
+
+Output shows pass/fail counts per file with breakdown by error type (parse, eval, mismatch).
+
+## Notes
+
 - `env` entries use bare names (no `%`); **env should be supported by the harness**, even though it is not wired yet.
 - `meta.status` is used by `scripts/choose_mode.py` to bias EXPLORE/DEVELOP/CONFIRM:
   - `drafted`, `reviewed`, `implemented` (see `methodology.md` for details).

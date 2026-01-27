@@ -1,4 +1,20 @@
 {
+  "meta": {
+    "status": "reviewed",
+    "spec_notes": [
+      "Path selection: paths navigate by composing concatenated labels (spec §Path selection)",
+      "Collections are fundamental: each step returns a collection, flattening arrays along the way",
+      "Environment variables: %name tokens refer to values passed by calling environment (spec §Environment variables)",
+      "Delimited identifiers: backticks allow identifiers with special chars like hyphens (spec §Identifiers)"
+    ],
+    "todo": [
+      "Add test for empty path (just $this or context reference)",
+      "Add test for paths starting with type name (e.g., Patient.name)",
+      "Add test for deeply nested array flattening",
+      "Add test for delimited identifier with escape sequences",
+      "Improve passing rate (4/4 passing)"
+    ]
+  },
   "cases": [
     {
       "name": "simple path",

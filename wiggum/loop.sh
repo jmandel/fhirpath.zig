@@ -50,7 +50,8 @@ run_llm() {
       if [[ -n "$SHELLEY_MODEL" ]]; then
         args+=(-model "$SHELLEY_MODEL")
       fi
-      "${args[@]}"
+      # Timeout after 30 minutes (1800s) to prevent hung requests
+      timeout --signal=KILL 1800 "${args[@]}"
       ;;
     *)
       echo "Unknown LLM_BACKEND: $LLM_BACKEND" >&2

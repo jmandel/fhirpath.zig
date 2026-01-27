@@ -32,97 +32,222 @@
     {
       "name": "single returns scalar when one item",
       "expr": "active.single()",
-      "input": { "active": true },
-      "expect": [true]
+      "input": {
+        "active": true
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "single on empty collection returns empty",
       "expr": "name.single()",
-      "input": { "name": [] },
+      "input": {
+        "name": []
+      },
       "expect": []
     },
     {
       "name": "first returns first item",
       "expr": "name.first()",
-      "input": { "name": ["Ann", "Bob"] },
-      "expect": ["Ann"]
+      "input": {
+        "name": [
+          "Ann",
+          "Bob"
+        ]
+      },
+      "expect": [
+        {
+          "type": "string",
+          "value": "Ann"
+        }
+      ]
     },
     {
       "name": "first on empty returns empty",
       "expr": "name.first()",
-      "input": { "name": [] },
+      "input": {
+        "name": []
+      },
       "expect": []
     },
     {
       "name": "last returns last item",
       "expr": "name.last()",
-      "input": { "name": ["Ann", "Bob", "Cyd"] },
-      "expect": ["Cyd"]
+      "input": {
+        "name": [
+          "Ann",
+          "Bob",
+          "Cyd"
+        ]
+      },
+      "expect": [
+        {
+          "type": "string",
+          "value": "Cyd"
+        }
+      ]
     },
     {
       "name": "last on empty returns empty",
       "expr": "name.last()",
-      "input": { "name": [] },
+      "input": {
+        "name": []
+      },
       "expect": []
     },
     {
       "name": "tail drops first item",
       "expr": "name.tail()",
-      "input": { "name": ["Ann", "Bob", "Cyd"] },
-      "expect": ["Bob", "Cyd"]
+      "input": {
+        "name": [
+          "Ann",
+          "Bob",
+          "Cyd"
+        ]
+      },
+      "expect": [
+        {
+          "type": "string",
+          "value": "Bob"
+        },
+        {
+          "type": "string",
+          "value": "Cyd"
+        }
+      ]
     },
     {
       "name": "tail on single item returns empty",
       "expr": "name.tail()",
-      "input": { "name": ["Ann"] },
+      "input": {
+        "name": [
+          "Ann"
+        ]
+      },
       "expect": []
     },
     {
       "name": "skip drops first N items",
       "expr": "name.skip(2)",
-      "input": { "name": ["Ann", "Bob", "Cyd", "Dee"] },
-      "expect": ["Cyd", "Dee"]
+      "input": {
+        "name": [
+          "Ann",
+          "Bob",
+          "Cyd",
+          "Dee"
+        ]
+      },
+      "expect": [
+        {
+          "type": "string",
+          "value": "Cyd"
+        },
+        {
+          "type": "string",
+          "value": "Dee"
+        }
+      ]
     },
     {
       "name": "skip with num 0 returns input",
       "expr": "name.skip(0)",
-      "input": { "name": ["Ann", "Bob"] },
-      "expect": ["Ann", "Bob"]
+      "input": {
+        "name": [
+          "Ann",
+          "Bob"
+        ]
+      },
+      "expect": [
+        {
+          "type": "string",
+          "value": "Ann"
+        },
+        {
+          "type": "string",
+          "value": "Bob"
+        }
+      ]
     },
     {
       "name": "skip beyond length returns empty",
       "expr": "name.skip(5)",
-      "input": { "name": ["Ann", "Bob"] },
+      "input": {
+        "name": [
+          "Ann",
+          "Bob"
+        ]
+      },
       "expect": []
     },
     {
       "name": "skip on empty returns empty",
       "expr": "name.skip(1)",
-      "input": { "name": [] },
+      "input": {
+        "name": []
+      },
       "expect": []
     },
     {
       "name": "take returns first N items",
       "expr": "name.take(2)",
-      "input": { "name": ["Ann", "Bob", "Cyd"] },
-      "expect": ["Ann", "Bob"]
+      "input": {
+        "name": [
+          "Ann",
+          "Bob",
+          "Cyd"
+        ]
+      },
+      "expect": [
+        {
+          "type": "string",
+          "value": "Ann"
+        },
+        {
+          "type": "string",
+          "value": "Bob"
+        }
+      ]
     },
     {
       "name": "take with num 0 returns empty",
       "expr": "name.take(0)",
-      "input": { "name": ["Ann"] },
+      "input": {
+        "name": [
+          "Ann"
+        ]
+      },
       "expect": []
     },
     {
       "name": "take beyond length returns all items",
       "expr": "name.take(5)",
-      "input": { "name": ["Ann", "Bob"] },
-      "expect": ["Ann", "Bob"]
+      "input": {
+        "name": [
+          "Ann",
+          "Bob"
+        ]
+      },
+      "expect": [
+        {
+          "type": "string",
+          "value": "Ann"
+        },
+        {
+          "type": "string",
+          "value": "Bob"
+        }
+      ]
     },
     {
       "name": "take on empty returns empty",
       "expr": "name.take(1)",
-      "input": { "name": [] },
+      "input": {
+        "name": []
+      },
       "expect": []
     }
   ]

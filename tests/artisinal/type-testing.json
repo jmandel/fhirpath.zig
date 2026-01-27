@@ -1,7 +1,11 @@
 {
   "meta": {
     "status": "reviewed",
-    "spec_sections": ["5.1.3 (ofType)", "6.6 (Type operators: is, as)", "6.1 (Operator precedence)"],
+    "spec_sections": [
+      "5.1.3 (ofType)",
+      "6.6 (Type operators: is, as)",
+      "6.1 (Operator precedence)"
+    ],
     "spec_summary": {
       "overview": "Type testing operators check/cast types. 'is' tests type membership, 'as' casts with type check, 'ofType' filters collections.",
       "is_operator": {
@@ -51,176 +55,321 @@
       "name": "is - integer literal is Integer",
       "expr": "1.is(Integer)",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "is - integer literal is System.Integer",
       "expr": "1.is(System.Integer)",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "is - integer literal is not Decimal",
       "expr": "1.is(Decimal)",
       "input": {},
-      "expect": [false]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "false"
+        }
+      ]
     },
     {
       "name": "is - decimal literal is Decimal",
       "expr": "1.0.is(Decimal)",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "is - decimal literal is System.Decimal",
       "expr": "1.0.is(System.Decimal)",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "is - string literal is String",
       "expr": "'hello'.is(String)",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "is - string literal is System.String",
       "expr": "'hello'.is(System.String)",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "is - string literal is not Integer",
       "expr": "'1'.is(Integer)",
       "input": {},
-      "expect": [false]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "false"
+        }
+      ]
     },
     {
       "name": "is - boolean literal is Boolean",
       "expr": "true.is(Boolean)",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "is - boolean literal is System.Boolean",
       "expr": "true.is(System.Boolean)",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "is - boolean literal is not Integer",
       "expr": "true.is(Integer)",
       "input": {},
-      "expect": [false]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "false"
+        }
+      ]
     },
     {
       "name": "is - date literal is Date",
       "expr": "@2015.is(Date)",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "is - date literal with month is Date",
       "expr": "@2015-02.is(Date)",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "is - full date literal is Date",
       "expr": "@2015-02-04.is(Date)",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "is - dateTime literal is DateTime",
       "expr": "@2015-02-04T14:34:28.is(DateTime)",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "is - dateTime literal with T marker is DateTime",
       "expr": "@2015T.is(DateTime)",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "is - dateTime with timezone is DateTime",
       "expr": "@2015-02-04T14:34:28+10:00.is(DateTime)",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "is - dateTime UTC is DateTime",
       "expr": "@2015-02-04T14:34:28Z.is(DateTime)",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "is - time literal is Time",
       "expr": "@T14:34:28.is(Time)",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "is - time hour only is Time",
       "expr": "@T14.is(Time)",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "is - time with milliseconds is Time",
       "expr": "@T14:34:28.123.is(Time)",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "is - date is not Integer",
       "expr": "@2015-02-04.is(Integer)",
       "input": {},
-      "expect": [false]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "false"
+        }
+      ]
     },
     {
       "name": "is - empty collection returns false",
       "expr": "{}.is(Integer)",
       "input": {},
-      "expect": [false]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "false"
+        }
+      ]
     },
     {
       "name": "is keyword - integer is Integer",
       "expr": "1 is Integer",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "is keyword - string is String",
       "expr": "'test' is String",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "is keyword - boolean is Boolean",
       "expr": "true is Boolean",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "is keyword - qualified type",
       "expr": "true is System.Boolean",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "is keyword - precedence with comparison",
       "expr": "1 > 2 is Boolean",
       "input": {},
-      "expect": [true],
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ],
       "note": "The result of 1>2 (false) is tested against Boolean type"
     },
     {
       "name": "as function - integer as Integer returns value",
       "expr": "1.as(Integer)",
       "input": {},
-      "expect": [1]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "1"
+        }
+      ]
     },
     {
       "name": "as function - integer as Decimal returns empty",
@@ -232,13 +381,23 @@
       "name": "as function - decimal as Decimal returns value",
       "expr": "1.0.as(Decimal)",
       "input": {},
-      "expect": [1.0]
+      "expect": [
+        {
+          "type": "decimal",
+          "value": "1.0"
+        }
+      ]
     },
     {
       "name": "as function - string as String returns value",
       "expr": "'hello'.as(String)",
       "input": {},
-      "expect": ["hello"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "hello"
+        }
+      ]
     },
     {
       "name": "as function - string as Integer returns empty",
@@ -250,7 +409,12 @@
       "name": "as function - boolean as Boolean returns value",
       "expr": "true.as(Boolean)",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "as function - empty collection returns empty",
@@ -262,7 +426,12 @@
       "name": "as keyword - integer as Integer",
       "expr": "(1 as Integer)",
       "input": {},
-      "expect": [1]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "1"
+        }
+      ]
     },
     {
       "name": "as keyword - integer as Decimal",
@@ -274,26 +443,54 @@
       "name": "as keyword - string as String",
       "expr": "('test' as String)",
       "input": {},
-      "expect": ["test"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "test"
+        }
+      ]
     },
     {
       "name": "as keyword - qualified type",
       "expr": "(true as System.Boolean)",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "ofType - filter integers from union",
       "expr": "(1 | 'a' | 2 | 'b').ofType(Integer)",
       "input": {},
-      "expect": [1, 2],
+      "expect": [
+        {
+          "type": "integer",
+          "value": "1"
+        },
+        {
+          "type": "integer",
+          "value": "2"
+        }
+      ],
       "note": "ofType filters collection to only items of specified type"
     },
     {
       "name": "ofType - filter strings from union",
       "expr": "(1 | 'a' | 2 | 'b').ofType(String)",
       "input": {},
-      "expect": ["a", "b"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "a"
+        },
+        {
+          "type": "string",
+          "value": "b"
+        }
+      ]
     },
     {
       "name": "ofType - empty collection returns empty",
@@ -311,19 +508,46 @@
       "name": "ofType - qualified type",
       "expr": "(1 | 2).ofType(System.Integer)",
       "input": {},
-      "expect": [1, 2]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "1"
+        },
+        {
+          "type": "integer",
+          "value": "2"
+        }
+      ]
     },
     {
       "name": "ofType - all items match",
       "expr": "('a' | 'b' | 'c').ofType(String)",
       "input": {},
-      "expect": ["a", "b", "c"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "a"
+        },
+        {
+          "type": "string",
+          "value": "b"
+        },
+        {
+          "type": "string",
+          "value": "c"
+        }
+      ]
     },
     {
       "name": "ofType - single item matching",
       "expr": "1.ofType(Integer)",
       "input": {},
-      "expect": [1]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "1"
+        }
+      ]
     },
     {
       "name": "ofType - single item not matching",
@@ -335,81 +559,158 @@
       "name": "ofType - booleans from mixed collection",
       "expr": "(true | 1 | false | 'x').ofType(Boolean)",
       "input": {},
-      "expect": [true, false]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        },
+        {
+          "type": "boolean",
+          "value": "false"
+        }
+      ]
     },
     {
       "name": "is on field - check field type",
       "expr": "name.is(String)",
-      "input": {"name": "John"},
-      "expect": [true],
+      "input": {
+        "name": "John"
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ],
       "note": "Testing type of a JSON string field"
     },
     {
       "name": "is on field - integer field",
       "expr": "age.is(Integer)",
-      "input": {"age": 30},
-      "expect": [true]
+      "input": {
+        "age": 30
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "is on field - boolean field",
       "expr": "active.is(Boolean)",
-      "input": {"active": true},
-      "expect": [true]
+      "input": {
+        "active": true
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "as on field - string field as String",
       "expr": "name.as(String)",
-      "input": {"name": "John"},
-      "expect": ["John"]
+      "input": {
+        "name": "John"
+      },
+      "expect": [
+        {
+          "type": "string",
+          "value": "John"
+        }
+      ]
     },
     {
       "name": "as on field - string field as Integer",
       "expr": "name.as(Integer)",
-      "input": {"name": "John"},
+      "input": {
+        "name": "John"
+      },
       "expect": []
     },
     {
       "name": "chained is - result of comparison is Boolean",
       "expr": "(1 = 1).is(Boolean)",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "chained as - use as in chain",
       "expr": "1.as(Integer).is(Integer)",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "is - quantity literal is Quantity",
       "expr": "10 'mg'.is(Quantity)",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "is - quantity literal is System.Quantity",
       "expr": "10 'mg'.is(System.Quantity)",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "is - quantity literal is not Integer",
       "expr": "10 'mg'.is(Integer)",
       "input": {},
-      "expect": [false]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "false"
+        }
+      ]
     },
     {
       "name": "is - integer is not Quantity",
       "expr": "1.is(Quantity).not()",
       "input": {},
-      "expect": [true],
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ],
       "note": "Per official test: integers are not Quantity even though they can convert"
     },
     {
       "name": "as - quantity as Quantity returns value",
       "expr": "10 'mg'.as(Quantity)",
       "input": {},
-      "expect": [{"value": 10, "unit": "mg"}],
+      "expect": [
+        {
+          "type": "unknown",
+          "value": {
+            "value": 10,
+            "unit": "mg"
+          }
+        }
+      ],
       "note": "Quantity literal should return as Quantity type"
     },
     {
@@ -423,7 +724,15 @@
       "name": "ofType - filter quantities from mixed collection",
       "expr": "(1 | 10 'mg' | 'text').ofType(Quantity)",
       "input": {},
-      "expect": [{"value": 10, "unit": "mg"}]
+      "expect": [
+        {
+          "type": "unknown",
+          "value": {
+            "value": 10,
+            "unit": "mg"
+          }
+        }
+      ]
     }
   ]
 }

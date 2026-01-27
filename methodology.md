@@ -121,6 +121,25 @@ Use checkbox format in the `_todo` array so progress is trackable:
 - `[x]` = done
 - Update checkboxes as work progresses across sessions
 
+### Expected value format (critical)
+Expected values must use explicit `type` and `value` fields:
+
+```json
+"expect": [
+  {"type": "string", "value": "hello"},
+  {"type": "integer", "value": "42"},
+  {"type": "date", "value": "2024-01-15"},
+  {"type": "Quantity", "value": {"value": 10, "unit": "mg"}}
+]
+```
+
+**Do NOT use FHIRPath literal prefixes** in expected values:
+- ❌ `"@2024-01-15"` → ✅ `{"type": "date", "value": "2024-01-15"}`
+- ❌ `"@T10:30:00"` → ✅ `{"type": "time", "value": "10:30:00"}`
+- ❌ `"10 'mg'"` → ✅ `{"type": "Quantity", "value": {"value": 10, "unit": "mg"}}`
+
+See `tests/artisinal/README.md` for the full type table.
+
 ### Meta fields
 - `meta.status` informs `scripts/choose_mode.py`:
   - `drafted` = written only

@@ -24,25 +24,52 @@
     {
       "name": "indexer selects first item",
       "expr": "name[0]",
-      "input": { "name": ["Ann", "Bob"] },
-      "expect": ["Ann"]
+      "input": {
+        "name": [
+          "Ann",
+          "Bob"
+        ]
+      },
+      "expect": [
+        {
+          "type": "string",
+          "value": "Ann"
+        }
+      ]
     },
     {
       "name": "indexer selects second item",
       "expr": "name[1]",
-      "input": { "name": ["Ann", "Bob"] },
-      "expect": ["Bob"]
+      "input": {
+        "name": [
+          "Ann",
+          "Bob"
+        ]
+      },
+      "expect": [
+        {
+          "type": "string",
+          "value": "Bob"
+        }
+      ]
     },
     {
       "name": "indexer out of range returns empty",
       "expr": "name[2]",
-      "input": { "name": ["Ann", "Bob"] },
+      "input": {
+        "name": [
+          "Ann",
+          "Bob"
+        ]
+      },
       "expect": []
     },
     {
       "name": "indexer on empty collection returns empty",
       "expr": "name[0]",
-      "input": { "name": [] },
+      "input": {
+        "name": []
+      },
       "expect": []
     },
     {
@@ -50,11 +77,25 @@
       "expr": "name.given[0]",
       "input": {
         "name": [
-          { "given": ["Ann", "Annie"] },
-          { "given": ["Bob"] }
+          {
+            "given": [
+              "Ann",
+              "Annie"
+            ]
+          },
+          {
+            "given": [
+              "Bob"
+            ]
+          }
         ]
       },
-      "expect": ["Ann"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "Ann"
+        }
+      ]
     }
   ]
 }

@@ -19,27 +19,87 @@
     {
       "name": "simple path",
       "expr": "name.given",
-      "input": { "name": { "given": ["Ann", "Bob"] } },
-      "expect": ["Ann", "Bob"]
+      "input": {
+        "name": {
+          "given": [
+            "Ann",
+            "Bob"
+          ]
+        }
+      },
+      "expect": [
+        {
+          "type": "string",
+          "value": "Ann"
+        },
+        {
+          "type": "string",
+          "value": "Bob"
+        }
+      ]
     },
     {
       "name": "array navigation",
       "expr": "name.given",
-      "input": { "name": [ { "given": ["Ann"] }, { "given": ["Bob"] } ] },
-      "expect": ["Ann", "Bob"]
+      "input": {
+        "name": [
+          {
+            "given": [
+              "Ann"
+            ]
+          },
+          {
+            "given": [
+              "Bob"
+            ]
+          }
+        ]
+      },
+      "expect": [
+        {
+          "type": "string",
+          "value": "Ann"
+        },
+        {
+          "type": "string",
+          "value": "Bob"
+        }
+      ]
     },
     {
       "name": "env root",
       "expr": "%root.name.given",
-      "input": { "ignored": true },
-      "env": { "root": { "name": { "given": ["Ann"] } } },
-      "expect": ["Ann"]
+      "input": {
+        "ignored": true
+      },
+      "env": {
+        "root": {
+          "name": {
+            "given": [
+              "Ann"
+            ]
+          }
+        }
+      },
+      "expect": [
+        {
+          "type": "string",
+          "value": "Ann"
+        }
+      ]
     },
     {
       "name": "delimited identifier",
       "expr": "`given-name`",
-      "input": { "given-name": "Ann" },
-      "expect": ["Ann"]
+      "input": {
+        "given-name": "Ann"
+      },
+      "expect": [
+        {
+          "type": "string",
+          "value": "Ann"
+        }
+      ]
     }
   ]
 }

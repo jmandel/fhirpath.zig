@@ -2395,7 +2395,7 @@
         {
           "type": "Quantity",
           "value": {
-            "value": "1",
+            "value": 1,
             "unit": "1"
           }
         }
@@ -11015,7 +11015,7 @@
         {
           "type": "Quantity",
           "value": {
-            "value": "1.58650000",
+            "value": 1.5865,
             "unit": "cm"
           }
         }
@@ -11294,7 +11294,7 @@
         {
           "type": "Quantity",
           "value": {
-            "value": "1.58750000",
+            "value": 1.5875,
             "unit": "m"
           }
         }

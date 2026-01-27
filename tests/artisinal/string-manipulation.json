@@ -2,7 +2,10 @@
   "meta": {
     "status": "reviewed",
     "spec_summary": "String manipulation functions for FHIRPath: length, indexOf, lastIndexOf, upper, lower, replace, trim, toChars, split, join. All single-string functions return empty if input is empty collection; multiple items signal error. The spec defines: indexOf returns 0 for empty substring, lastIndexOf returns length for empty substring.",
-    "spec_sections": ["5.7. String Manipulation", "Additional String Functions"],
+    "spec_sections": [
+      "5.7. String Manipulation",
+      "Additional String Functions"
+    ],
     "todo": [
       "Improve passing rate (0/70 passing) - functions not yet implemented",
       "Add tests for error signaling on multiple items (when harness supports error expectations)"
@@ -16,431 +19,805 @@
       "name": "length - basic string",
       "expr": "'abcdefg'.length()",
       "input": {},
-      "expect": [7]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "7"
+        }
+      ]
     },
     {
       "name": "length - empty string",
       "expr": "''.length()",
       "input": {},
-      "expect": [0]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "0"
+        }
+      ]
     },
     {
       "name": "length - single char",
       "expr": "'x'.length()",
       "input": {},
-      "expect": [1]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "1"
+        }
+      ]
     },
     {
       "name": "length - empty collection returns empty",
       "expr": "{}.length().empty()",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "length - path-based",
       "expr": "name.length()",
-      "input": {"name": "hello"},
-      "expect": [5]
+      "input": {
+        "name": "hello"
+      },
+      "expect": [
+        {
+          "type": "integer",
+          "value": "5"
+        }
+      ]
     },
-
     {
       "name": "indexOf - basic",
       "expr": "'abcdefg'.indexOf('bc')",
       "input": {},
-      "expect": [1]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "1"
+        }
+      ]
     },
     {
       "name": "indexOf - at start",
       "expr": "'abcdefg'.indexOf('abc')",
       "input": {},
-      "expect": [0]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "0"
+        }
+      ]
     },
     {
       "name": "indexOf - at end",
       "expr": "'abcdefg'.indexOf('efg')",
       "input": {},
-      "expect": [4]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "4"
+        }
+      ]
     },
     {
       "name": "indexOf - not found returns -1",
       "expr": "'abcdefg'.indexOf('x')",
       "input": {},
-      "expect": [-1]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "-1"
+        }
+      ]
     },
     {
       "name": "indexOf - entire string",
       "expr": "'abcdefg'.indexOf('abcdefg')",
       "input": {},
-      "expect": [0]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "0"
+        }
+      ]
     },
     {
       "name": "indexOf - empty substring returns 0",
       "expr": "'abcdefg'.indexOf('')",
       "input": {},
-      "expect": [0]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "0"
+        }
+      ]
     },
     {
       "name": "indexOf - empty collection input returns empty",
       "expr": "{}.indexOf('x').empty()",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "indexOf - empty collection substring returns empty",
       "expr": "'abc'.indexOf({}).empty()",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "indexOf - case sensitive",
       "expr": "'ABC'.indexOf('abc')",
       "input": {},
-      "expect": [-1]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "-1"
+        }
+      ]
     },
-
     {
       "name": "lastIndexOf - basic",
       "expr": "'abcdefg'.lastIndexOf('bc')",
       "input": {},
-      "expect": [1]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "1"
+        }
+      ]
     },
     {
       "name": "lastIndexOf - not found",
       "expr": "'abcdefg'.lastIndexOf('x')",
       "input": {},
-      "expect": [-1]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "-1"
+        }
+      ]
     },
     {
       "name": "lastIndexOf - entire string",
       "expr": "'abcdefg'.lastIndexOf('abcdefg')",
       "input": {},
-      "expect": [0]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "0"
+        }
+      ]
     },
     {
       "name": "lastIndexOf - finds last occurrence",
       "expr": "'abc abc'.lastIndexOf('a')",
       "input": {},
-      "expect": [4]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "4"
+        }
+      ]
     },
     {
       "name": "lastIndexOf - empty substring returns length",
       "expr": "'0123'.lastIndexOf('')",
       "input": {},
-      "expect": [4]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "4"
+        }
+      ]
     },
     {
       "name": "lastIndexOf - single char with empty substring",
       "expr": "'0'.lastIndexOf('')",
       "input": {},
-      "expect": [1]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "1"
+        }
+      ]
     },
     {
       "name": "lastIndexOf - empty string with empty substring",
       "expr": "''.lastIndexOf('')",
       "input": {},
-      "expect": [0]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "0"
+        }
+      ]
     },
     {
       "name": "lastIndexOf - empty collection input returns empty",
       "expr": "{}.lastIndexOf('x').empty()",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "lastIndexOf - empty collection substring returns empty",
       "expr": "'abc'.lastIndexOf({}).empty()",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
-
     {
       "name": "upper - lowercase to uppercase",
       "expr": "'abcdefg'.upper()",
       "input": {},
-      "expect": ["ABCDEFG"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "ABCDEFG"
+        }
+      ]
     },
     {
       "name": "upper - mixed case",
       "expr": "'AbCdefg'.upper()",
       "input": {},
-      "expect": ["ABCDEFG"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "ABCDEFG"
+        }
+      ]
     },
     {
       "name": "upper - already uppercase",
       "expr": "'ABC'.upper()",
       "input": {},
-      "expect": ["ABC"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "ABC"
+        }
+      ]
     },
     {
       "name": "upper - empty string",
       "expr": "''.upper()",
       "input": {},
-      "expect": [""]
+      "expect": [
+        {
+          "type": "string",
+          "value": ""
+        }
+      ]
     },
     {
       "name": "upper - empty collection returns empty",
       "expr": "{}.upper().empty()",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "upper - single char",
       "expr": "'t'.upper()",
       "input": {},
-      "expect": ["T"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "T"
+        }
+      ]
     },
-
     {
       "name": "lower - uppercase to lowercase",
       "expr": "'ABCDEFG'.lower()",
       "input": {},
-      "expect": ["abcdefg"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "abcdefg"
+        }
+      ]
     },
     {
       "name": "lower - mixed case",
       "expr": "'aBcDEFG'.lower()",
       "input": {},
-      "expect": ["abcdefg"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "abcdefg"
+        }
+      ]
     },
     {
       "name": "lower - already lowercase",
       "expr": "'abc'.lower()",
       "input": {},
-      "expect": ["abc"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "abc"
+        }
+      ]
     },
     {
       "name": "lower - empty string",
       "expr": "''.lower()",
       "input": {},
-      "expect": [""]
+      "expect": [
+        {
+          "type": "string",
+          "value": ""
+        }
+      ]
     },
     {
       "name": "lower - empty collection returns empty",
       "expr": "{}.lower().empty()",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "lower - single char",
       "expr": "'T'.lower()",
       "input": {},
-      "expect": ["t"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "t"
+        }
+      ]
     },
-
     {
       "name": "replace - basic replacement",
       "expr": "'abcdefg'.replace('cde', '123')",
       "input": {},
-      "expect": ["ab123fg"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "ab123fg"
+        }
+      ]
     },
     {
       "name": "replace - removal (empty substitution)",
       "expr": "'abcdefg'.replace('cde', '')",
       "input": {},
-      "expect": ["abfg"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "abfg"
+        }
+      ]
     },
     {
       "name": "replace - empty pattern surrounds chars",
       "expr": "'abc'.replace('', 'x')",
       "input": {},
-      "expect": ["xaxbxcx"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "xaxbxcx"
+        }
+      ]
     },
     {
       "name": "replace - no match leaves unchanged",
       "expr": "'abcdefg'.replace('xyz', '123')",
       "input": {},
-      "expect": ["abcdefg"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "abcdefg"
+        }
+      ]
     },
     {
       "name": "replace - multiple occurrences",
       "expr": "'abcabc'.replace('abc', 'X')",
       "input": {},
-      "expect": ["XX"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "XX"
+        }
+      ]
     },
     {
       "name": "replace - empty input collection returns empty",
       "expr": "{}.replace('a', 'b').empty()",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "replace - empty pattern collection returns empty",
       "expr": "'abc'.replace({}, 'x').empty()",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "replace - empty substitution collection returns empty",
       "expr": "'abc'.replace('a', {}).empty()",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
-
     {
       "name": "trim - leading and trailing whitespace",
       "expr": "' hello '.trim()",
       "input": {},
-      "expect": ["hello"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "hello"
+        }
+      ]
     },
     {
       "name": "trim - leading whitespace only",
       "expr": "'   hello'.trim()",
       "input": {},
-      "expect": ["hello"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "hello"
+        }
+      ]
     },
     {
       "name": "trim - trailing whitespace only",
       "expr": "'hello   '.trim()",
       "input": {},
-      "expect": ["hello"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "hello"
+        }
+      ]
     },
     {
       "name": "trim - no whitespace",
       "expr": "'hello'.trim()",
       "input": {},
-      "expect": ["hello"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "hello"
+        }
+      ]
     },
     {
       "name": "trim - all whitespace",
       "expr": "'   '.trim()",
       "input": {},
-      "expect": [""]
+      "expect": [
+        {
+          "type": "string",
+          "value": ""
+        }
+      ]
     },
     {
       "name": "trim - empty string",
       "expr": "''.trim()",
       "input": {},
-      "expect": [""]
+      "expect": [
+        {
+          "type": "string",
+          "value": ""
+        }
+      ]
     },
     {
       "name": "trim - empty collection returns empty",
       "expr": "{}.trim().empty()",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "trim - preserves internal whitespace",
       "expr": "' hello world '.trim()",
       "input": {},
-      "expect": ["hello world"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "hello world"
+        }
+      ]
     },
-
     {
       "name": "toChars - basic",
       "expr": "'abc'.toChars()",
       "input": {},
-      "expect": ["a", "b", "c"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "a"
+        },
+        {
+          "type": "string",
+          "value": "b"
+        },
+        {
+          "type": "string",
+          "value": "c"
+        }
+      ]
     },
     {
       "name": "toChars - single char",
       "expr": "'x'.toChars()",
       "input": {},
-      "expect": ["x"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "x"
+        }
+      ]
     },
     {
       "name": "toChars - empty string",
       "expr": "''.toChars().empty()",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "toChars - empty collection returns empty",
       "expr": "{}.toChars().empty()",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
-
     {
       "name": "split - basic with comma",
       "expr": "'A,B,C'.split(',')",
       "input": {},
-      "expect": ["A", "B", "C"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "A"
+        },
+        {
+          "type": "string",
+          "value": "B"
+        },
+        {
+          "type": "string",
+          "value": "C"
+        }
+      ]
     },
     {
       "name": "split - no separator found",
       "expr": "'ABC'.split(',')",
       "input": {},
-      "expect": ["ABC"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "ABC"
+        }
+      ]
     },
     {
       "name": "split - empty segments",
       "expr": "'A,,C'.split(',')",
       "input": {},
-      "expect": ["A", "", "C"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "A"
+        },
+        {
+          "type": "string",
+          "value": ""
+        },
+        {
+          "type": "string",
+          "value": "C"
+        }
+      ]
     },
     {
       "name": "split - multi-char separator",
       "expr": "'A[stop]B[stop]C'.split('[stop]')",
       "input": {},
-      "expect": ["A", "B", "C"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "A"
+        },
+        {
+          "type": "string",
+          "value": "B"
+        },
+        {
+          "type": "string",
+          "value": "C"
+        }
+      ]
     },
     {
       "name": "split - empty collection returns empty",
       "expr": "{}.split(',').empty()",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
-
     {
       "name": "join - basic without separator",
       "expr": "('A' | 'B' | 'C').join()",
       "input": {},
-      "expect": ["ABC"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "ABC"
+        }
+      ]
     },
     {
       "name": "join - with comma separator",
       "expr": "('A' | 'B' | 'C').join(',')",
       "input": {},
-      "expect": ["A,B,C"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "A,B,C"
+        }
+      ]
     },
     {
       "name": "join - single item",
       "expr": "('A').join(',')",
       "input": {},
-      "expect": ["A"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "A"
+        }
+      ]
     },
     {
       "name": "join - empty collection returns empty",
       "expr": "{}.join(',').empty()",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "join - roundtrip with split",
       "expr": "'A,,C'.split(',').join(',')",
       "input": {},
-      "expect": ["A,,C"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "A,,C"
+        }
+      ]
     },
-
     {
       "name": "combined - substring with length",
       "expr": "'hello'.substring(0, 'hello'.length())",
       "input": {},
-      "expect": ["hello"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "hello"
+        }
+      ]
     },
     {
       "name": "combined - indexOf for substring extraction",
       "expr": "'LogicalModel-Person'.substring(0, 'LogicalModel-Person'.indexOf('-'))",
       "input": {},
-      "expect": ["LogicalModel"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "LogicalModel"
+        }
+      ]
     },
     {
       "name": "combined - upper and lower",
       "expr": "'HeLLo'.lower().upper()",
       "input": {},
-      "expect": ["HELLO"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "HELLO"
+        }
+      ]
     },
     {
       "name": "combined - trim and length",
       "expr": "' hello '.trim().length()",
       "input": {},
-      "expect": [5]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "5"
+        }
+      ]
     },
     {
       "name": "combined - split count",
       "expr": "'a,b,c,d,e'.split(',').count()",
       "input": {},
-      "expect": [5]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "5"
+        }
+      ]
     }
   ]
 }

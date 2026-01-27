@@ -12,7 +12,10 @@
       "expr": "'abcdefg'.substring(3)",
       "input": {},
       "expect": [
-        "defg"
+        {
+          "type": "string",
+          "value": "defg"
+        }
       ]
     },
     {
@@ -20,7 +23,10 @@
       "expr": "'abcdefg'.substring(0)",
       "input": {},
       "expect": [
-        "abcdefg"
+        {
+          "type": "string",
+          "value": "abcdefg"
+        }
       ]
     },
     {
@@ -28,7 +34,10 @@
       "expr": "'abcdefg'.substring(6)",
       "input": {},
       "expect": [
-        "g"
+        {
+          "type": "string",
+          "value": "g"
+        }
       ]
     },
     {
@@ -56,7 +65,10 @@
       "expr": "'abcdefg'.substring(1, 2)",
       "input": {},
       "expect": [
-        "bc"
+        {
+          "type": "string",
+          "value": "bc"
+        }
       ]
     },
     {
@@ -64,7 +76,10 @@
       "expr": "'abcdefg'.substring(6, 2)",
       "input": {},
       "expect": [
-        "g"
+        {
+          "type": "string",
+          "value": "g"
+        }
       ],
       "note": "only one char remaining, returns that"
     },
@@ -73,7 +88,10 @@
       "expr": "'12345'.substring(2, 5)",
       "input": {},
       "expect": [
-        "345"
+        {
+          "type": "integer",
+          "value": "345"
+        }
       ]
     },
     {
@@ -81,7 +99,10 @@
       "expr": "'abcdefg'.substring(3, 0)",
       "input": {},
       "expect": [
-        ""
+        {
+          "type": "string",
+          "value": ""
+        }
       ]
     },
     {
@@ -89,7 +110,10 @@
       "expr": "'abcdefg'.substring(3, -1)",
       "input": {},
       "expect": [
-        ""
+        {
+          "type": "string",
+          "value": ""
+        }
       ]
     },
     {
@@ -122,7 +146,10 @@
       "expr": "'abcdefg'.substring(3, {})",
       "input": {},
       "expect": [
-        "defg"
+        {
+          "type": "string",
+          "value": "defg"
+        }
       ],
       "note": "empty length behaves as if length not provided"
     },
@@ -131,7 +158,10 @@
       "expr": "'abcdefg'.substring(0, 1)",
       "input": {},
       "expect": [
-        "a"
+        {
+          "type": "string",
+          "value": "a"
+        }
       ]
     },
     {
@@ -139,7 +169,10 @@
       "expr": "'abcdefg'.substring(0, 7)",
       "input": {},
       "expect": [
-        "abcdefg"
+        {
+          "type": "string",
+          "value": "abcdefg"
+        }
       ]
     },
     {
@@ -147,7 +180,10 @@
       "expr": "'12345'.substring(2, 1)",
       "input": {},
       "expect": [
-        "3"
+        {
+          "type": "integer",
+          "value": "3"
+        }
       ]
     },
     {
@@ -155,7 +191,10 @@
       "expr": "''.substring(0)",
       "input": {},
       "expect": [
-        ""
+        {
+          "type": "string",
+          "value": ""
+        }
       ]
     },
     {

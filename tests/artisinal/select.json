@@ -29,42 +29,116 @@
     {
       "name": "select identity with $this",
       "expr": "name.select($this)",
-      "input": { "name": ["Ann", "Bob"] },
-      "expect": ["Ann", "Bob"]
+      "input": {
+        "name": [
+          "Ann",
+          "Bob"
+        ]
+      },
+      "expect": [
+        {
+          "type": "string",
+          "value": "Ann"
+        },
+        {
+          "type": "string",
+          "value": "Bob"
+        }
+      ]
     },
     {
       "name": "select flattens nested collections",
       "expr": "name.select(given)",
       "input": {
         "name": [
-          { "given": ["Ann", "Annie"] },
-          { "given": ["Bob"] }
+          {
+            "given": [
+              "Ann",
+              "Annie"
+            ]
+          },
+          {
+            "given": [
+              "Bob"
+            ]
+          }
         ]
       },
-      "expect": ["Ann", "Annie", "Bob"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "Ann"
+        },
+        {
+          "type": "string",
+          "value": "Annie"
+        },
+        {
+          "type": "string",
+          "value": "Bob"
+        }
+      ]
     },
     {
       "name": "select drops empty projection results",
       "expr": "name.select(text)",
       "input": {
         "name": [
-          { "text": "Ann" },
-          { "given": ["Bob"] },
-          { "text": "Cyd" }
+          {
+            "text": "Ann"
+          },
+          {
+            "given": [
+              "Bob"
+            ]
+          },
+          {
+            "text": "Cyd"
+          }
         ]
       },
-      "expect": ["Ann", "Cyd"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "Ann"
+        },
+        {
+          "type": "string",
+          "value": "Cyd"
+        }
+      ]
     },
     {
       "name": "select exposes $index",
       "expr": "given.select($index)",
-      "input": { "given": ["Ann", "Bob", "Cyd"] },
-      "expect": [0, 1, 2]
+      "input": {
+        "given": [
+          "Ann",
+          "Bob",
+          "Cyd"
+        ]
+      },
+      "expect": [
+        {
+          "type": "integer",
+          "value": "0"
+        },
+        {
+          "type": "integer",
+          "value": "1"
+        },
+        {
+          "type": "integer",
+          "value": "2"
+        }
+      ]
     },
     {
       "name": "select over empty input yields empty",
       "expr": "name.select($this)",
-      "input": { "name": [] },
+      "input": {
+        "name": []
+      },
       "expect": []
     }
   ]

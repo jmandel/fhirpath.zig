@@ -45,73 +45,133 @@
       "name": "union: two disjoint integer collections",
       "expr": "(1 | 2).union(3 | 4).count()",
       "input": {},
-      "expect": [4]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "4"
+        }
+      ]
     },
     {
       "name": "union: overlapping integer collections",
       "expr": "(1 | 2 | 3).union(2 | 3 | 4).count()",
       "input": {},
-      "expect": [4]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "4"
+        }
+      ]
     },
     {
       "name": "union: identical collections",
       "expr": "(1 | 2).union(1 | 2).count()",
       "input": {},
-      "expect": [2]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "2"
+        }
+      ]
     },
     {
       "name": "union: with empty collection (left)",
       "expr": "({}).union(1 | 2).count()",
       "input": {},
-      "expect": [2]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "2"
+        }
+      ]
     },
     {
       "name": "union: with empty collection (right)",
       "expr": "(1 | 2).union({}).count()",
       "input": {},
-      "expect": [2]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "2"
+        }
+      ]
     },
     {
       "name": "union: both empty",
       "expr": "({}).union({}).count()",
       "input": {},
-      "expect": [0]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "0"
+        }
+      ]
     },
     {
       "name": "union: single elements",
       "expr": "1.union(2).count()",
       "input": {},
-      "expect": [2]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "2"
+        }
+      ]
     },
     {
       "name": "union: same single element (deduplicates)",
       "expr": "1.union(1).count()",
       "input": {},
-      "expect": [1]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "1"
+        }
+      ]
     },
     {
       "name": "union: chained",
       "expr": "1.union(2).union(3).count()",
       "input": {},
-      "expect": [3]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "3"
+        }
+      ]
     },
     {
       "name": "union: nested",
       "expr": "1.union(2.union(3)).count()",
       "input": {},
-      "expect": [3]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "3"
+        }
+      ]
     },
     {
       "name": "union: strings",
       "expr": "('a' | 'b').union('b' | 'c').count()",
       "input": {},
-      "expect": [3]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "3"
+        }
+      ]
     },
     {
       "name": "union: booleans",
       "expr": "(true | false).union(true).count()",
       "input": {},
-      "expect": [2]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "2"
+        }
+      ]
     },
     {
       "_section": "=== UNION VS | OPERATOR ==="
@@ -120,7 +180,12 @@
       "name": "union: equivalent to | operator",
       "expr": "(1 | 2).union(2 | 3) = (1 | 2 | 2 | 3)",
       "input": {},
-      "expect": [true],
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ],
       "_note": "Both deduplicate, so result is same"
     },
     {
@@ -130,55 +195,100 @@
       "name": "combine: two disjoint collections",
       "expr": "(1 | 2).combine(3 | 4).count()",
       "input": {},
-      "expect": [4]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "4"
+        }
+      ]
     },
     {
       "name": "combine: overlapping collections (keeps duplicates)",
       "expr": "(1 | 2 | 3).combine(2 | 3 | 4).count()",
       "input": {},
-      "expect": [6]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "6"
+        }
+      ]
     },
     {
       "name": "combine: identical collections (doubles count)",
       "expr": "(1 | 2).combine(1 | 2).count()",
       "input": {},
-      "expect": [4]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "4"
+        }
+      ]
     },
     {
       "name": "combine: with empty collection (left)",
       "expr": "({}).combine(1 | 2).count()",
       "input": {},
-      "expect": [2]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "2"
+        }
+      ]
     },
     {
       "name": "combine: with empty collection (right)",
       "expr": "(1 | 2).combine({}).count()",
       "input": {},
-      "expect": [2]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "2"
+        }
+      ]
     },
     {
       "name": "combine: both empty",
       "expr": "({}).combine({}).count()",
       "input": {},
-      "expect": [0]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "0"
+        }
+      ]
     },
     {
       "name": "combine: single elements",
       "expr": "1.combine(2).count()",
       "input": {},
-      "expect": [2]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "2"
+        }
+      ]
     },
     {
       "name": "combine: same single element (keeps both)",
       "expr": "1.combine(1).count()",
       "input": {},
-      "expect": [2]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "2"
+        }
+      ]
     },
     {
       "name": "combine: strings",
       "expr": "('a' | 'b').combine('b' | 'c').count()",
       "input": {},
-      "expect": [4]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "4"
+        }
+      ]
     },
     {
       "_section": "=== COMBINE vs UNION ==="
@@ -187,14 +297,24 @@
       "name": "combine then union removes duplicates",
       "expr": "1.combine(1).union(2).count()",
       "input": {},
-      "expect": [2],
+      "expect": [
+        {
+          "type": "integer",
+          "value": "2"
+        }
+      ],
       "_note": "combine creates [1,1], union with 2 deduplicates to [1,2]"
     },
     {
       "name": "union then combine keeps duplicates",
       "expr": "(1 | 2).combine(2).count()",
       "input": {},
-      "expect": [3],
+      "expect": [
+        {
+          "type": "integer",
+          "value": "3"
+        }
+      ],
       "_note": "| creates [1,2], combine adds another 2 → [1,2,2]"
     },
     {
@@ -204,50 +324,90 @@
       "name": "intersect: overlapping collections",
       "expr": "(1 | 2 | 3).intersect(2 | 3 | 4).count()",
       "input": {},
-      "expect": [2],
+      "expect": [
+        {
+          "type": "integer",
+          "value": "2"
+        }
+      ],
       "_note": "Common elements are 2 and 3"
     },
     {
       "name": "intersect: disjoint collections",
       "expr": "(1 | 2).intersect(3 | 4).empty()",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "intersect: identical collections",
       "expr": "(1 | 2 | 3).intersect(1 | 2 | 3).count()",
       "input": {},
-      "expect": [3]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "3"
+        }
+      ]
     },
     {
       "name": "intersect: with empty collection (left)",
       "expr": "({}).intersect(1 | 2).empty()",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "intersect: with empty collection (right)",
       "expr": "(1 | 2).intersect({}).empty()",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "intersect: single common element",
       "expr": "(1 | 2 | 3).intersect(2 | 4) = 2",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "intersect: strings",
       "expr": "('a' | 'b' | 'c').intersect('b' | 'c' | 'd').count()",
       "input": {},
-      "expect": [2]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "2"
+        }
+      ]
     },
     {
       "name": "intersect: eliminates duplicates from input",
       "expr": "1.combine(1).intersect(1).count()",
       "input": {},
-      "expect": [1],
+      "expect": [
+        {
+          "type": "integer",
+          "value": "1"
+        }
+      ],
       "_note": "combine creates [1,1], intersect with 1 yields [1] (deduplicated)"
     },
     {
@@ -257,57 +417,102 @@
       "name": "exclude: remove single element",
       "expr": "(1 | 2 | 3).exclude(2).count()",
       "input": {},
-      "expect": [2]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "2"
+        }
+      ]
     },
     {
       "name": "exclude: remove multiple elements",
       "expr": "(1 | 2 | 3).exclude(2 | 4).count()",
       "input": {},
-      "expect": [2],
+      "expect": [
+        {
+          "type": "integer",
+          "value": "2"
+        }
+      ],
       "_note": "Removes 2, 4 not present so ignored"
     },
     {
       "name": "exclude: result equality check",
       "expr": "(1 | 2 | 3).exclude(2 | 4) = (1 | 3)",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "exclude: remove nothing (disjoint)",
       "expr": "(1 | 2).exclude(4) = (1 | 2)",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "exclude: with empty exclusion set",
       "expr": "(1 | 2).exclude({}) = (1 | 2)",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "exclude: from empty collection",
       "expr": "({}).exclude(1 | 2).empty()",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "exclude: all elements",
       "expr": "(1 | 2).exclude(1 | 2).empty()",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "exclude: preserves duplicates in input",
       "expr": "1.combine(1).exclude(2).count()",
       "input": {},
-      "expect": [2],
+      "expect": [
+        {
+          "type": "integer",
+          "value": "2"
+        }
+      ],
       "_note": "combine creates [1,1], exclude 2 keeps both 1s"
     },
     {
       "name": "exclude: strings",
       "expr": "('a' | 'b' | 'c').exclude('b').count()",
       "input": {},
-      "expect": [2]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "2"
+        }
+      ]
     },
     {
       "_section": "=== PATH-BASED OPERATIONS ==="
@@ -315,26 +520,84 @@
     {
       "name": "union: on path navigation",
       "expr": "a.union(b).count()",
-      "input": {"a": [1, 2], "b": [2, 3]},
-      "expect": [3]
+      "input": {
+        "a": [
+          1,
+          2
+        ],
+        "b": [
+          2,
+          3
+        ]
+      },
+      "expect": [
+        {
+          "type": "integer",
+          "value": "3"
+        }
+      ]
     },
     {
       "name": "combine: on path navigation",
       "expr": "a.combine(b).count()",
-      "input": {"a": [1, 2], "b": [2, 3]},
-      "expect": [4]
+      "input": {
+        "a": [
+          1,
+          2
+        ],
+        "b": [
+          2,
+          3
+        ]
+      },
+      "expect": [
+        {
+          "type": "integer",
+          "value": "4"
+        }
+      ]
     },
     {
       "name": "intersect: on path navigation",
       "expr": "a.intersect(b).count()",
-      "input": {"a": [1, 2, 3], "b": [2, 3, 4]},
-      "expect": [2]
+      "input": {
+        "a": [
+          1,
+          2,
+          3
+        ],
+        "b": [
+          2,
+          3,
+          4
+        ]
+      },
+      "expect": [
+        {
+          "type": "integer",
+          "value": "2"
+        }
+      ]
     },
     {
       "name": "exclude: on path navigation",
       "expr": "a.exclude(b).count()",
-      "input": {"a": [1, 2, 3], "b": [2]},
-      "expect": [2]
+      "input": {
+        "a": [
+          1,
+          2,
+          3
+        ],
+        "b": [
+          2
+        ]
+      },
+      "expect": [
+        {
+          "type": "integer",
+          "value": "2"
+        }
+      ]
     },
     {
       "_section": "=== COMPLEX COMBINATIONS ==="
@@ -342,22 +605,76 @@
     {
       "name": "combine then exclude",
       "expr": "a.combine(b).exclude(c).count()",
-      "input": {"a": [1, 2], "b": [2, 3], "c": [2]},
-      "expect": [2],
+      "input": {
+        "a": [
+          1,
+          2
+        ],
+        "b": [
+          2,
+          3
+        ],
+        "c": [
+          2
+        ]
+      },
+      "expect": [
+        {
+          "type": "integer",
+          "value": "2"
+        }
+      ],
       "_note": "combine gives [1,2,2,3], exclude 2 gives [1,3]"
     },
     {
       "name": "union then intersect",
       "expr": "a.union(b).intersect(c).count()",
-      "input": {"a": [1, 2], "b": [3, 4], "c": [2, 3, 5]},
-      "expect": [2],
+      "input": {
+        "a": [
+          1,
+          2
+        ],
+        "b": [
+          3,
+          4
+        ],
+        "c": [
+          2,
+          3,
+          5
+        ]
+      },
+      "expect": [
+        {
+          "type": "integer",
+          "value": "2"
+        }
+      ],
       "_note": "union gives [1,2,3,4], intersect with [2,3,5] gives [2,3]"
     },
     {
       "name": "exclude then union",
       "expr": "a.exclude(b).union(c).count()",
-      "input": {"a": [1, 2, 3], "b": [2], "c": [3, 4]},
-      "expect": [3],
+      "input": {
+        "a": [
+          1,
+          2,
+          3
+        ],
+        "b": [
+          2
+        ],
+        "c": [
+          3,
+          4
+        ]
+      },
+      "expect": [
+        {
+          "type": "integer",
+          "value": "3"
+        }
+      ],
       "_note": "exclude gives [1,3], union with [3,4] gives [1,3,4]"
     },
     {
@@ -367,28 +684,91 @@
       "name": "union: with decimals (equality test)",
       "expr": "(1.0 | 2.0).union(2.0 | 3.0).count()",
       "input": {},
-      "expect": [3],
+      "expect": [
+        {
+          "type": "integer",
+          "value": "3"
+        }
+      ],
       "_note": "2.0 should equal 2.0 and be deduplicated"
     },
     {
       "name": "intersect: integer and decimal equality",
       "expr": "(1 | 2).intersect(2.0 | 3.0).count()",
       "input": {},
-      "expect": [1],
+      "expect": [
+        {
+          "type": "integer",
+          "value": "1"
+        }
+      ],
       "_note": "2 = 2.0 per FHIRPath equality, so intersection has 1 element"
     },
     {
       "name": "union: nested collections from paths",
       "expr": "items.values.union(other.values).count()",
-      "input": {"items": [{"values": [1, 2]}, {"values": [3]}], "other": [{"values": [2, 4]}]},
-      "expect": [4],
+      "input": {
+        "items": [
+          {
+            "values": [
+              1,
+              2
+            ]
+          },
+          {
+            "values": [
+              3
+            ]
+          }
+        ],
+        "other": [
+          {
+            "values": [
+              2,
+              4
+            ]
+          }
+        ]
+      },
+      "expect": [
+        {
+          "type": "integer",
+          "value": "4"
+        }
+      ],
       "_note": "Flattens to [1,2,3] union [2,4] = [1,2,3,4]"
     },
     {
       "name": "combine: preserves order with path input",
       "expr": "first.combine(second)",
-      "input": {"first": ["a", "b"], "second": ["c", "d"]},
-      "expect": ["a", "b", "c", "d"],
+      "input": {
+        "first": [
+          "a",
+          "b"
+        ],
+        "second": [
+          "c",
+          "d"
+        ]
+      },
+      "expect": [
+        {
+          "type": "string",
+          "value": "a"
+        },
+        {
+          "type": "string",
+          "value": "b"
+        },
+        {
+          "type": "string",
+          "value": "c"
+        },
+        {
+          "type": "string",
+          "value": "d"
+        }
+      ],
       "_note": "Order preserved when preserveOrder not specified but input is ordered"
     },
     {
@@ -398,21 +778,52 @@
       "name": "union: mixed integers",
       "expr": "(1 | 2 | 3).union(3 | 4 | 5)",
       "input": {},
-      "expect": [1, 2, 3, 4, 5],
+      "expect": [
+        {
+          "type": "integer",
+          "value": "1"
+        },
+        {
+          "type": "integer",
+          "value": "2"
+        },
+        {
+          "type": "integer",
+          "value": "3"
+        },
+        {
+          "type": "integer",
+          "value": "4"
+        },
+        {
+          "type": "integer",
+          "value": "5"
+        }
+      ],
       "_note": "Order not guaranteed but all 5 distinct values present"
     },
     {
       "name": "combine: result can be used with isDistinct",
       "expr": "(1 | 2).combine(2 | 3).isDistinct()",
       "input": {},
-      "expect": [false],
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "false"
+        }
+      ],
       "_note": "combine keeps duplicates, so not distinct"
     },
     {
       "name": "union: result is always distinct",
       "expr": "(1 | 2).union(2 | 3).isDistinct()",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     }
   ]
 }

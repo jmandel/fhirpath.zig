@@ -1408,7 +1408,7 @@
         {
           "type": "Quantity",
           "value": {
-            "value": "53",
+            "value": 53,
             "unit": "km"
           }
         }

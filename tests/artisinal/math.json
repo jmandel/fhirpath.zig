@@ -21,7 +21,10 @@
       "expr": "5.abs()",
       "input": {},
       "expect": [
-        5
+        {
+          "type": "integer",
+          "value": "5"
+        }
       ]
     },
     {
@@ -29,7 +32,10 @@
       "expr": "(-5).abs()",
       "input": {},
       "expect": [
-        5
+        {
+          "type": "integer",
+          "value": "5"
+        }
       ]
     },
     {
@@ -37,7 +43,10 @@
       "expr": "0.abs()",
       "input": {},
       "expect": [
-        0
+        {
+          "type": "integer",
+          "value": "0"
+        }
       ]
     },
     {
@@ -45,7 +54,10 @@
       "expr": "5.5.abs()",
       "input": {},
       "expect": [
-        5.5
+        {
+          "type": "decimal",
+          "value": "5.5"
+        }
       ]
     },
     {
@@ -53,7 +65,10 @@
       "expr": "(-5.5).abs()",
       "input": {},
       "expect": [
-        5.5
+        {
+          "type": "decimal",
+          "value": "5.5"
+        }
       ]
     },
     {
@@ -67,7 +82,10 @@
       "expr": "1.ceiling()",
       "input": {},
       "expect": [
-        1
+        {
+          "type": "integer",
+          "value": "1"
+        }
       ]
     },
     {
@@ -75,7 +93,10 @@
       "expr": "1.1.ceiling()",
       "input": {},
       "expect": [
-        2
+        {
+          "type": "integer",
+          "value": "2"
+        }
       ]
     },
     {
@@ -83,7 +104,10 @@
       "expr": "(-1.1).ceiling()",
       "input": {},
       "expect": [
-        -1
+        {
+          "type": "integer",
+          "value": "-1"
+        }
       ]
     },
     {
@@ -91,7 +115,10 @@
       "expr": "2.0.ceiling()",
       "input": {},
       "expect": [
-        2
+        {
+          "type": "integer",
+          "value": "2"
+        }
       ]
     },
     {
@@ -105,7 +132,10 @@
       "expr": "1.floor()",
       "input": {},
       "expect": [
-        1
+        {
+          "type": "integer",
+          "value": "1"
+        }
       ]
     },
     {
@@ -113,7 +143,10 @@
       "expr": "2.1.floor()",
       "input": {},
       "expect": [
-        2
+        {
+          "type": "integer",
+          "value": "2"
+        }
       ]
     },
     {
@@ -121,7 +154,10 @@
       "expr": "(-2.1).floor()",
       "input": {},
       "expect": [
-        -3
+        {
+          "type": "integer",
+          "value": "-3"
+        }
       ]
     },
     {
@@ -129,7 +165,10 @@
       "expr": "2.0.floor()",
       "input": {},
       "expect": [
-        2
+        {
+          "type": "integer",
+          "value": "2"
+        }
       ]
     },
     {
@@ -143,7 +182,10 @@
       "expr": "101.truncate()",
       "input": {},
       "expect": [
-        101
+        {
+          "type": "integer",
+          "value": "101"
+        }
       ]
     },
     {
@@ -151,7 +193,10 @@
       "expr": "1.00000001.truncate()",
       "input": {},
       "expect": [
-        1
+        {
+          "type": "integer",
+          "value": "1"
+        }
       ]
     },
     {
@@ -159,7 +204,10 @@
       "expr": "(-1.56).truncate()",
       "input": {},
       "expect": [
-        -1
+        {
+          "type": "integer",
+          "value": "-1"
+        }
       ]
     },
     {
@@ -167,7 +215,10 @@
       "expr": "99.999.truncate()",
       "input": {},
       "expect": [
-        99
+        {
+          "type": "integer",
+          "value": "99"
+        }
       ]
     },
     {
@@ -181,7 +232,10 @@
       "expr": "1.round()",
       "input": {},
       "expect": [
-        1
+        {
+          "type": "integer",
+          "value": "1"
+        }
       ]
     },
     {
@@ -189,7 +243,10 @@
       "expr": "3.5.round()",
       "input": {},
       "expect": [
-        4
+        {
+          "type": "integer",
+          "value": "4"
+        }
       ]
     },
     {
@@ -197,7 +254,10 @@
       "expr": "3.4.round()",
       "input": {},
       "expect": [
-        3
+        {
+          "type": "integer",
+          "value": "3"
+        }
       ]
     },
     {
@@ -205,7 +265,10 @@
       "expr": "(-3.5).round()",
       "input": {},
       "expect": [
-        -4
+        {
+          "type": "integer",
+          "value": "-4"
+        }
       ]
     },
     {
@@ -213,7 +276,10 @@
       "expr": "3.14159.round(3)",
       "input": {},
       "expect": [
-        3.142
+        {
+          "type": "decimal",
+          "value": "3.142"
+        }
       ]
     },
     {
@@ -221,7 +287,10 @@
       "expr": "0.666666667.round(2)",
       "input": {},
       "expect": [
-        0.67
+        {
+          "type": "decimal",
+          "value": "0.67"
+        }
       ]
     },
     {
@@ -235,7 +304,10 @@
       "expr": "0.exp()",
       "input": {},
       "expect": [
-        1
+        {
+          "type": "integer",
+          "value": "1"
+        }
       ]
     },
     {
@@ -243,7 +315,10 @@
       "expr": "(-0.0).exp()",
       "input": {},
       "expect": [
-        1
+        {
+          "type": "integer",
+          "value": "1"
+        }
       ]
     },
     {
@@ -257,7 +332,10 @@
       "expr": "1.ln()",
       "input": {},
       "expect": [
-        0.0
+        {
+          "type": "decimal",
+          "value": "0.0"
+        }
       ]
     },
     {
@@ -265,7 +343,10 @@
       "expr": "1.0.ln()",
       "input": {},
       "expect": [
-        0.0
+        {
+          "type": "decimal",
+          "value": "0.0"
+        }
       ]
     },
     {
@@ -279,7 +360,10 @@
       "expr": "16.log(2)",
       "input": {},
       "expect": [
-        4.0
+        {
+          "type": "decimal",
+          "value": "4.0"
+        }
       ]
     },
     {
@@ -287,7 +371,10 @@
       "expr": "100.0.log(10.0)",
       "input": {},
       "expect": [
-        2.0
+        {
+          "type": "decimal",
+          "value": "2.0"
+        }
       ]
     },
     {
@@ -313,7 +400,10 @@
       "expr": "81.sqrt()",
       "input": {},
       "expect": [
-        9.0
+        {
+          "type": "decimal",
+          "value": "9.0"
+        }
       ]
     },
     {
@@ -321,7 +411,10 @@
       "expr": "4.sqrt()",
       "input": {},
       "expect": [
-        2.0
+        {
+          "type": "decimal",
+          "value": "2.0"
+        }
       ]
     },
     {
@@ -341,7 +434,10 @@
       "expr": "2.power(3)",
       "input": {},
       "expect": [
-        8
+        {
+          "type": "integer",
+          "value": "8"
+        }
       ]
     },
     {
@@ -349,7 +445,10 @@
       "expr": "2.5.power(2)",
       "input": {},
       "expect": [
-        6.25
+        {
+          "type": "decimal",
+          "value": "6.25"
+        }
       ]
     },
     {

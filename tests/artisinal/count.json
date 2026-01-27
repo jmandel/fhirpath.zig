@@ -25,36 +25,80 @@
       "name": "count on missing field returns 0",
       "expr": "name.count()",
       "input": {},
-      "expect": [0]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "0"
+        }
+      ]
     },
     {
       "name": "count on empty array returns 0",
       "expr": "name.count()",
-      "input": { "name": [] },
-      "expect": [0]
+      "input": {
+        "name": []
+      },
+      "expect": [
+        {
+          "type": "integer",
+          "value": "0"
+        }
+      ]
     },
     {
       "name": "count on scalar returns 1",
       "expr": "active.count()",
-      "input": { "active": false },
-      "expect": [1]
+      "input": {
+        "active": false
+      },
+      "expect": [
+        {
+          "type": "integer",
+          "value": "1"
+        }
+      ]
     },
     {
       "name": "count includes duplicate items",
       "expr": "given.count()",
-      "input": { "given": ["Ann", "Ann", "Bob"] },
-      "expect": [3]
+      "input": {
+        "given": [
+          "Ann",
+          "Ann",
+          "Bob"
+        ]
+      },
+      "expect": [
+        {
+          "type": "integer",
+          "value": "3"
+        }
+      ]
     },
     {
       "name": "count on nested path flattens across items",
       "expr": "name.given.count()",
       "input": {
         "name": [
-          { "given": ["Ann", "Annie"] },
-          { "given": ["Bob"] }
+          {
+            "given": [
+              "Ann",
+              "Annie"
+            ]
+          },
+          {
+            "given": [
+              "Bob"
+            ]
+          }
         ]
       },
-      "expect": [3]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "3"
+        }
+      ]
     }
   ]
 }

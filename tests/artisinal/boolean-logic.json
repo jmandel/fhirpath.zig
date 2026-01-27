@@ -31,55 +31,100 @@
       "name": "and: true and true",
       "expr": "true and true",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "and: true and false",
       "expr": "true and false",
       "input": {},
-      "expect": [false]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "false"
+        }
+      ]
     },
     {
       "name": "and: true and empty",
       "expr": "(true and {}).empty()",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "and: false and true",
       "expr": "false and true",
       "input": {},
-      "expect": [false]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "false"
+        }
+      ]
     },
     {
       "name": "and: false and false",
       "expr": "false and false",
       "input": {},
-      "expect": [false]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "false"
+        }
+      ]
     },
     {
       "name": "and: false and empty returns false",
       "expr": "false and {}",
       "input": {},
-      "expect": [false]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "false"
+        }
+      ]
     },
     {
       "name": "and: empty and true",
       "expr": "({} and true).empty()",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "and: empty and false returns false",
       "expr": "{} and false",
       "input": {},
-      "expect": [false]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "false"
+        }
+      ]
     },
     {
       "name": "and: empty and empty",
       "expr": "({} and {}).empty()",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "_comment": "=== OR OPERATOR (9 tests for 3x3 truth table) ==="
@@ -88,55 +133,100 @@
       "name": "or: true or true",
       "expr": "true or true",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "or: true or false",
       "expr": "true or false",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "or: true or empty returns true",
       "expr": "true or {}",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "or: false or true",
       "expr": "false or true",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "or: false or false",
       "expr": "false or false",
       "input": {},
-      "expect": [false]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "false"
+        }
+      ]
     },
     {
       "name": "or: false or empty",
       "expr": "(false or {}).empty()",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "or: empty or true returns true",
       "expr": "{} or true",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "or: empty or false",
       "expr": "({} or false).empty()",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "or: empty or empty",
       "expr": "({} or {}).empty()",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "_comment": "=== XOR OPERATOR (9 tests for 3x3 truth table) ==="
@@ -145,55 +235,100 @@
       "name": "xor: true xor true",
       "expr": "true xor true",
       "input": {},
-      "expect": [false]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "false"
+        }
+      ]
     },
     {
       "name": "xor: true xor false",
       "expr": "true xor false",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "xor: true xor empty",
       "expr": "(true xor {}).empty()",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "xor: false xor true",
       "expr": "false xor true",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "xor: false xor false",
       "expr": "false xor false",
       "input": {},
-      "expect": [false]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "false"
+        }
+      ]
     },
     {
       "name": "xor: false xor empty",
       "expr": "(false xor {}).empty()",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "xor: empty xor true",
       "expr": "({} xor true).empty()",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "xor: empty xor false",
       "expr": "({} xor false).empty()",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "xor: empty xor empty",
       "expr": "({} xor {}).empty()",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "_comment": "=== IMPLIES OPERATOR (9 tests for 3x3 truth table) ==="
@@ -202,55 +337,100 @@
       "name": "implies: true implies true",
       "expr": "true implies true",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "implies: true implies false",
       "expr": "true implies false",
       "input": {},
-      "expect": [false]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "false"
+        }
+      ]
     },
     {
       "name": "implies: true implies empty",
       "expr": "(true implies {}).empty()",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "implies: false implies true",
       "expr": "false implies true",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "implies: false implies false",
       "expr": "false implies false",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "implies: false implies empty returns true",
       "expr": "false implies {}",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "implies: empty implies true returns true",
       "expr": "{} implies true",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "implies: empty implies false",
       "expr": "({} implies false).empty()",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "implies: empty implies empty",
       "expr": "({} implies {}).empty()",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "_comment": "=== NOT FUNCTION (3 tests for all three states) ==="
@@ -259,19 +439,34 @@
       "name": "not: true.not()",
       "expr": "true.not()",
       "input": {},
-      "expect": [false]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "false"
+        }
+      ]
     },
     {
       "name": "not: false.not()",
       "expr": "false.not()",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "not: empty.not()",
       "expr": "{}.not().empty()",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "_comment": "=== OPERATOR PRECEDENCE AND CHAINING ==="
@@ -281,38 +476,68 @@
       "_comment": "true or false and false = true or (false and false) = true or false = true",
       "expr": "true or false and false",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "precedence: parentheses override",
       "_comment": "(true or false) and false = true and false = false",
       "expr": "(true or false) and false",
       "input": {},
-      "expect": [false]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "false"
+        }
+      ]
     },
     {
       "name": "chaining: multiple and operators",
       "expr": "true and true and true",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "chaining: multiple or operators",
       "expr": "false or false or true",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "chaining: not with and",
       "expr": "true.not() and false",
       "input": {},
-      "expect": [false]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "false"
+        }
+      ]
     },
     {
       "name": "chaining: implies with not",
       "expr": "true implies false.not()",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "_comment": "=== SINGLETON EVALUATION ==="
@@ -322,21 +547,36 @@
       "_comment": "Per spec: 0 is falsy for singleton boolean evaluation",
       "expr": "(0).not()",
       "input": {},
-      "expect": [false]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "false"
+        }
+      ]
     },
     {
       "name": "singleton: integer 1 evaluates to false for not",
       "_comment": "Per spec: non-zero integers are truthy for singleton boolean evaluation",
       "expr": "(1).not()",
       "input": {},
-      "expect": [false]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "false"
+        }
+      ]
     },
     {
       "name": "singleton: multi-item collection in not",
       "_comment": "Per spec: collections with >1 item are truthy for singleton boolean evaluation",
       "expr": "(1|2).not()",
       "input": {},
-      "expect": [false]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "false"
+        }
+      ]
     },
     {
       "_comment": "=== EDGE CASES ==="
@@ -346,7 +586,12 @@
       "_comment": "Per official tests: (true and 'foo').empty() = false; this evaluates to truthy",
       "expr": "(true and 'foo').empty()",
       "input": {},
-      "expect": [false]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "false"
+        }
+      ]
     }
   ]
 }

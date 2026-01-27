@@ -68,8 +68,14 @@ def normalize_output(out_type: str, value: str) -> dict:
         import re
         match = re.match(r"^([\d.+-eE]+)\s*'([^']*)'$", value)
         if match:
+            num_str = match.group(1)
+            # Convert to number (int or float)
+            if '.' in num_str or 'e' in num_str.lower():
+                num_val = float(num_str)
+            else:
+                num_val = int(num_str)
             result["value"] = {
-                "value": match.group(1),
+                "value": num_val,
                 "unit": match.group(2),
             }
         else:

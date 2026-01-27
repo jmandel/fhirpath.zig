@@ -35,49 +35,110 @@
     {
       "name": "distinct on empty array returns empty",
       "expr": "name.distinct()",
-      "input": { "name": [] },
+      "input": {
+        "name": []
+      },
       "expect": []
     },
     {
       "name": "distinct on single item returns same",
       "expr": "name.distinct()",
-      "input": { "name": ["Ann"] },
-      "expect": ["Ann"]
+      "input": {
+        "name": [
+          "Ann"
+        ]
+      },
+      "expect": [
+        {
+          "type": "string",
+          "value": "Ann"
+        }
+      ]
     },
     {
       "name": "distinct collapses duplicate values",
       "expr": "name.distinct()",
-      "input": { "name": ["Ann", "Ann", "Ann"] },
-      "expect": ["Ann"]
+      "input": {
+        "name": [
+          "Ann",
+          "Ann",
+          "Ann"
+        ]
+      },
+      "expect": [
+        {
+          "type": "string",
+          "value": "Ann"
+        }
+      ]
     },
     {
       "name": "distinct on nested path collapses duplicates",
       "expr": "name.given.distinct()",
       "input": {
         "name": [
-          { "given": ["Ann"] },
-          { "given": ["Ann"] }
+          {
+            "given": [
+              "Ann"
+            ]
+          },
+          {
+            "given": [
+              "Ann"
+            ]
+          }
         ]
       },
-      "expect": ["Ann"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "Ann"
+        }
+      ]
     },
     {
       "name": "isDistinct on missing field returns true",
       "expr": "name.isDistinct()",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "isDistinct returns false for duplicates",
       "expr": "name.isDistinct()",
-      "input": { "name": ["Ann", "Bob", "Ann"] },
-      "expect": [false]
+      "input": {
+        "name": [
+          "Ann",
+          "Bob",
+          "Ann"
+        ]
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "false"
+        }
+      ]
     },
     {
       "name": "isDistinct returns true for unique items",
       "expr": "name.isDistinct()",
-      "input": { "name": ["Ann", "Bob"] },
-      "expect": [true]
+      "input": {
+        "name": [
+          "Ann",
+          "Bob"
+        ]
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     }
   ]
 }

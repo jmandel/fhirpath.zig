@@ -29,12 +29,30 @@
       "expr": "name.where(use = 'official')",
       "input": {
         "name": [
-          { "use": "official", "given": ["Ann"] },
-          { "use": "nickname", "given": ["Annie"] }
+          {
+            "use": "official",
+            "given": [
+              "Ann"
+            ]
+          },
+          {
+            "use": "nickname",
+            "given": [
+              "Annie"
+            ]
+          }
         ]
       },
       "expect": [
-        { "use": "official", "given": ["Ann"] }
+        {
+          "type": "unknown",
+          "value": {
+            "use": "official",
+            "given": [
+              "Ann"
+            ]
+          }
+        }
       ]
     },
     {
@@ -42,37 +60,87 @@
       "expr": "name.where(use = 'official')",
       "input": {
         "name": [
-          { "use": "official" },
-          { "given": ["Bob"] }
+          {
+            "use": "official"
+          },
+          {
+            "given": [
+              "Bob"
+            ]
+          }
         ]
       },
       "expect": [
-        { "use": "official" }
+        {
+          "type": "unknown",
+          "value": {
+            "use": "official"
+          }
+        }
       ]
     },
     {
       "name": "where on empty collection returns empty",
       "expr": "name.where(use = 'official')",
-      "input": { "name": [] },
+      "input": {
+        "name": []
+      },
       "expect": []
     },
     {
       "name": "where uses $this for scalar filtering",
       "expr": "given.where($this = 'Bob')",
-      "input": { "given": ["Ann", "Bob", "Cyd"] },
-      "expect": ["Bob"]
+      "input": {
+        "given": [
+          "Ann",
+          "Bob",
+          "Cyd"
+        ]
+      },
+      "expect": [
+        {
+          "type": "string",
+          "value": "Bob"
+        }
+      ]
     },
     {
       "name": "where uses $index for position filtering",
       "expr": "given.where($index = 1)",
-      "input": { "given": ["Ann", "Bob", "Cyd"] },
-      "expect": ["Bob"]
+      "input": {
+        "given": [
+          "Ann",
+          "Bob",
+          "Cyd"
+        ]
+      },
+      "expect": [
+        {
+          "type": "string",
+          "value": "Bob"
+        }
+      ]
     },
     {
       "name": "where keeps items with boolean true",
       "expr": "flag.where($this)",
-      "input": { "flag": [true, false, true] },
-      "expect": [true, true]
+      "input": {
+        "flag": [
+          true,
+          false,
+          true
+        ]
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        },
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     }
   ]
 }

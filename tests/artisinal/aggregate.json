@@ -126,43 +126,78 @@
       "name": "aggregate: sum pattern with init=0",
       "expr": "(1 | 2 | 3 | 4 | 5).aggregate($this + $total, 0)",
       "input": {},
-      "expect": [15]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "15"
+        }
+      ]
     },
     {
       "name": "aggregate: sum with non-zero init",
       "expr": "(1 | 2 | 3).aggregate($this + $total, 10)",
       "input": {},
-      "expect": [16]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "16"
+        }
+      ]
     },
     {
       "name": "aggregate: sum 1-9 equals 45 (official test)",
       "expr": "(1|2|3|4|5|6|7|8|9).aggregate($this + $total, 0) = 45",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "aggregate: sum 1-9 with init=2 equals 47 (official test)",
       "expr": "(1|2|3|4|5|6|7|8|9).aggregate($this + $total, 2) = 47",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "aggregate: min pattern (official test)",
       "expr": "(1|2|3|4|5|6|7|8|9).aggregate(iif($total.empty(), $this, iif($this < $total, $this, $total))) = 1",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "aggregate: max pattern (official test)",
       "expr": "(1|2|3|4|5|6|7|8|9).aggregate(iif($total.empty(), $this, iif($this > $total, $this, $total))) = 9",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "aggregate: empty input with init returns init",
       "expr": "{}.aggregate($this + $total, 42)",
       "input": {},
-      "expect": [42]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "42"
+        }
+      ]
     },
     {
       "name": "aggregate: empty input without init returns empty",
@@ -174,55 +209,100 @@
       "name": "aggregate: single element with init",
       "expr": "(5).aggregate($this + $total, 0)",
       "input": {},
-      "expect": [5]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "5"
+        }
+      ]
     },
     {
       "name": "aggregate: single element without init",
       "expr": "(5).aggregate(iif($total.empty(), $this, $this + $total))",
       "input": {},
-      "expect": [5]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "5"
+        }
+      ]
     },
     {
       "name": "aggregate: product pattern",
       "expr": "(1 | 2 | 3 | 4).aggregate($this * $total, 1)",
       "input": {},
-      "expect": [24]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "24"
+        }
+      ]
     },
     {
       "name": "aggregate: string concatenation",
       "expr": "('a' | 'b' | 'c').aggregate($total & $this, '')",
       "input": {},
-      "expect": ["abc"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "abc"
+        }
+      ]
     },
     {
       "name": "aggregate: counting pattern",
       "expr": "('x' | 'y' | 'z').aggregate($total + 1, 0)",
       "input": {},
-      "expect": [3]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "3"
+        }
+      ]
     },
     {
       "name": "aggregate: with decimals",
       "expr": "(1.5 | 2.5 | 3.0).aggregate($this + $total, 0.0)",
       "input": {},
-      "expect": [7.0]
+      "expect": [
+        {
+          "type": "decimal",
+          "value": "7.0"
+        }
+      ]
     },
     {
       "name": "aggregate: using $index for positional sum",
       "expr": "('a' | 'b' | 'c').aggregate($total + $index, 0)",
       "input": {},
-      "expect": [3]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "3"
+        }
+      ]
     },
     {
       "name": "aggregate: $index starts at 0",
       "expr": "('x').aggregate($index, 99)",
       "input": {},
-      "expect": [0]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "0"
+        }
+      ]
     },
     {
       "name": "aggregate: weighted sum using $index",
       "expr": "(10 | 20 | 30).aggregate($this * $index + $total, 0)",
       "input": {},
-      "expect": [80]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "80"
+        }
+      ]
     },
     {
       "_comment": "=== sum() tests ==="
@@ -231,25 +311,45 @@
       "name": "sum: integers",
       "expr": "(1 | 2 | 3 | 4 | 5).sum()",
       "input": {},
-      "expect": [15]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "15"
+        }
+      ]
     },
     {
       "name": "sum: decimals",
       "expr": "(1.0 | 2.0 | 3.0 | 4.0 | 5.0).sum()",
       "input": {},
-      "expect": [15.0]
+      "expect": [
+        {
+          "type": "decimal",
+          "value": "15.0"
+        }
+      ]
     },
     {
       "name": "sum: single integer",
       "expr": "(42).sum()",
       "input": {},
-      "expect": [42]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "42"
+        }
+      ]
     },
     {
       "name": "sum: single decimal",
       "expr": "(3.14).sum()",
       "input": {},
-      "expect": [3.14]
+      "expect": [
+        {
+          "type": "decimal",
+          "value": "3.14"
+        }
+      ]
     },
     {
       "name": "sum: empty returns empty",
@@ -261,31 +361,71 @@
       "name": "sum: negative integers",
       "expr": "(-1 | -2 | -3).sum()",
       "input": {},
-      "expect": [-6]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "-6"
+        }
+      ]
     },
     {
       "name": "sum: mixed positive and negative",
       "expr": "(-5 | 10 | -3 | 8).sum()",
       "input": {},
-      "expect": [10]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "10"
+        }
+      ]
     },
     {
       "name": "sum: quantities with same unit",
       "expr": "(1.0 'mg' | 2.0 'mg' | 3.0 'mg').sum()",
       "input": {},
-      "expect": [{"value": 6.0, "unit": "mg"}]
+      "expect": [
+        {
+          "type": "unknown",
+          "value": {
+            "value": 6.0,
+            "unit": "mg"
+          }
+        }
+      ]
     },
     {
       "name": "sum: decimal precision preserved",
       "expr": "(0.1 | 0.2).sum()",
       "input": {},
-      "expect": [0.3]
+      "expect": [
+        {
+          "type": "decimal",
+          "value": "0.3"
+        }
+      ]
     },
     {
       "name": "sum: from field values",
       "expr": "items.value.sum()",
-      "input": {"items": [{"value": 10}, {"value": 20}, {"value": 30}]},
-      "expect": [60]
+      "input": {
+        "items": [
+          {
+            "value": 10
+          },
+          {
+            "value": 20
+          },
+          {
+            "value": 30
+          }
+        ]
+      },
+      "expect": [
+        {
+          "type": "integer",
+          "value": "60"
+        }
+      ]
     },
     {
       "_comment": "=== min() tests ==="
@@ -294,19 +434,34 @@
       "name": "min: integers",
       "expr": "(2 | 4 | 8 | 6).min()",
       "input": {},
-      "expect": [2]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "2"
+        }
+      ]
     },
     {
       "name": "min: decimals",
       "expr": "(2.5 | 1.5 | 3.5).min()",
       "input": {},
-      "expect": [1.5]
+      "expect": [
+        {
+          "type": "decimal",
+          "value": "1.5"
+        }
+      ]
     },
     {
       "name": "min: single element",
       "expr": "(42).min()",
       "input": {},
-      "expect": [42]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "42"
+        }
+      ]
     },
     {
       "name": "min: empty returns empty",
@@ -318,43 +473,93 @@
       "name": "min: strings (lexicographic)",
       "expr": "('banana' | 'apple' | 'cherry').min()",
       "input": {},
-      "expect": ["apple"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "apple"
+        }
+      ]
     },
     {
       "name": "min: dates",
       "expr": "(@2012-12-31 | @2013-01-01 | @2012-01-01).min()",
       "input": {},
-      "expect": ["2012-01-01"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "2012-01-01"
+        }
+      ]
     },
     {
       "name": "min: dateTimes",
       "expr": "(@2020-06-15T10:00:00 | @2020-06-15T08:00:00 | @2020-06-15T12:00:00).min()",
       "input": {},
-      "expect": ["2020-06-15T08:00:00"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "2020-06-15T08:00:00"
+        }
+      ]
     },
     {
       "name": "min: times",
       "expr": "(@T14:30:00 | @T09:00:00 | @T18:45:00).min()",
       "input": {},
-      "expect": ["09:00:00"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "09:00:00"
+        }
+      ]
     },
     {
       "name": "min: negative integers",
       "expr": "(-5 | -2 | -8 | -1).min()",
       "input": {},
-      "expect": [-8]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "-8"
+        }
+      ]
     },
     {
       "name": "min: quantities",
       "expr": "(3.0 'kg' | 1.5 'kg' | 2.0 'kg').min()",
       "input": {},
-      "expect": [{"value": 1.5, "unit": "kg"}]
+      "expect": [
+        {
+          "type": "unknown",
+          "value": {
+            "value": 1.5,
+            "unit": "kg"
+          }
+        }
+      ]
     },
     {
       "name": "min: from field values",
       "expr": "items.value.min()",
-      "input": {"items": [{"value": 30}, {"value": 10}, {"value": 20}]},
-      "expect": [10]
+      "input": {
+        "items": [
+          {
+            "value": 30
+          },
+          {
+            "value": 10
+          },
+          {
+            "value": 20
+          }
+        ]
+      },
+      "expect": [
+        {
+          "type": "integer",
+          "value": "10"
+        }
+      ]
     },
     {
       "_comment": "=== max() tests ==="
@@ -363,19 +568,34 @@
       "name": "max: integers",
       "expr": "(2 | 4 | 8 | 6).max()",
       "input": {},
-      "expect": [8]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "8"
+        }
+      ]
     },
     {
       "name": "max: decimals",
       "expr": "(2.5 | 1.5 | 3.5).max()",
       "input": {},
-      "expect": [3.5]
+      "expect": [
+        {
+          "type": "decimal",
+          "value": "3.5"
+        }
+      ]
     },
     {
       "name": "max: single element",
       "expr": "(42).max()",
       "input": {},
-      "expect": [42]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "42"
+        }
+      ]
     },
     {
       "name": "max: empty returns empty",
@@ -387,43 +607,93 @@
       "name": "max: strings (lexicographic)",
       "expr": "('banana' | 'apple' | 'cherry').max()",
       "input": {},
-      "expect": ["cherry"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "cherry"
+        }
+      ]
     },
     {
       "name": "max: dates",
       "expr": "(@2012-12-31 | @2013-01-01 | @2012-01-01).max()",
       "input": {},
-      "expect": ["2013-01-01"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "2013-01-01"
+        }
+      ]
     },
     {
       "name": "max: dateTimes",
       "expr": "(@2020-06-15T10:00:00 | @2020-06-15T08:00:00 | @2020-06-15T12:00:00).max()",
       "input": {},
-      "expect": ["2020-06-15T12:00:00"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "2020-06-15T12:00:00"
+        }
+      ]
     },
     {
       "name": "max: times",
       "expr": "(@T14:30:00 | @T09:00:00 | @T18:45:00).max()",
       "input": {},
-      "expect": ["18:45:00"]
+      "expect": [
+        {
+          "type": "string",
+          "value": "18:45:00"
+        }
+      ]
     },
     {
       "name": "max: negative integers",
       "expr": "(-5 | -2 | -8 | -1).max()",
       "input": {},
-      "expect": [-1]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "-1"
+        }
+      ]
     },
     {
       "name": "max: quantities",
       "expr": "(3.0 'kg' | 1.5 'kg' | 2.0 'kg').max()",
       "input": {},
-      "expect": [{"value": 3.0, "unit": "kg"}]
+      "expect": [
+        {
+          "type": "unknown",
+          "value": {
+            "value": 3.0,
+            "unit": "kg"
+          }
+        }
+      ]
     },
     {
       "name": "max: from field values",
       "expr": "items.value.max()",
-      "input": {"items": [{"value": 30}, {"value": 10}, {"value": 20}]},
-      "expect": [30]
+      "input": {
+        "items": [
+          {
+            "value": 30
+          },
+          {
+            "value": 10
+          },
+          {
+            "value": 20
+          }
+        ]
+      },
+      "expect": [
+        {
+          "type": "integer",
+          "value": "30"
+        }
+      ]
     },
     {
       "_comment": "=== avg() tests ==="
@@ -432,19 +702,34 @@
       "name": "avg: decimals",
       "expr": "(5.5 | 4.7 | 4.8).avg()",
       "input": {},
-      "expect": [5.0]
+      "expect": [
+        {
+          "type": "decimal",
+          "value": "5.0"
+        }
+      ]
     },
     {
       "name": "avg: integers (converted to decimal)",
       "expr": "(2 | 4 | 6).avg()",
       "input": {},
-      "expect": [4.0]
+      "expect": [
+        {
+          "type": "decimal",
+          "value": "4.0"
+        }
+      ]
     },
     {
       "name": "avg: single element",
       "expr": "(10.0).avg()",
       "input": {},
-      "expect": [10.0]
+      "expect": [
+        {
+          "type": "decimal",
+          "value": "10.0"
+        }
+      ]
     },
     {
       "name": "avg: empty returns empty",
@@ -456,25 +741,60 @@
       "name": "avg: quantities",
       "expr": "(5.5 'cm' | 4.7 'cm' | 4.8 'cm').avg()",
       "input": {},
-      "expect": [{"value": 5.0, "unit": "cm"}]
+      "expect": [
+        {
+          "type": "unknown",
+          "value": {
+            "value": 5.0,
+            "unit": "cm"
+          }
+        }
+      ]
     },
     {
       "name": "avg: result can have decimal places",
       "expr": "(1 | 2).avg()",
       "input": {},
-      "expect": [1.5]
+      "expect": [
+        {
+          "type": "decimal",
+          "value": "1.5"
+        }
+      ]
     },
     {
       "name": "avg: three values averaging to non-terminating decimal",
       "expr": "(1 | 1 | 1).avg()",
       "input": {},
-      "expect": [1.0]
+      "expect": [
+        {
+          "type": "decimal",
+          "value": "1.0"
+        }
+      ]
     },
     {
       "name": "avg: from field values (integers)",
       "expr": "items.value.avg()",
-      "input": {"items": [{"value": 10}, {"value": 20}, {"value": 30}]},
-      "expect": [20.0]
+      "input": {
+        "items": [
+          {
+            "value": 10
+          },
+          {
+            "value": 20
+          },
+          {
+            "value": 30
+          }
+        ]
+      },
+      "expect": [
+        {
+          "type": "decimal",
+          "value": "20.0"
+        }
+      ]
     },
     {
       "_comment": "=== Edge cases and error conditions ==="
@@ -483,67 +803,122 @@
       "name": "sum: two elements",
       "expr": "(100 | 200).sum()",
       "input": {},
-      "expect": [300]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "300"
+        }
+      ]
     },
     {
       "name": "min: two equal elements",
       "expr": "(5 | 5).min()",
       "input": {},
-      "expect": [5]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "5"
+        }
+      ]
     },
     {
       "name": "max: two equal elements",
       "expr": "(5 | 5).max()",
       "input": {},
-      "expect": [5]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "5"
+        }
+      ]
     },
     {
       "name": "min: all same values",
       "expr": "(3 | 3 | 3 | 3).min()",
       "input": {},
-      "expect": [3]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "3"
+        }
+      ]
     },
     {
       "name": "max: all same values",
       "expr": "(3 | 3 | 3 | 3).max()",
       "input": {},
-      "expect": [3]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "3"
+        }
+      ]
     },
     {
       "name": "sum: zero in collection",
       "expr": "(0 | 5 | 0 | 10).sum()",
       "input": {},
-      "expect": [15]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "15"
+        }
+      ]
     },
     {
       "name": "avg: identical values",
       "expr": "(7.0 | 7.0 | 7.0).avg()",
       "input": {},
-      "expect": [7.0]
+      "expect": [
+        {
+          "type": "decimal",
+          "value": "7.0"
+        }
+      ]
     },
     {
       "name": "min: first element is minimum",
       "expr": "(1 | 5 | 3 | 9).min()",
       "input": {},
-      "expect": [1]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "1"
+        }
+      ]
     },
     {
       "name": "min: last element is minimum",
       "expr": "(5 | 3 | 9 | 1).min()",
       "input": {},
-      "expect": [1]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "1"
+        }
+      ]
     },
     {
       "name": "max: first element is maximum",
       "expr": "(9 | 5 | 3 | 1).max()",
       "input": {},
-      "expect": [9]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "9"
+        }
+      ]
     },
     {
       "name": "max: last element is maximum",
       "expr": "(1 | 3 | 5 | 9).max()",
       "input": {},
-      "expect": [9]
+      "expect": [
+        {
+          "type": "integer",
+          "value": "9"
+        }
+      ]
     }
   ]
 }

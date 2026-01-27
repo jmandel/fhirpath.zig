@@ -12,7 +12,10 @@
       "expr": "'abcdefg'.startsWith('abc')",
       "input": {},
       "expect": [
-        true
+        {
+          "type": "boolean",
+          "value": "true"
+        }
       ]
     },
     {
@@ -20,7 +23,10 @@
       "expr": "'abcdefg'.startsWith('xyz')",
       "input": {},
       "expect": [
-        false
+        {
+          "type": "boolean",
+          "value": "false"
+        }
       ]
     },
     {
@@ -28,7 +34,10 @@
       "expr": "'abcdefg'.startsWith('')",
       "input": {},
       "expect": [
-        true
+        {
+          "type": "boolean",
+          "value": "true"
+        }
       ]
     },
     {
@@ -36,7 +45,10 @@
       "expr": "'abc'.startsWith('abcdefg')",
       "input": {},
       "expect": [
-        false
+        {
+          "type": "boolean",
+          "value": "false"
+        }
       ]
     },
     {
@@ -44,7 +56,10 @@
       "expr": "'abc'.startsWith('abc')",
       "input": {},
       "expect": [
-        true
+        {
+          "type": "boolean",
+          "value": "true"
+        }
       ]
     },
     {
@@ -52,7 +67,10 @@
       "expr": "''.startsWith('')",
       "input": {},
       "expect": [
-        true
+        {
+          "type": "boolean",
+          "value": "true"
+        }
       ]
     },
     {
@@ -66,7 +84,10 @@
       "expr": "'12345'.startsWith('1')",
       "input": {},
       "expect": [
-        true
+        {
+          "type": "boolean",
+          "value": "true"
+        }
       ]
     },
     {
@@ -74,7 +95,10 @@
       "expr": "'12345'.startsWith('2')",
       "input": {},
       "expect": [
-        false
+        {
+          "type": "boolean",
+          "value": "false"
+        }
       ]
     },
     {
@@ -82,7 +106,10 @@
       "expr": "'abcdefg'.endsWith('efg')",
       "input": {},
       "expect": [
-        true
+        {
+          "type": "boolean",
+          "value": "true"
+        }
       ]
     },
     {
@@ -90,7 +117,10 @@
       "expr": "'abcdefg'.endsWith('abc')",
       "input": {},
       "expect": [
-        false
+        {
+          "type": "boolean",
+          "value": "false"
+        }
       ]
     },
     {
@@ -98,7 +128,10 @@
       "expr": "'abcdefg'.endsWith('')",
       "input": {},
       "expect": [
-        true
+        {
+          "type": "boolean",
+          "value": "true"
+        }
       ]
     },
     {
@@ -106,7 +139,10 @@
       "expr": "'efg'.endsWith('abcdefg')",
       "input": {},
       "expect": [
-        false
+        {
+          "type": "boolean",
+          "value": "false"
+        }
       ]
     },
     {
@@ -114,7 +150,10 @@
       "expr": "'abc'.endsWith('abc')",
       "input": {},
       "expect": [
-        true
+        {
+          "type": "boolean",
+          "value": "true"
+        }
       ]
     },
     {
@@ -122,7 +161,10 @@
       "expr": "''.endsWith('')",
       "input": {},
       "expect": [
-        true
+        {
+          "type": "boolean",
+          "value": "true"
+        }
       ]
     },
     {
@@ -136,7 +178,10 @@
       "expr": "'12345'.endsWith('5')",
       "input": {},
       "expect": [
-        true
+        {
+          "type": "boolean",
+          "value": "true"
+        }
       ]
     },
     {
@@ -144,7 +189,10 @@
       "expr": "'12345'.endsWith('4')",
       "input": {},
       "expect": [
-        false
+        {
+          "type": "boolean",
+          "value": "false"
+        }
       ]
     },
     {
@@ -152,7 +200,10 @@
       "expr": "'abcdefg'.contains('cde')",
       "input": {},
       "expect": [
-        true
+        {
+          "type": "boolean",
+          "value": "true"
+        }
       ]
     },
     {
@@ -160,7 +211,10 @@
       "expr": "'abcdefg'.contains('abc')",
       "input": {},
       "expect": [
-        true
+        {
+          "type": "boolean",
+          "value": "true"
+        }
       ]
     },
     {
@@ -168,7 +222,10 @@
       "expr": "'abcdefg'.contains('efg')",
       "input": {},
       "expect": [
-        true
+        {
+          "type": "boolean",
+          "value": "true"
+        }
       ]
     },
     {
@@ -176,7 +233,10 @@
       "expr": "'abcdefg'.contains('xyz')",
       "input": {},
       "expect": [
-        false
+        {
+          "type": "boolean",
+          "value": "false"
+        }
       ]
     },
     {
@@ -184,7 +244,10 @@
       "expr": "'abcdefg'.contains('')",
       "input": {},
       "expect": [
-        true
+        {
+          "type": "boolean",
+          "value": "true"
+        }
       ]
     },
     {
@@ -192,7 +255,10 @@
       "expr": "'abc'.contains('abcdefg')",
       "input": {},
       "expect": [
-        false
+        {
+          "type": "boolean",
+          "value": "false"
+        }
       ]
     },
     {
@@ -200,7 +266,10 @@
       "expr": "'abc'.contains('abc')",
       "input": {},
       "expect": [
-        true
+        {
+          "type": "boolean",
+          "value": "true"
+        }
       ]
     },
     {
@@ -208,7 +277,10 @@
       "expr": "''.contains('')",
       "input": {},
       "expect": [
-        true
+        {
+          "type": "boolean",
+          "value": "true"
+        }
       ]
     },
     {
@@ -222,7 +294,10 @@
       "expr": "'12345'.contains('3')",
       "input": {},
       "expect": [
-        true
+        {
+          "type": "boolean",
+          "value": "true"
+        }
       ]
     },
     {
@@ -230,7 +305,10 @@
       "expr": "'12345'.contains('6')",
       "input": {},
       "expect": [
-        false
+        {
+          "type": "boolean",
+          "value": "false"
+        }
       ]
     },
     {
@@ -238,7 +316,10 @@
       "expr": "'12345'.contains('35')",
       "input": {},
       "expect": [
-        false
+        {
+          "type": "boolean",
+          "value": "false"
+        }
       ],
       "note": "'35' is not a substring because '3' and '5' are not consecutive"
     }

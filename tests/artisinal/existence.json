@@ -28,49 +28,106 @@
       "name": "empty on missing field returns true",
       "expr": "name.empty()",
       "input": {},
-      "expect": [true]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "empty on empty array returns true",
       "expr": "name.empty()",
-      "input": { "name": [] },
-      "expect": [true]
+      "input": {
+        "name": []
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "empty on non-empty array returns false",
       "expr": "name.empty()",
-      "input": { "name": ["Ann"] },
-      "expect": [false]
+      "input": {
+        "name": [
+          "Ann"
+        ]
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "false"
+        }
+      ]
     },
     {
       "name": "exists on missing field returns false",
       "expr": "name.exists()",
       "input": {},
-      "expect": [false]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "false"
+        }
+      ]
     },
     {
       "name": "exists on empty array returns false",
       "expr": "name.exists()",
-      "input": { "name": [] },
-      "expect": [false]
+      "input": {
+        "name": []
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "false"
+        }
+      ]
     },
     {
       "name": "exists on non-empty array returns true",
       "expr": "name.exists()",
-      "input": { "name": ["Ann", "Bob"] },
-      "expect": [true]
+      "input": {
+        "name": [
+          "Ann",
+          "Bob"
+        ]
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     },
     {
       "name": "empty on scalar value returns false",
       "expr": "active.empty()",
-      "input": { "active": true },
-      "expect": [false]
+      "input": {
+        "active": true
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "false"
+        }
+      ]
     },
     {
       "name": "exists on scalar value returns true",
       "expr": "active.exists()",
-      "input": { "active": true },
-      "expect": [true]
+      "input": {
+        "active": true
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": "true"
+        }
+      ]
     }
   ]
 }

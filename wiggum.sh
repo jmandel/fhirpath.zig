@@ -92,7 +92,11 @@ while true; do
     echo "AFTER: $AFTER"
     echo "MESSAGE: $MSG"
     echo ""
-    git log -1 --decorate --stat --patch
+    echo "GIT ONE-LINE:"
+    git log -1 --oneline
+    echo ""
+    echo "GIT DETAILS:"
+    git log -1 --decorate --stat
   } > "$GIT_LOG"
   chmod 444 "$GIT_LOG"
 

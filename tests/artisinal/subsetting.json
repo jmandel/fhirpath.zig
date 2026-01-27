@@ -1,0 +1,129 @@
+{
+  "meta": {
+    "status": "drafted",
+    "feature": "subsetting",
+    "source": "spec/index.md#Subsetting"
+  },
+  "spec": {
+    "summary": [
+      "single() returns the only item in the input collection, empty when input is empty, and signals an error when there are multiple items.",
+      "first() returns a collection containing the first item in the input collection (equivalent to indexer [0]); empty input yields empty output.",
+      "last() returns a collection containing the last item in the input collection; empty input yields empty output.",
+      "tail() returns all but the first item; empty or single-item input yields empty output.",
+      "skip(num) returns all but the first num items; if num <= 0 the input collection is returned; if num is greater than the size, the result is empty.",
+      "take(num) returns the first num items; if num <= 0 or input is empty the result is empty; if num exceeds the size, all items are returned."
+    ],
+    "examples": [
+      "Patient.name.single()",
+      "Patient.name.first()",
+      "Patient.name.last()",
+      "Patient.name.tail()",
+      "Patient.name.skip(1)",
+      "Patient.name.take(2)"
+    ]
+  },
+  "todo": [
+    "[ ] Implement subsetting functions single(), first(), last(), tail(), skip(), take().",
+    "[ ] Add error tests for single() on multi-item inputs once the harness supports error assertions.",
+    "[ ] Add negative num tests for skip()/take() when unary minus is supported in the harness.",
+    "[ ] Improve passing rate (0/16 passing)."
+  ],
+  "cases": [
+    {
+      "name": "single returns scalar when one item",
+      "expr": "active.single()",
+      "input": { "active": true },
+      "expect": [true]
+    },
+    {
+      "name": "single on empty collection returns empty",
+      "expr": "name.single()",
+      "input": { "name": [] },
+      "expect": []
+    },
+    {
+      "name": "first returns first item",
+      "expr": "name.first()",
+      "input": { "name": ["Ann", "Bob"] },
+      "expect": ["Ann"]
+    },
+    {
+      "name": "first on empty returns empty",
+      "expr": "name.first()",
+      "input": { "name": [] },
+      "expect": []
+    },
+    {
+      "name": "last returns last item",
+      "expr": "name.last()",
+      "input": { "name": ["Ann", "Bob", "Cyd"] },
+      "expect": ["Cyd"]
+    },
+    {
+      "name": "last on empty returns empty",
+      "expr": "name.last()",
+      "input": { "name": [] },
+      "expect": []
+    },
+    {
+      "name": "tail drops first item",
+      "expr": "name.tail()",
+      "input": { "name": ["Ann", "Bob", "Cyd"] },
+      "expect": ["Bob", "Cyd"]
+    },
+    {
+      "name": "tail on single item returns empty",
+      "expr": "name.tail()",
+      "input": { "name": ["Ann"] },
+      "expect": []
+    },
+    {
+      "name": "skip drops first N items",
+      "expr": "name.skip(2)",
+      "input": { "name": ["Ann", "Bob", "Cyd", "Dee"] },
+      "expect": ["Cyd", "Dee"]
+    },
+    {
+      "name": "skip with num 0 returns input",
+      "expr": "name.skip(0)",
+      "input": { "name": ["Ann", "Bob"] },
+      "expect": ["Ann", "Bob"]
+    },
+    {
+      "name": "skip beyond length returns empty",
+      "expr": "name.skip(5)",
+      "input": { "name": ["Ann", "Bob"] },
+      "expect": []
+    },
+    {
+      "name": "skip on empty returns empty",
+      "expr": "name.skip(1)",
+      "input": { "name": [] },
+      "expect": []
+    },
+    {
+      "name": "take returns first N items",
+      "expr": "name.take(2)",
+      "input": { "name": ["Ann", "Bob", "Cyd"] },
+      "expect": ["Ann", "Bob"]
+    },
+    {
+      "name": "take with num 0 returns empty",
+      "expr": "name.take(0)",
+      "input": { "name": ["Ann"] },
+      "expect": []
+    },
+    {
+      "name": "take beyond length returns all items",
+      "expr": "name.take(5)",
+      "input": { "name": ["Ann", "Bob"] },
+      "expect": ["Ann", "Bob"]
+    },
+    {
+      "name": "take on empty returns empty",
+      "expr": "name.take(1)",
+      "input": { "name": [] },
+      "expect": []
+    }
+  ]
+}

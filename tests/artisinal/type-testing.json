@@ -1,14 +1,50 @@
 {
   "meta": {
-    "status": "drafted",
-    "spec_summary": "Type testing operators: is, as, ofType(). The 'is' operator/function returns true if the left operand's type matches or is a subclass of the specified type. The 'as' operator/function returns the value if it matches the type, otherwise empty. ofType() filters a collection to items of a specified type. All require the input to be a singleton (except ofType). Type specifiers can be qualified (e.g., FHIR.Patient, System.Integer). Unresolvable type identifiers cause an error."
+    "status": "reviewed",
+    "spec_sections": ["5.1.3 (ofType)", "6.6 (Type operators: is, as)", "6.1 (Operator precedence)"],
+    "spec_summary": {
+      "overview": "Type testing operators check/cast types. 'is' tests type membership, 'as' casts with type check, 'ofType' filters collections.",
+      "is_operator": {
+        "syntax": "expr is TypeName or expr.is(TypeName)",
+        "behavior": "Returns true if input is of specified type or subclass. Returns false if type doesn't match.",
+        "empty_input": "Returns false (not empty!) for empty collection.",
+        "multiple_items": "Throws error if input has more than one item.",
+        "invalid_type": "Throws error if type identifier cannot be resolved."
+      },
+      "as_operator": {
+        "syntax": "expr as TypeName or expr.as(TypeName)",
+        "behavior": "Returns the value if it matches type (or subclass), otherwise returns empty collection.",
+        "empty_input": "Returns empty collection.",
+        "multiple_items": "Throws error if input has more than one item.",
+        "invalid_type": "Throws error if type identifier cannot be resolved."
+      },
+      "ofType_function": {
+        "syntax": "collection.ofType(TypeName)",
+        "behavior": "Filters collection to items of specified type or subclass. Unlike is/as, works on multi-item collections.",
+        "empty_input": "Returns empty collection.",
+        "no_matches": "Returns empty collection if no items match."
+      },
+      "type_specifiers": {
+        "format": "Can be unqualified (Integer) or qualified (System.Integer, FHIR.Patient).",
+        "system_types": "Boolean, Integer, Long, Decimal, String, Date, Time, DateTime, Quantity.",
+        "model_types": "Resolved from registered model (e.g., FHIR.Patient, FHIR.Observation)."
+      },
+      "precedence": {
+        "note": "is/as have higher precedence than union (|) but LOWER precedence than comparison (>/</>=/<=).",
+        "example": "'1 > 2 is Boolean' parses as '(1 > 2) is Boolean' and returns true.",
+        "official_test": "Confirmed by testPrecedence3 in official tests."
+      },
+      "subtypes": "Returns true for subtypes. For FHIR: Patient is a subtype of Resource, code is subtype of string, etc."
+    }
   },
-  "todo": [
-    "Improve passing rate (0/55 passing)",
-    "Test with FHIR model types once model is loaded",
-    "Test error cases: multiple items in input collection for is/as",
-    "Test unresolvable type identifiers (should error)",
-    "Test subtype relationships with FHIR types"
+  "_todo": [
+    "[ ] Improve passing rate (0/62 passing)",
+    "[ ] Test with FHIR model types once model is loaded",
+    "[ ] Test error cases: multiple items in input collection for is/as",
+    "[ ] Test unresolvable type identifiers (should error)",
+    "[ ] Test subtype relationships with FHIR types",
+    "[x] Review against spec and official tests",
+    "[x] Document precedence behavior (is/as lower than comparison operators)"
   ],
   "cases": [
     {
@@ -343,6 +379,51 @@
       "expr": "1.as(Integer).is(Integer)",
       "input": {},
       "expect": [true]
+    },
+    {
+      "name": "is - quantity literal is Quantity",
+      "expr": "10 'mg'.is(Quantity)",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "is - quantity literal is System.Quantity",
+      "expr": "10 'mg'.is(System.Quantity)",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "is - quantity literal is not Integer",
+      "expr": "10 'mg'.is(Integer)",
+      "input": {},
+      "expect": [false]
+    },
+    {
+      "name": "is - integer is not Quantity",
+      "expr": "1.is(Quantity).not()",
+      "input": {},
+      "expect": [true],
+      "note": "Per official test: integers are not Quantity even though they can convert"
+    },
+    {
+      "name": "as - quantity as Quantity returns value",
+      "expr": "10 'mg'.as(Quantity)",
+      "input": {},
+      "expect": [{"value": 10, "unit": "mg"}],
+      "note": "Quantity literal should return as Quantity type"
+    },
+    {
+      "name": "as - integer as Quantity returns empty",
+      "expr": "1.as(Quantity)",
+      "input": {},
+      "expect": [],
+      "note": "Integer is not Quantity type, returns empty (not converted)"
+    },
+    {
+      "name": "ofType - filter quantities from mixed collection",
+      "expr": "(1 | 10 'mg' | 'text').ofType(Quantity)",
+      "input": {},
+      "expect": [{"value": 10, "unit": "mg"}]
     }
   ]
 }

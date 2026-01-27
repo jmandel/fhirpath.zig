@@ -1,27 +1,77 @@
 {
-  "_comment": [
+  "_spec_summary": [
     "Boolean Logic Operators (and, or, xor, implies, not)",
     "",
-    "SPEC SUMMARY:",
+    "== CORE BEHAVIOR ==",
     "Boolean operators use three-valued logic with true, false, and empty ({}).",
     "Operands are first evaluated as Booleans via Singleton Evaluation of Collections.",
     "",
-    "and: Returns true if both operands evaluate to true, false if either is false, empty otherwise.",
-    "or: Returns false if both operands evaluate to false, true if either is true, empty otherwise.",
-    "xor: Returns true if exactly one operand is true, false if both same, empty if any operand is empty.",
-    "implies: If left is true, returns right. If left is false, returns true. If left is empty, returns true if right is true, else empty.",
-    "not(): Returns true if input is false, false if true, empty if empty.",
+    "== SINGLETON EVALUATION FOR BOOLEANS (critical!) ==",
+    "When a collection is passed where a Boolean is expected:",
+    "1. If collection has ONE item that CAN convert to Boolean → use that Boolean value",
+    "2. If collection has ONE item that CANNOT convert to Boolean → evaluates to TRUE",
+    "3. If collection is empty → evaluates to empty ({})",
+    "4. If collection has MULTIPLE items → ERROR (not truthy!)",
     "",
-    "IMPORTANT: No short-circuit evaluation guarantee - implementations may use it for performance",
+    "This means: (0).not() = false because 0 is a single non-boolean item → TRUE → not(TRUE) = false",
+    "And: (1|2).not() should ERROR, not return false, because it has multiple items.",
+    "",
+    "== TRUTH TABLES (from spec) ==",
+    "",
+    "AND: Returns true if both operands evaluate to true, false if either is false, empty otherwise.",
+    "  |and    |true  |false |empty |",
+    "  |true   |true  |false |empty |",
+    "  |false  |false |false |false |",
+    "  |empty  |empty |false |empty |",
+    "",
+    "OR: Returns false if both operands evaluate to false, true if either is true, empty otherwise.",
+    "  |or     |true  |false |empty |",
+    "  |true   |true  |true  |true  |",
+    "  |false  |true  |false |empty |",
+    "  |empty  |true  |empty |empty |",
+    "",
+    "XOR: Returns true if exactly one operand is true, false if both same, empty if any operand is empty.",
+    "  |xor    |true  |false |empty |",
+    "  |true   |false |true  |empty |",
+    "  |false  |true  |false |empty |",
+    "  |empty  |empty |empty |empty |",
+    "",
+    "IMPLIES: If left is true, returns right. If left is false, returns true. If left is empty, returns true if right is true, else empty.",
+    "  |implies|true  |false |empty |",
+    "  |true   |true  |false |empty |",
+    "  |false  |true  |true  |true  |",
+    "  |empty  |true  |empty |empty |",
+    "",
+    "NOT: Returns true if input is false, false if true, empty if empty.",
+    "  |not    |result|",
+    "  |true   |false |",
+    "  |false  |true  |",
+    "  |empty  |empty |",
+    "",
+    "== OPERATOR PRECEDENCE (high to low) ==",
+    "#11: and",
+    "#12: xor, or",
+    "#13: implies",
+    "So: 'true or false and false' parses as 'true or (false and false)'",
+    "",
+    "== SHORT-CIRCUIT EVALUATION ==",
+    "No short-circuit evaluation guarantee - implementations may use it for performance",
     "but authors should not rely on it. Use iif() if short-circuit behavior is needed.",
     "",
-    "TODO:",
-    "- [ ] Improve passing rate (0/49 passing - parser does not support and/or/xor/implies operators)",
-    "- [ ] Verify singleton evaluation semantics with multi-item collections",
-    "- [ ] Test interaction with other boolean-returning functions"
+    "== EDGE CASES ==",
+    "- Non-boolean single items (like 'foo' or 1) evaluate to TRUE for boolean context",
+    "- Multi-item collections in boolean context cause an ERROR, not truthy behavior",
+    "- Decimal 0.0, empty string '', etc. cannot implicitly convert to boolean, so they evaluate to TRUE"
+  ],
+  "_todo": [
+    "[ ] Improve passing rate (0/48 passing - parser does not support and/or/xor/implies operators)",
+    "[x] Verify truth tables against spec",
+    "[x] Cross-check with official tests",
+    "[x] Fix singleton evaluation tests (0/1 both truthy, multi-item is error)",
+    "[ ] Consider adding tests for string/decimal in boolean context"
   ],
   "meta": {
-    "status": "drafted"
+    "status": "reviewed"
   },
   "cases": [
     {
@@ -540,11 +590,11 @@
       ]
     },
     {
-      "_comment": "=== SINGLETON EVALUATION ==="
+      "_comment": "=== SINGLETON EVALUATION (corrected per spec) ==="
     },
     {
-      "name": "singleton: integer 0 evaluates to false for not",
-      "_comment": "Per spec: 0 is falsy for singleton boolean evaluation",
+      "name": "singleton: integer 0 is truthy (single non-boolean item)",
+      "_comment": "Per spec: single non-boolean item evaluates to TRUE. 0 is not special - any single item that can't convert to bool is truthy.",
       "expr": "(0).not()",
       "input": {},
       "expect": [
@@ -555,21 +605,9 @@
       ]
     },
     {
-      "name": "singleton: integer 1 evaluates to false for not",
-      "_comment": "Per spec: non-zero integers are truthy for singleton boolean evaluation",
+      "name": "singleton: integer 1 is truthy (single non-boolean item)",
+      "_comment": "Per spec: single non-boolean item evaluates to TRUE. Same as 0 - not special because non-zero.",
       "expr": "(1).not()",
-      "input": {},
-      "expect": [
-        {
-          "type": "boolean",
-          "value": "false"
-        }
-      ]
-    },
-    {
-      "name": "singleton: multi-item collection in not",
-      "_comment": "Per spec: collections with >1 item are truthy for singleton boolean evaluation",
-      "expr": "(1|2).not()",
       "input": {},
       "expect": [
         {
@@ -583,7 +621,7 @@
     },
     {
       "name": "edge: non-boolean in and (official test from-zulip-1)",
-      "_comment": "Per official tests: (true and 'foo').empty() = false; this evaluates to truthy",
+      "_comment": "Per official tests: (true and 'foo').empty() = false; 'foo' is single non-boolean so truthy",
       "expr": "(true and 'foo').empty()",
       "input": {},
       "expect": [

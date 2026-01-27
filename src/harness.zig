@@ -5,18 +5,22 @@ const ast = @import("ast.zig");
 const jsondoc = @import("jsondoc.zig");
 const item = @import("item.zig");
 const convert = @import("convert.zig");
+const schema = @import("schema.zig");
 
 const Options = struct {
     show_failures: bool = true,
-    max_failures: usize = 0, // 0 = all
+    max_failures: usize = 0,
     filter: ?[]const u8 = null,
     verbose: bool = false,
+    model_path: ?[]const u8 = null,
+    input_dir: ?[]const u8 = null,
 };
 
 const FileResult = struct {
     name: []const u8,
     passed: usize,
     failed: usize,
+    skipped: usize,
     parse_errors: usize,
     eval_errors: usize,
     mismatch_errors: usize,
@@ -40,7 +44,8 @@ pub fn main() !void {
     defer std.process.argsFree(allocator, args);
 
     var opts = Options{};
-    var specific_file: ?[]const u8 = null;
+    var files = std.ArrayList([]const u8).empty;
+    defer files.deinit(allocator);
 
     var i: usize = 1;
     while (i < args.len) : (i += 1) {
@@ -52,16 +57,20 @@ pub fn main() !void {
             opts.show_failures = false;
         } else if (std.mem.eql(u8, arg, "--max") or std.mem.eql(u8, arg, "-n")) {
             i += 1;
-            if (i < args.len) {
-                opts.max_failures = std.fmt.parseInt(usize, args[i], 10) catch 10;
-            }
+            if (i < args.len) opts.max_failures = std.fmt.parseInt(usize, args[i], 10) catch 10;
         } else if (std.mem.eql(u8, arg, "--filter") or std.mem.eql(u8, arg, "-f")) {
             i += 1;
             if (i < args.len) opts.filter = args[i];
         } else if (std.mem.eql(u8, arg, "--verbose") or std.mem.eql(u8, arg, "-v")) {
             opts.verbose = true;
+        } else if (std.mem.eql(u8, arg, "--model") or std.mem.eql(u8, arg, "-m")) {
+            i += 1;
+            if (i < args.len) opts.model_path = args[i];
+        } else if (std.mem.eql(u8, arg, "--input-dir") or std.mem.eql(u8, arg, "-i")) {
+            i += 1;
+            if (i < args.len) opts.input_dir = args[i];
         } else if (!std.mem.startsWith(u8, arg, "-")) {
-            specific_file = arg;
+            try files.append(allocator, arg);
         }
     }
 
@@ -84,10 +93,32 @@ pub fn main() !void {
         failures.deinit(allocator);
     }
 
-    if (specific_file) |path| {
-        const result = try runTestFile(allocator, path, &failures, opts);
-        try results.append(allocator, result);
+    // Load schema if specified
+    var schema_obj: ?schema.Schema = null;
+    var model_bytes: ?[]u8 = null;
+    if (opts.model_path) |path| {
+        if (std.fs.cwd().readFileAlloc(allocator, path, 128 * 1024 * 1024)) |bytes| {
+            model_bytes = bytes;
+            if (schema.Schema.init(allocator, "default", "FHIR", bytes)) |s| {
+                schema_obj = s;
+            } else |err| {
+                std.debug.print("Schema init error: {}\n", .{err});
+            }
+        } else |err| {
+            std.debug.print("Model load error: {}\n", .{err});
+        }
+    }
+    defer if (model_bytes) |bytes| allocator.free(bytes);
+    defer if (schema_obj) |*s| s.deinit();
+
+    if (files.items.len > 0) {
+        // Run specified files
+        for (files.items) |path| {
+            const result = try runTestFile(allocator, path, &failures, opts, if (schema_obj) |*s| s else null);
+            try results.append(allocator, result);
+        }
     } else {
+        // Default: run all artisinal tests
         var dir = std.fs.cwd().openDir("tests/artisinal", .{ .iterate = true }) catch |err| {
             std.debug.print("Cannot open tests/artisinal: {}\n", .{err});
             return err;
@@ -105,11 +136,10 @@ pub fn main() !void {
             const full_path = try std.fmt.allocPrint(allocator, "tests/artisinal/{s}", .{entry.name});
             defer allocator.free(full_path);
 
-            const result = try runTestFile(allocator, full_path, &failures, opts);
+            const result = try runTestFile(allocator, full_path, &failures, opts, if (schema_obj) |*s| s else null);
             try results.append(allocator, result);
         }
 
-        // Sort by filename
         std.mem.sort(FileResult, results.items, {}, struct {
             fn lessThan(_: void, a: FileResult, b: FileResult) bool {
                 return std.mem.lessThan(u8, a.name, b.name);
@@ -137,7 +167,6 @@ pub fn main() !void {
         }
     }
 
-    // Print summary
     printSummary(results.items);
 
     var total_failed: usize = 0;
@@ -147,18 +176,26 @@ pub fn main() !void {
 
 fn printUsage() void {
     const usage =
-        \\Usage: harness [options] [file.json]
+        \\Usage: harness [options] [file.json ...]
         \\
-        \\Run artisinal FHIRPath tests.
+        \\Run FHIRPath tests (artisinal or official r5 format).
         \\
         \\Options:
-        \\  -q, --no-failures   Don't show failure details (summary only)
-        \\  -n, --max N         Show at most N failures (default: all)
+        \\  -q, --no-failures    Don't show failure details
+        \\  -n, --max N          Show at most N failures (default: all)
         \\  -f, --filter PATTERN Filter files/tests by pattern
-        \\  -v, --verbose       Show passing tests too
-        \\  -h, --help          Show this help
+        \\  -v, --verbose        Show passing tests too
+        \\  -m, --model PATH     Load FHIR model for type resolution
+        \\  -i, --input-dir DIR  Directory for inputfile references
+        \\  -h, --help           Show this help
         \\
-        \\If no file is specified, runs all tests/artisinal/*.json
+        \\If no files specified, runs all tests/artisinal/*.json
+        \\
+        \\Examples:
+        \\  harness                              # all artisinal tests
+        \\  harness -f string                    # filter by "string"
+        \\  harness tests/r5/tests-fhir-r5.json  # official r5 tests
+        \\  harness -m models/r5/model.bin -i tests/r5/input tests/r5/tests-fhir-r5.json
         \\
     ;
     std.debug.print("{s}", .{usage});
@@ -167,6 +204,7 @@ fn printUsage() void {
 fn printSummary(results: []const FileResult) void {
     var total_passed: usize = 0;
     var total_failed: usize = 0;
+    var total_skipped: usize = 0;
     var total_parse: usize = 0;
     var total_eval: usize = 0;
     var total_mismatch: usize = 0;
@@ -186,6 +224,7 @@ fn printSummary(results: []const FileResult) void {
         });
         total_passed += r.passed;
         total_failed += r.failed;
+        total_skipped += r.skipped;
         total_parse += r.parse_errors;
         total_eval += r.eval_errors;
         total_mismatch += r.mismatch_errors;
@@ -202,6 +241,9 @@ fn printSummary(results: []const FileResult) void {
         total_eval,
         total_mismatch,
     });
+    if (total_skipped > 0) {
+        std.debug.print("Skipped: {d}\n", .{total_skipped});
+    }
     std.debug.print("\nPass rate: {d}% ({d}/{d})\n", .{ pct, total_passed, grand_total });
 }
 
@@ -210,17 +252,19 @@ fn runTestFile(
     path: []const u8,
     failures: *std.ArrayList(TestFailure),
     opts: Options,
+    schema_ptr: ?*schema.Schema,
 ) !FileResult {
     var result = FileResult{
         .name = try allocator.dupe(u8, std.fs.path.basename(path)),
         .passed = 0,
         .failed = 0,
+        .skipped = 0,
         .parse_errors = 0,
         .eval_errors = 0,
         .mismatch_errors = 0,
     };
 
-    const data = std.fs.cwd().readFileAlloc(allocator, path, 10 * 1024 * 1024) catch |err| {
+    const data = std.fs.cwd().readFileAlloc(allocator, path, 50 * 1024 * 1024) catch |err| {
         std.debug.print("Cannot read {s}: {}\n", .{ path, err });
         return result;
     };
@@ -234,8 +278,29 @@ fn runTestFile(
     defer parsed.deinit();
 
     const root = parsed.value;
-    const cases_val = root.object.get("cases") orelse return result;
+    
+    // Detect format: "cases" = artisinal, "tests" = r5 official
+    const cases_key = if (root.object.get("cases") != null) "cases" else "tests";
+    const cases_val = root.object.get(cases_key) orelse return result;
     if (cases_val != .array) return result;
+
+    // Detect field names
+    const is_official = std.mem.eql(u8, cases_key, "tests");
+    const expr_key = if (is_official) "expression" else "expr";
+    const expect_key = if (is_official) "outputs" else "expect";
+
+    // Infer input_dir from path if not specified
+    var input_dir = opts.input_dir;
+    if (input_dir == null and is_official) {
+        // Default to sibling "input" directory
+        const dir = std.fs.path.dirname(path) orelse ".";
+        const inferred = std.fmt.allocPrint(allocator, "{s}/input", .{dir}) catch null;
+        if (inferred) |d| {
+            if (std.fs.cwd().access(d, .{})) |_| {
+                input_dir = d;
+            } else |_| {}
+        }
+    }
 
     var types = try item.TypeTable.init(allocator);
     defer types.deinit();
@@ -243,6 +308,7 @@ fn runTestFile(
     for (cases_val.array.items) |case_val| {
         if (case_val != .object) continue;
         const obj = case_val.object;
+        
         const name_val = obj.get("name") orelse std.json.Value{ .string = "(unnamed)" };
         const name_str = if (name_val == .string) name_val.string else "(unnamed)";
 
@@ -255,7 +321,15 @@ fn runTestFile(
             }
         }
 
-        const expr_val = obj.get("expr") orelse {
+        // Check for invalid/skip markers
+        if (obj.get("invalid")) |inv| {
+            if (inv == .bool and inv.bool) {
+                result.skipped += 1;
+                continue;
+            }
+        }
+
+        const expr_val = obj.get(expr_key) orelse {
             result.failed += 1;
             continue;
         };
@@ -265,9 +339,40 @@ fn runTestFile(
         }
         const expr_str = expr_val.string;
 
-        const input_val = obj.get("input") orelse std.json.Value{ .null = {} };
-        const input_str = std.json.Stringify.valueAlloc(allocator, input_val, .{}) catch "{}";
-        defer allocator.free(input_str);
+        // Get input JSON
+        var input_str: []const u8 = "{}";
+        var input_allocated = false;
+        defer if (input_allocated) allocator.free(input_str);
+
+        if (obj.get("input")) |input_val| {
+            input_str = std.json.Stringify.valueAlloc(allocator, input_val, .{}) catch "{}";
+            input_allocated = true;
+        } else if (obj.get("inputfile")) |inputfile_val| {
+            if (inputfile_val == .string and inputfile_val.string.len > 0) {
+                const filename = inputfile_val.string;
+                // Convert .xml to .json
+                const json_filename = if (std.mem.endsWith(u8, filename, ".xml"))
+                    std.fmt.allocPrint(allocator, "{s}.json", .{filename[0 .. filename.len - 4]}) catch filename
+                else
+                    filename;
+                defer if (json_filename.ptr != filename.ptr) allocator.free(json_filename);
+
+                const full_input_path = if (input_dir) |dir|
+                    std.fmt.allocPrint(allocator, "{s}/{s}", .{ dir, json_filename }) catch json_filename
+                else
+                    json_filename;
+                defer if (full_input_path.ptr != json_filename.ptr) allocator.free(full_input_path);
+
+                if (std.fs.cwd().readFileAlloc(allocator, full_input_path, 10 * 1024 * 1024)) |contents| {
+                    input_str = contents;
+                    input_allocated = true;
+                } else |_| {
+                    // Input file not found - skip test
+                    result.skipped += 1;
+                    continue;
+                }
+            }
+        }
 
         const expr = lib.parseExpression(allocator, expr_str) catch {
             result.failed += 1;
@@ -285,7 +390,12 @@ fn runTestFile(
         };
         defer doc.deinit();
 
-        var ctx = eval.EvalContext{ .allocator = allocator, .doc = &doc, .types = &types, .schema = null };
+        var ctx = eval.EvalContext{
+            .allocator = allocator,
+            .doc = &doc,
+            .types = &types,
+            .schema = schema_ptr,
+        };
         var eval_result = eval.evalExpression(&ctx, expr, doc.root, null) catch {
             result.failed += 1;
             result.eval_errors += 1;
@@ -294,7 +404,7 @@ fn runTestFile(
         };
         defer eval_result.deinit(allocator);
 
-        const expect_val = obj.get("expect");
+        const expect_val = obj.get(expect_key);
         const empty_items: []const std.json.Value = &[_]std.json.Value{};
         var expect_items = empty_items;
         if (expect_val) |ev| {
@@ -303,7 +413,7 @@ fn runTestFile(
             }
         }
 
-        var actual_values = try itemsToJsonArray(allocator, &doc, eval_result.items, &types);
+        var actual_values = try itemsToJsonArray(allocator, &doc, eval_result.items, &types, schema_ptr);
         defer actual_values.deinit(allocator);
 
         const matched = compareExpected(expect_items, actual_values.items);
@@ -360,10 +470,18 @@ fn itemsToJsonArray(
     doc: *jsondoc.JsonDoc,
     items: []const item.Item,
     types: *item.TypeTable,
+    schema_ptr: ?*schema.Schema,
 ) !std.ArrayList(std.json.Value) {
     var out = std.ArrayList(std.json.Value).empty;
     for (items) |it| {
-        const type_name = types.name(it.type_id);
+        var type_name: []const u8 = "";
+        if (schema.isModelType(it.type_id)) {
+            if (schema_ptr) |s| {
+                type_name = s.typeName(it.type_id);
+            }
+        } else {
+            type_name = types.name(it.type_id);
+        }
         const val = try convert.itemToTypedJsonValue(allocator, doc, it, type_name);
         try out.append(allocator, val);
     }

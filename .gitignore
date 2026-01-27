@@ -6,6 +6,9 @@
 # Scratch/work dirs
 /build/
 
+# FHIR models (download with scripts/fetch_models.sh)
+/models/
+
 # Driver logs
 /driver.log
 /logs/

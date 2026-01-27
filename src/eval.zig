@@ -30,7 +30,7 @@ pub const Env = struct {
     }
 };
 
-const EvalError = error{ InvalidFunction, InvalidPredicate, SingletonRequired } || error{OutOfMemory, InvalidJson, TrailingData};
+const EvalError = error{ InvalidFunction, InvalidPredicate, SingletonRequired, InvalidOperand } || error{OutOfMemory, InvalidJson, TrailingData};
 
 pub const EvalResult = struct {
     items: ItemList,
@@ -82,6 +82,9 @@ fn evalExpressionCtx(
             try out.append(ctx.allocator, literalToItem(ctx, lit));
             return out;
         },
+        .TypeExpr => |t| return evalTypeExpr(ctx, t, root_item, env, index),
+        .Unary => |u| return evalUnary(ctx, u, root_item, env, index),
+        .Invoke => |inv| return evalInvoke(ctx, inv, root_item, env, index),
     }
 }
 
@@ -106,6 +109,14 @@ fn evalPath(
         .Index => {
             if (index) |idx| {
                 try current.append(ctx.allocator, makeIntegerItem(ctx, @intCast(idx)));
+            }
+        },
+        .Total => {
+            // $total is used in aggregate() - needs to be passed through env
+            if (env) |e| {
+                if (e.map.get("$total")) |vals| {
+                    try current.appendSlice(ctx.allocator, vals);
+                }
             }
         },
         .Literal => |lit| {
@@ -193,12 +204,57 @@ fn evalBinary(
     env: ?*Env,
     index: ?usize,
 ) EvalError!ItemList {
-    _ = expr.op;
+    // Handle short-circuit operators specially
+    switch (expr.op) {
+        .And => return evalAnd(ctx, expr, root_item, env, index),
+        .Or => return evalOr(ctx, expr, root_item, env, index),
+        .Implies => return evalImplies(ctx, expr, root_item, env, index),
+        else => {},
+    }
+
+    // For other operators, evaluate both sides first
     var left = try evalExpressionCtx(ctx, expr.left.*, root_item, env, index);
     defer left.deinit(ctx.allocator);
     var right = try evalExpressionCtx(ctx, expr.right.*, root_item, env, index);
     defer right.deinit(ctx.allocator);
-    return evalEquality(ctx, left.items, right.items);
+
+    return switch (expr.op) {
+        // Equality
+        .Eq => evalEquality(ctx, left.items, right.items),
+        .NotEq => evalNotEquality(ctx, left.items, right.items),
+        .Equiv => evalEquivalence(ctx, left.items, right.items),
+        .NotEquiv => evalNotEquivalence(ctx, left.items, right.items),
+
+        // Comparison
+        .Lt => evalComparison(ctx, left.items, right.items, .lt),
+        .LtEq => evalComparison(ctx, left.items, right.items, .le),
+        .Gt => evalComparison(ctx, left.items, right.items, .gt),
+        .GtEq => evalComparison(ctx, left.items, right.items, .ge),
+
+        // Boolean (xor not short-circuit)
+        .Xor => evalXor(ctx, left.items, right.items),
+
+        // Union
+        .Union => evalUnionOp(ctx, left.items, right.items),
+
+        // Arithmetic
+        .Add => evalArithmetic(ctx, left.items, right.items, .add),
+        .Sub => evalArithmetic(ctx, left.items, right.items, .sub),
+        .Mul => evalArithmetic(ctx, left.items, right.items, .mul),
+        .Div => evalArithmetic(ctx, left.items, right.items, .div),
+        .IntDiv => evalArithmetic(ctx, left.items, right.items, .int_div),
+        .Mod => evalArithmetic(ctx, left.items, right.items, .mod),
+
+        // String concatenation
+        .Concat => evalConcat(ctx, left.items, right.items),
+
+        // Membership
+        .In => evalIn(ctx, left.items, right.items),
+        .Contains => evalIn(ctx, right.items, left.items), // contains is reverse of in
+
+        // Short-circuit operators already handled above
+        .And, .Or, .Implies => unreachable,
+    };
 }
 
 fn evalEquality(
@@ -208,18 +264,603 @@ fn evalEquality(
 ) EvalError!ItemList {
     var out = ItemList.empty;
     if (left.len == 0 or right.len == 0) return out;
-    var matched = false;
-    for (left) |l| {
-        for (right) |r| {
-            if (itemsEqual(ctx, l, r)) {
-                matched = true;
-                break;
-            }
-        }
-        if (matched) break;
+    // For singleton comparison
+    if (left.len == 1 and right.len == 1) {
+        const eq = itemsEqual(ctx, left[0], right[0]);
+        try out.append(ctx.allocator, makeBoolItem(ctx, eq));
+        return out;
     }
-    try out.append(ctx.allocator, makeBoolItem(ctx, matched));
+    // For collections: are they the same?
+    if (left.len != right.len) {
+        try out.append(ctx.allocator, makeBoolItem(ctx, false));
+        return out;
+    }
+    // Check each item
+    for (left, 0..) |l, i| {
+        if (!itemsEqual(ctx, l, right[i])) {
+            try out.append(ctx.allocator, makeBoolItem(ctx, false));
+            return out;
+        }
+    }
+    try out.append(ctx.allocator, makeBoolItem(ctx, true));
     return out;
+}
+
+fn evalNotEquality(
+    ctx: *EvalContext,
+    left: []const item.Item,
+    right: []const item.Item,
+) EvalError!ItemList {
+    var out = ItemList.empty;
+    if (left.len == 0 or right.len == 0) return out;
+    var eq_result = try evalEquality(ctx, left, right);
+    defer eq_result.deinit(ctx.allocator);
+    if (eq_result.items.len == 1) {
+        const eq = itemBoolValue(ctx, eq_result.items[0]);
+        try out.append(ctx.allocator, makeBoolItem(ctx, !eq));
+    }
+    return out;
+}
+
+fn evalEquivalence(
+    ctx: *EvalContext,
+    left: []const item.Item,
+    right: []const item.Item,
+) EvalError!ItemList {
+    var out = ItemList.empty;
+    // Equivalence always returns true or false (never empty)
+    // Empty collections are equivalent to each other
+    if (left.len == 0 and right.len == 0) {
+        try out.append(ctx.allocator, makeBoolItem(ctx, true));
+        return out;
+    }
+    if (left.len == 0 or right.len == 0) {
+        try out.append(ctx.allocator, makeBoolItem(ctx, false));
+        return out;
+    }
+    if (left.len != right.len) {
+        try out.append(ctx.allocator, makeBoolItem(ctx, false));
+        return out;
+    }
+    for (left, 0..) |l, i| {
+        if (!itemsEquivalent(ctx, l, right[i])) {
+            try out.append(ctx.allocator, makeBoolItem(ctx, false));
+            return out;
+        }
+    }
+    try out.append(ctx.allocator, makeBoolItem(ctx, true));
+    return out;
+}
+
+fn evalNotEquivalence(
+    ctx: *EvalContext,
+    left: []const item.Item,
+    right: []const item.Item,
+) EvalError!ItemList {
+    var out = ItemList.empty;
+    var equiv_result = try evalEquivalence(ctx, left, right);
+    defer equiv_result.deinit(ctx.allocator);
+    if (equiv_result.items.len == 1) {
+        const eq = itemBoolValue(ctx, equiv_result.items[0]);
+        try out.append(ctx.allocator, makeBoolItem(ctx, !eq));
+    }
+    return out;
+}
+
+fn itemsEquivalent(ctx: *EvalContext, a: item.Item, b: item.Item) bool {
+    // For now, use same logic as equality
+    // TODO: Implement proper equivalence (case-insensitive strings, etc.)
+    return itemsEqual(ctx, a, b);
+}
+
+const CompareOp = enum { lt, le, gt, ge };
+
+fn evalComparison(
+    ctx: *EvalContext,
+    left: []const item.Item,
+    right: []const item.Item,
+    op: CompareOp,
+) EvalError!ItemList {
+    var out = ItemList.empty;
+    if (left.len != 1 or right.len != 1) return out; // Empty if not singletons
+
+    const l = left[0];
+    const r = right[0];
+
+    const cmp = compareItems(ctx, l, r) orelse return out;
+    const result = switch (op) {
+        .lt => cmp < 0,
+        .le => cmp <= 0,
+        .gt => cmp > 0,
+        .ge => cmp >= 0,
+    };
+    try out.append(ctx.allocator, makeBoolItem(ctx, result));
+    return out;
+}
+
+fn compareItems(ctx: *EvalContext, a: item.Item, b: item.Item) ?i32 {
+    const va = itemToValue(ctx, a);
+    const vb = itemToValue(ctx, b);
+
+    // Compare integers
+    if (va == .integer and vb == .integer) {
+        if (va.integer < vb.integer) return -1;
+        if (va.integer > vb.integer) return 1;
+        return 0;
+    }
+
+    // Compare decimals or mixed int/decimal
+    const fa: ?f64 = switch (va) {
+        .integer => |i| @floatFromInt(i),
+        .decimal => |d| std.fmt.parseFloat(f64, d) catch null,
+        else => null,
+    };
+    const fb: ?f64 = switch (vb) {
+        .integer => |i| @floatFromInt(i),
+        .decimal => |d| std.fmt.parseFloat(f64, d) catch null,
+        else => null,
+    };
+    if (fa != null and fb != null) {
+        if (fa.? < fb.?) return -1;
+        if (fa.? > fb.?) return 1;
+        return 0;
+    }
+
+    // Compare strings
+    if (va == .string and vb == .string) {
+        return switch (std.mem.order(u8, va.string, vb.string)) {
+            .lt => -1,
+            .eq => 0,
+            .gt => 1,
+        };
+    }
+
+    return null;
+}
+
+// Boolean operators with three-valued logic
+fn evalAnd(
+    ctx: *EvalContext,
+    expr: ast.BinaryExpr,
+    root_item: item.Item,
+    env: ?*Env,
+    index: ?usize,
+) EvalError!ItemList {
+    var out = ItemList.empty;
+
+    // Evaluate left side
+    var left = try evalExpressionCtx(ctx, expr.left.*, root_item, env, index);
+    defer left.deinit(ctx.allocator);
+
+    // Three-valued AND logic:
+    // false AND anything = false
+    // true AND true = true
+    // true AND false = false
+    // true AND {} = {}
+    // {} AND true = {}
+    // {} AND {} = {}
+    // {} AND false = false
+
+    const left_bool = toBoolTernary(ctx, left.items);
+
+    if (left_bool == .false_val) {
+        // Short-circuit: false AND anything = false
+        try out.append(ctx.allocator, makeBoolItem(ctx, false));
+        return out;
+    }
+
+    // Evaluate right side
+    var right = try evalExpressionCtx(ctx, expr.right.*, root_item, env, index);
+    defer right.deinit(ctx.allocator);
+
+    const right_bool = toBoolTernary(ctx, right.items);
+
+    if (right_bool == .false_val) {
+        // anything AND false = false
+        try out.append(ctx.allocator, makeBoolItem(ctx, false));
+        return out;
+    }
+
+    if (left_bool == .true_val and right_bool == .true_val) {
+        try out.append(ctx.allocator, makeBoolItem(ctx, true));
+        return out;
+    }
+
+    // Otherwise empty (true AND {} or {} AND true or {} AND {})
+    return out;
+}
+
+fn evalOr(
+    ctx: *EvalContext,
+    expr: ast.BinaryExpr,
+    root_item: item.Item,
+    env: ?*Env,
+    index: ?usize,
+) EvalError!ItemList {
+    var out = ItemList.empty;
+
+    var left = try evalExpressionCtx(ctx, expr.left.*, root_item, env, index);
+    defer left.deinit(ctx.allocator);
+
+    const left_bool = toBoolTernary(ctx, left.items);
+
+    if (left_bool == .true_val) {
+        // Short-circuit: true OR anything = true
+        try out.append(ctx.allocator, makeBoolItem(ctx, true));
+        return out;
+    }
+
+    var right = try evalExpressionCtx(ctx, expr.right.*, root_item, env, index);
+    defer right.deinit(ctx.allocator);
+
+    const right_bool = toBoolTernary(ctx, right.items);
+
+    if (right_bool == .true_val) {
+        try out.append(ctx.allocator, makeBoolItem(ctx, true));
+        return out;
+    }
+
+    if (left_bool == .false_val and right_bool == .false_val) {
+        try out.append(ctx.allocator, makeBoolItem(ctx, false));
+        return out;
+    }
+
+    // Otherwise empty
+    return out;
+}
+
+fn evalImplies(
+    ctx: *EvalContext,
+    expr: ast.BinaryExpr,
+    root_item: item.Item,
+    env: ?*Env,
+    index: ?usize,
+) EvalError!ItemList {
+    var out = ItemList.empty;
+
+    var left = try evalExpressionCtx(ctx, expr.left.*, root_item, env, index);
+    defer left.deinit(ctx.allocator);
+
+    const left_bool = toBoolTernary(ctx, left.items);
+
+    if (left_bool == .false_val) {
+        // false implies anything = true
+        try out.append(ctx.allocator, makeBoolItem(ctx, true));
+        return out;
+    }
+
+    var right = try evalExpressionCtx(ctx, expr.right.*, root_item, env, index);
+    defer right.deinit(ctx.allocator);
+
+    const right_bool = toBoolTernary(ctx, right.items);
+
+    if (right_bool == .true_val) {
+        // anything implies true = true
+        try out.append(ctx.allocator, makeBoolItem(ctx, true));
+        return out;
+    }
+
+    if (left_bool == .true_val and right_bool == .false_val) {
+        try out.append(ctx.allocator, makeBoolItem(ctx, false));
+        return out;
+    }
+
+    // Otherwise empty
+    return out;
+}
+
+fn evalXor(
+    ctx: *EvalContext,
+    left: []const item.Item,
+    right: []const item.Item,
+) EvalError!ItemList {
+    var out = ItemList.empty;
+
+    const left_bool = toBoolTernary(ctx, left);
+    const right_bool = toBoolTernary(ctx, right);
+
+    if (left_bool == .empty or right_bool == .empty) {
+        return out;
+    }
+
+    const result = (left_bool == .true_val) != (right_bool == .true_val);
+    try out.append(ctx.allocator, makeBoolItem(ctx, result));
+    return out;
+}
+
+const TernaryBool = enum { true_val, false_val, empty };
+
+fn toBoolTernary(ctx: *EvalContext, items: []const item.Item) TernaryBool {
+    if (items.len == 0) return .empty;
+    if (items.len != 1) return .empty; // Non-singleton is treated as empty for boolean
+    // Per FHIRPath spec: singleton non-boolean is truthy
+    if (!itemIsBool(ctx, items[0])) return .true_val;
+    return if (itemBoolValue(ctx, items[0])) .true_val else .false_val;
+}
+
+fn evalUnionOp(
+    ctx: *EvalContext,
+    left: []const item.Item,
+    right: []const item.Item,
+) EvalError!ItemList {
+    // Union combines both collections with distinct
+    var combined = ItemList.empty;
+    try combined.appendSlice(ctx.allocator, left);
+    try combined.appendSlice(ctx.allocator, right);
+    defer combined.deinit(ctx.allocator);
+    return distinctItems(ctx, combined.items);
+}
+
+const ArithOp = enum { add, sub, mul, div, int_div, mod };
+
+fn evalArithmetic(
+    ctx: *EvalContext,
+    left: []const item.Item,
+    right: []const item.Item,
+    op: ArithOp,
+) EvalError!ItemList {
+    var out = ItemList.empty;
+    if (left.len != 1 or right.len != 1) return out;
+
+    const va = itemToValue(ctx, left[0]);
+    const vb = itemToValue(ctx, right[0]);
+
+    // Integer arithmetic
+    if (va == .integer and vb == .integer) {
+        const a = va.integer;
+        const b = vb.integer;
+        const result: ?i64 = switch (op) {
+            .add => a +% b,
+            .sub => a -% b,
+            .mul => a *% b,
+            .int_div => if (b != 0) @divTrunc(a, b) else null,
+            .mod => if (b != 0) @mod(a, b) else null,
+            .div => null, // Integer division with / returns decimal
+        };
+        if (result) |r| {
+            try out.append(ctx.allocator, makeIntegerItem(ctx, r));
+            return out;
+        }
+        if (op == .div and b != 0) {
+            const fa: f64 = @floatFromInt(a);
+            const fb: f64 = @floatFromInt(b);
+            try out.append(ctx.allocator, try makeDecimalItem(ctx, fa / fb));
+            return out;
+        }
+    }
+
+    // Decimal arithmetic
+    const fa: ?f64 = switch (va) {
+        .integer => |i| @floatFromInt(i),
+        .decimal => |d| std.fmt.parseFloat(f64, d) catch null,
+        else => null,
+    };
+    const fb: ?f64 = switch (vb) {
+        .integer => |i| @floatFromInt(i),
+        .decimal => |d| std.fmt.parseFloat(f64, d) catch null,
+        else => null,
+    };
+
+    if (fa != null and fb != null) {
+        const a = fa.?;
+        const b = fb.?;
+        const result: ?f64 = switch (op) {
+            .add => a + b,
+            .sub => a - b,
+            .mul => a * b,
+            .div => if (b != 0) a / b else null,
+            .int_div => if (b != 0) @trunc(a / b) else null,
+            .mod => if (b != 0) @mod(a, b) else null,
+        };
+        if (result) |r| {
+            try out.append(ctx.allocator, try makeDecimalItem(ctx, r));
+        }
+    }
+
+    return out;
+}
+
+fn evalConcat(
+    ctx: *EvalContext,
+    left: []const item.Item,
+    right: []const item.Item,
+) EvalError!ItemList {
+    var out = ItemList.empty;
+
+    // Get string values, treating empty as empty string
+    const left_str = if (left.len == 0) "" else blk: {
+        const v = itemToValue(ctx, left[0]);
+        break :blk if (v == .string) v.string else return out;
+    };
+    const right_str = if (right.len == 0) "" else blk: {
+        const v = itemToValue(ctx, right[0]);
+        break :blk if (v == .string) v.string else return out;
+    };
+
+    const result = try std.fmt.allocPrint(ctx.allocator, "{s}{s}", .{ left_str, right_str });
+    try out.append(ctx.allocator, makeStringItem(ctx, result));
+    return out;
+}
+
+fn evalIn(
+    ctx: *EvalContext,
+    left: []const item.Item,
+    right: []const item.Item,
+) EvalError!ItemList {
+    var out = ItemList.empty;
+    if (left.len == 0) return out;
+    if (left.len != 1) return error.SingletonRequired;
+
+    for (right) |r| {
+        if (itemsEqual(ctx, left[0], r)) {
+            try out.append(ctx.allocator, makeBoolItem(ctx, true));
+            return out;
+        }
+    }
+    try out.append(ctx.allocator, makeBoolItem(ctx, false));
+    return out;
+}
+
+fn evalTypeExpr(
+    ctx: *EvalContext,
+    expr: ast.TypeExprNode,
+    root_item: item.Item,
+    env: ?*Env,
+    index: ?usize,
+) EvalError!ItemList {
+    var operand = try evalExpressionCtx(ctx, expr.operand.*, root_item, env, index);
+    defer operand.deinit(ctx.allocator);
+
+    var out = ItemList.empty;
+
+    switch (expr.op) {
+        .Is => {
+            // is returns true if the operand is of the specified type
+            if (operand.items.len == 0) {
+                try out.append(ctx.allocator, makeBoolItem(ctx, false));
+                return out;
+            }
+            // For singleton, check if it matches the type
+            const matches = itemIsType(ctx, operand.items[0], expr.type_name);
+            try out.append(ctx.allocator, makeBoolItem(ctx, matches));
+        },
+        .As => {
+            // as returns the operand if it's of the specified type, empty otherwise
+            if (operand.items.len == 0) return out;
+            if (itemIsType(ctx, operand.items[0], expr.type_name)) {
+                try out.append(ctx.allocator, operand.items[0]);
+            }
+        },
+    }
+    return out;
+}
+
+fn itemIsType(ctx: *EvalContext, it: item.Item, type_name: []const u8) bool {
+    // Normalize type name (remove System. prefix if present)
+    const normalized = if (std.mem.startsWith(u8, type_name, "System."))
+        type_name[7..]
+    else
+        type_name;
+
+    // Check value kind for value items
+    if (it.data_kind == .value and it.value != null) {
+        return switch (it.value.?) {
+            .boolean => std.mem.eql(u8, normalized, "Boolean"),
+            .integer => std.mem.eql(u8, normalized, "Integer"),
+            .decimal => std.mem.eql(u8, normalized, "Decimal"),
+            .string => std.mem.eql(u8, normalized, "String"),
+            .date => std.mem.eql(u8, normalized, "Date"),
+            .time => std.mem.eql(u8, normalized, "Time"),
+            .dateTime => std.mem.eql(u8, normalized, "DateTime"),
+            .quantity => std.mem.eql(u8, normalized, "Quantity"),
+            .empty => false,
+        };
+    }
+
+    // For JSON spans, check the underlying JSON type
+    if (it.data_kind == .json_span and it.node != null) {
+        const node = ctx.doc.node(@intCast(it.node.?)).*;
+        return switch (node.kind) {
+            .bool => std.mem.eql(u8, normalized, "Boolean"),
+            .number => std.mem.eql(u8, normalized, "Integer") or std.mem.eql(u8, normalized, "Decimal"),
+            .string => std.mem.eql(u8, normalized, "String"),
+            else => false,
+        };
+    }
+
+    return false;
+}
+
+fn evalUnary(
+    ctx: *EvalContext,
+    expr: ast.UnaryExpr,
+    root_item: item.Item,
+    env: ?*Env,
+    index: ?usize,
+) EvalError!ItemList {
+    var operand = try evalExpressionCtx(ctx, expr.operand.*, root_item, env, index);
+    defer operand.deinit(ctx.allocator);
+
+    var out = ItemList.empty;
+    if (operand.items.len == 0) return out;
+
+    const it = operand.items[0];
+    switch (expr.op) {
+        .Plus => {
+            // Unary + is identity for numbers
+            try out.append(ctx.allocator, it);
+        },
+        .Minus => {
+            // Unary - negates the number
+            if (it.data_kind == .value and it.value != null) {
+                switch (it.value.?) {
+                    .integer => |val| {
+                        try out.append(ctx.allocator, makeIntegerItem(ctx, -val));
+                    },
+                    .decimal => |val| {
+                        const f = std.fmt.parseFloat(f64, val) catch return error.InvalidOperand;
+                        try out.append(ctx.allocator, try makeDecimalItem(ctx, -f));
+                    },
+                    else => return error.InvalidOperand,
+                }
+            } else if (itemIsInteger(ctx, it)) {
+                const val = itemIntegerValue(ctx, it) orelse return error.InvalidOperand;
+                try out.append(ctx.allocator, makeIntegerItem(ctx, -val));
+            } else {
+                // Try to get as number from JSON
+                const val = itemToValue(ctx, it);
+                switch (val) {
+                    .integer => |v| try out.append(ctx.allocator, makeIntegerItem(ctx, -v)),
+                    .decimal => |v| {
+                        const f = std.fmt.parseFloat(f64, v) catch return error.InvalidOperand;
+                        try out.append(ctx.allocator, try makeDecimalItem(ctx, -f));
+                    },
+                    else => return error.InvalidOperand,
+                }
+            }
+        },
+    }
+    return out;
+}
+
+fn evalInvoke(
+    ctx: *EvalContext,
+    inv: ast.InvokeExpr,
+    root_item: item.Item,
+    env: ?*Env,
+    index: ?usize,
+) EvalError!ItemList {
+    // First evaluate the operand
+    var current = try evalExpressionCtx(ctx, inv.operand.*, root_item, env, index);
+
+    // Then apply each step
+    for (inv.steps) |step| {
+        switch (step) {
+            .Property => |name| {
+                var next = ItemList.empty;
+                for (current.items) |it| {
+                    try applySegment(ctx, it, name, &next);
+                }
+                current.deinit(ctx.allocator);
+                current = next;
+            },
+            .Index => |idx| {
+                var next = ItemList.empty;
+                if (idx < current.items.len) {
+                    try next.append(ctx.allocator, current.items[idx]);
+                }
+                current.deinit(ctx.allocator);
+                current = next;
+            },
+            .Function => |call| {
+                const result = try evalFunction(ctx, call, current.items, env);
+                current.deinit(ctx.allocator);
+                current = result;
+            },
+        }
+    }
+
+    return current;
 }
 
 fn evalFunction(
@@ -241,6 +882,19 @@ fn evalFunction(
     if (std.mem.eql(u8, call.name, "exists")) {
         var out = ItemList.empty;
         try out.append(ctx.allocator, makeBoolItem(ctx, input.len != 0));
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "not")) {
+        // not() returns the boolean negation of the input
+        // Per FHIRPath spec: non-boolean singleton is truthy, so not() returns false
+        var out = ItemList.empty;
+        if (input.len != 1) return out;
+        if (!itemIsBool(ctx, input[0])) {
+            // Non-boolean singleton is truthy, so not() = false
+            try out.append(ctx.allocator, makeBoolItem(ctx, false));
+            return out;
+        }
+        try out.append(ctx.allocator, makeBoolItem(ctx, !itemBoolValue(ctx, input[0])));
         return out;
     }
     if (std.mem.eql(u8, call.name, "distinct")) {

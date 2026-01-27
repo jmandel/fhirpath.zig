@@ -4,6 +4,35 @@ pub const Expr = union(enum) {
     Path: PathExpr,
     Binary: BinaryExpr,
     Literal: Literal,
+    TypeExpr: TypeExprNode, // for `is` and `as` operators
+    Unary: UnaryExpr,       // for unary + and -
+    Invoke: InvokeExpr,     // method call on arbitrary expression, e.g. (a | b).count()
+};
+
+pub const InvokeExpr = struct {
+    operand: *Expr,
+    steps: []const Step,
+};
+
+pub const TypeExprNode = struct {
+    op: TypeOp,
+    operand: *Expr,
+    type_name: []const u8, // e.g., "String", "System.Integer", "FHIR.Patient"
+};
+
+pub const TypeOp = enum {
+    Is,
+    As,
+};
+
+pub const UnaryExpr = struct {
+    op: UnaryOp,
+    operand: *Expr,
+};
+
+pub const UnaryOp = enum {
+    Plus,
+    Minus,
 };
 
 pub const PathExpr = struct {
@@ -15,6 +44,7 @@ pub const Root = union(enum) {
     This,
     Env: []const u8,
     Index,
+    Total,
     Literal: Literal,
     Empty, // {} empty collection
 };
@@ -37,7 +67,41 @@ pub const BinaryExpr = struct {
 };
 
 pub const BinaryOp = enum {
-    Eq,
+    // Equality
+    Eq,       // =
+    NotEq,    // !=
+    Equiv,    // ~
+    NotEquiv, // !~
+
+    // Comparison
+    Lt,
+    LtEq,
+    Gt,
+    GtEq,
+
+    // Boolean
+    And,
+    Or,
+    Xor,
+    Implies,
+
+    // Membership
+    In,
+    Contains,
+
+    // Union (collection)
+    Union,    // |
+
+    // Arithmetic
+    Add,      // +
+    Sub,      // -
+    Mul,      // *
+    Div,      // /
+    IntDiv,   // div
+    Mod,      // mod
+
+    // String concatenation
+    Concat,   // &
 };
 
 pub const Literal = union(enum) {
@@ -61,6 +125,7 @@ pub fn formatExpr(expr: Expr, writer: anytype) !void {
                     try writer.writeAll(name);
                 },
                 .Index => try writer.writeAll("$index"),
+                .Total => try writer.writeAll("$total"),
                 .Literal => |lit| {
                     switch (lit) {
                         .Null => try writer.writeAll("null"),
@@ -103,6 +168,27 @@ pub fn formatExpr(expr: Expr, writer: anytype) !void {
             try writer.writeAll(" ");
             switch (b.op) {
                 .Eq => try writer.writeAll("="),
+                .NotEq => try writer.writeAll("!="),
+                .Equiv => try writer.writeAll("~"),
+                .NotEquiv => try writer.writeAll("!~"),
+                .Lt => try writer.writeAll("<"),
+                .LtEq => try writer.writeAll("<="),
+                .Gt => try writer.writeAll(">"),
+                .GtEq => try writer.writeAll(">="),
+                .And => try writer.writeAll("and"),
+                .Or => try writer.writeAll("or"),
+                .Xor => try writer.writeAll("xor"),
+                .Implies => try writer.writeAll("implies"),
+                .In => try writer.writeAll("in"),
+                .Contains => try writer.writeAll("contains"),
+                .Union => try writer.writeAll("|"),
+                .Add => try writer.writeAll("+"),
+                .Sub => try writer.writeAll("-"),
+                .Mul => try writer.writeAll("*"),
+                .Div => try writer.writeAll("/"),
+                .IntDiv => try writer.writeAll("div"),
+                .Mod => try writer.writeAll("mod"),
+                .Concat => try writer.writeAll("&"),
             }
             try writer.writeAll(" ");
             try formatExpr(b.right.*, writer);
@@ -119,6 +205,51 @@ pub fn formatExpr(expr: Expr, writer: anytype) !void {
                 .Time => |t| try writer.print("Time({s})", .{t}),
             }
         },
+        .TypeExpr => |t| {
+            try writer.writeAll("TypeExpr(");
+            try formatExpr(t.operand.*, writer);
+            switch (t.op) {
+                .Is => try writer.writeAll(" is "),
+                .As => try writer.writeAll(" as "),
+            }
+            try writer.writeAll(t.type_name);
+            try writer.writeAll(")");
+        },
+        .Unary => |u| {
+            try writer.writeAll("Unary(");
+            switch (u.op) {
+                .Plus => try writer.writeAll("+"),
+                .Minus => try writer.writeAll("-"),
+            }
+            try formatExpr(u.operand.*, writer);
+            try writer.writeAll(")");
+        },
+        .Invoke => |inv| {
+            try writer.writeAll("Invoke(");
+            try formatExpr(inv.operand.*, writer);
+            for (inv.steps) |step| {
+                switch (step) {
+                    .Property => |name| {
+                        try writer.writeAll(".");
+                        try writer.writeAll(name);
+                    },
+                    .Function => |call| {
+                        try writer.writeAll(".");
+                        try writer.writeAll(call.name);
+                        try writer.writeAll("(");
+                        for (call.args, 0..) |arg, idx| {
+                            if (idx > 0) try writer.writeAll(", ");
+                            try formatExpr(arg, writer);
+                        }
+                        try writer.writeAll(")");
+                    },
+                    .Index => |idx| {
+                        try writer.print("[{d}]", .{idx});
+                    },
+                }
+            }
+            try writer.writeAll(")");
+        },
     }
 }
 
@@ -134,7 +265,7 @@ pub fn deinitExpr(allocator: std.mem.Allocator, expr: Expr) void {
         .Path => |p| {
             switch (p.root) {
                 .Env => |name| allocator.free(name),
-                .This, .Index, .Empty => {},
+                .This, .Index, .Total, .Empty => {},
                 .Literal => |lit| {
                     switch (lit) {
                         .String => |s| allocator.free(s),
@@ -176,6 +307,33 @@ pub fn deinitExpr(allocator: std.mem.Allocator, expr: Expr) void {
                 .Time => |t| allocator.free(t),
                 .Null, .Bool => {},
             }
+        },
+        .TypeExpr => |t| {
+            deinitExpr(allocator, t.operand.*);
+            allocator.destroy(t.operand);
+            allocator.free(t.type_name);
+        },
+        .Unary => |u| {
+            deinitExpr(allocator, u.operand.*);
+            allocator.destroy(u.operand);
+        },
+        .Invoke => |inv| {
+            deinitExpr(allocator, inv.operand.*);
+            allocator.destroy(inv.operand);
+            for (inv.steps) |step| {
+                switch (step) {
+                    .Property => |name| allocator.free(name),
+                    .Function => |call| {
+                        allocator.free(call.name);
+                        for (call.args) |arg| {
+                            deinitExpr(allocator, arg);
+                        }
+                        allocator.free(call.args);
+                    },
+                    .Index => {},
+                }
+            }
+            allocator.free(inv.steps);
         },
     }
 }

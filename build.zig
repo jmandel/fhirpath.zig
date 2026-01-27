@@ -62,7 +62,7 @@ pub fn build(b: *std.Build) void {
     b.step("official-tests", "Run official FHIRPath test runner").dependOn(&run_official.step);
 
     const build_model_module = b.createModule(.{
-        .root_source_file = b.path("src/build_model.zig"),
+        .root_source_file = b.path("scripts/build_model.zig"),
         .target = target,
         .optimize = optimize,
     });

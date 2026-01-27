@@ -133,6 +133,7 @@ Use `wiggum/scripts/blockers.py` for all updates; the scripts keep the format de
 - Commit messages must be meaningful and specific to the change, and should include a short body with details.
 - Use a subject + body format (subject <= 72 chars), for example:
   - Subject: concise what/why
-  - Body: 2–6 bullet lines covering key changes and tests (or why tests were skipped)
+  - Body: 2–6 bullet lines covering key changes, tests (or why tests were skipped), and any learnings/surprises
+- Include at least one line capturing insights, unexpected findings, or rationale (not just a diff summary).
 - Do not embed literal `\n` sequences in commit messages; use multiple `-m` flags or a here‑doc so the body has real line breaks.
 - External drivers can decide whether to keep or revert the commit based on the final step status.

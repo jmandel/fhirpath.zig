@@ -104,6 +104,7 @@ Add artisinal select spec tests
 
 - Draft select() spec summary and 5 cases (flattening, empty, $index)
 - Tests: zig build harness -- tests/artisinal/select.json (fails: function-call parse)
+- Learnings: spec implies projection flattens; empty projection yields no element
 ```
 Bad (subject only):
 ```

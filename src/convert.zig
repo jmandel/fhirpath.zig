@@ -50,7 +50,8 @@ pub fn nodeToJsonValue(
                 const val = try nodeToJsonValue(allocator, doc, child);
                 try arr.append(allocator, val);
             }
-            break :blk std.json.Value{ .array = std.json.Array{ .items = arr.items, .capacity = arr.capacity, .allocator = allocator } };
+            const owned = try arr.toOwnedSlice(allocator);
+            break :blk std.json.Value{ .array = std.json.Array{ .items = owned, .capacity = owned.len, .allocator = allocator } };
         },
         .object => blk: {
             var obj = std.json.ObjectMap.init(allocator);

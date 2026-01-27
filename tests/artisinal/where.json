@@ -1,6 +1,6 @@
 {
   "meta": {
-    "status": "reviewed",
+    "status": "implemented",
     "feature": "where",
     "source": "spec/index.md#where(criteria : expression)"
   },

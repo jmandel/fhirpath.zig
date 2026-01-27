@@ -1,6 +1,6 @@
 {
   "meta": {
-    "status": "reviewed",
+    "status": "implemented",
     "spec_notes": [
       "Path selection: paths navigate by composing concatenated labels (spec §Path selection)",
       "Collections are fundamental: each step returns a collection, flattening arrays along the way",

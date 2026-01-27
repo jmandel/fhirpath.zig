@@ -64,7 +64,10 @@ while true; do
   BEFORE=$(git rev-parse HEAD)
 
   PROMPT="$(build_prompt)"
+  set +e
   codex exec --dangerously-bypass-approvals-and-sandbox -C "$ROOT" - <<<"$PROMPT" | tee "$OUT_LOG"
+  CODEX_EXIT=${PIPESTATUS[0]}
+  set -e
   chmod 444 "$OUT_LOG"
 
   STATUS=$(grep -Eo 'STEP COMPLETE|STEP FAILED|PROJECT FINISHED' "$OUT_LOG" | tail -n 1 || true)
@@ -78,12 +81,13 @@ while true; do
   fi
 
   TS="$(date -Is)"
-  echo "$TS id=$ID status=$STATUS before=$BEFORE after=$AFTER msg=$MSG | $ONE_LINE" >> "$LOG"
-  echo "$TS id=$ID status=$STATUS commit=${AFTER:0:7} msg=$MSG | $ONE_LINE" >> "$ONE_LINE_LOG"
+  echo "$TS id=$ID status=$STATUS codex_exit=$CODEX_EXIT before=$BEFORE after=$AFTER msg=$MSG | $ONE_LINE" >> "$LOG"
+  echo "$TS id=$ID status=$STATUS codex_exit=$CODEX_EXIT commit=${AFTER:0:7} msg=$MSG | $ONE_LINE" >> "$ONE_LINE_LOG"
 
   {
     echo "ONE-LINE LOG: $ONE_LINE"
     echo "STATUS: $STATUS"
+    echo "CODEX_EXIT: $CODEX_EXIT"
     echo "BEFORE: $BEFORE"
     echo "AFTER: $AFTER"
     echo "MESSAGE: $MSG"

@@ -5,7 +5,8 @@
     "",
     "=== precision() : Integer ===",
     "Returns the number of digits of precision in the input value.",
-    "Can only be used with Decimal, Date, DateTime, and Time values.",
+    "Can ONLY be used with Decimal, Date, DateTime, and Time values.",
+    "NOTE: Integer is NOT a valid input type per spec!",
     "",
     "For Decimal: returns digits after the decimal point in the literal.",
     "  1.58700.precision() \u2192 5 (counts trailing zeros from the literal)",
@@ -36,29 +37,33 @@
     "",
     "For Decimal: calculates the lower bound based on uncertainty.",
     "  The uncertainty is \u00b10.5 at the last digit of precision.",
+    "  OUTPUT ALWAYS HAS type=decimal, even for precision=0!",
+    "  Trailing zeros are significant and preserved in output.",
+    "",
+    "  Spec examples:",
     "  1.587.lowBoundary() \u2192 1.58650000 (default is 8 digits precision)",
     "  1.587.lowBoundary(6) \u2192 1.586500",
     "  1.587.lowBoundary(2) \u2192 1.58",
-    "  1.587.lowBoundary(0) \u2192 1 (rounds down to integer)",
+    "  1.587.lowBoundary(0) \u2192 1 (still type=decimal, not integer)",
     "",
     "  For negative decimals, lowBoundary goes more negative:",
     "  (-1.587).lowBoundary() \u2192 -1.58750000",
     "  (-1.587).lowBoundary(2) \u2192 -1.59",
     "",
-    "  Integer-valued decimals:",
+    "  Integer-valued decimals (note: NOT Integer type, but integers used as decimals):",
     "  1.lowBoundary(0) \u2192 0 (meaning 0.5 to 1.5, lower bound is 0.5 \u2192 rounds to 0)",
     "  1.lowBoundary(5) \u2192 0.50000",
     "",
     "For Date/DateTime: fills unknown components with minimum values.",
     "  @2014.lowBoundary(6) \u2192 @2014-01 (year expands to include month)",
     "  @2014-01-01T08.lowBoundary(17) \u2192 @2014-01-01T08:00:00.000+14:00",
-    "  Note: +14:00 is the earliest timezone offset (most westward UTC interpretation).",
+    "  Note: +14:00 is the earliest timezone offset when not specified.",
     "",
     "For Time: fills unknown components with minimum values.",
     "  @T10:30.lowBoundary(9) \u2192 @T10:30:00.000",
     "",
     "For Quantity: applies to the numeric value, preserves unit.",
-    "  1.587 'cm'.lowBoundary(8) \u2192 1.58650000 'cm'",
+    "  1.587 'cm'.lowBoundary(8) \u2192 1.5865 'cm' (type=Quantity)",
     "",
     "If precision > implementation max, result is empty.",
     "If precision is negative, result is empty.",
@@ -80,14 +85,21 @@
     "",
     "For Date/DateTime: fills unknown components with maximum values.",
     "  @2014.highBoundary(6) \u2192 @2014-12",
-    "  @2014-01-01T08.highBoundary(17) \u2192 @2014-01-01T08:00:59.999-12:00",
-    "  Note: -12:00 is the latest timezone offset (most eastward UTC interpretation).",
+    "  @2014-01-01T08.highBoundary(17) \u2192 @2014-01-01T08:59:59.999-12:00 (per SPEC)",
+    "  Note: -12:00 is the latest timezone offset when not specified.",
+    "",
+    "  IMPORTANT DISCREPANCY: Official tests show 08:00:59.999 but spec shows 08:59:59.999",
+    "  Spec says: @2014-01-01T08.highBoundary(17) // @2014-01-01T08:59:59.999",
+    "  Official tests say: 2014-01-01T08:00:59.999-12:00",
+    "  We follow the SPEC (08:59:59.999) since it makes semantic sense:",
+    "  Input hour=08 means interval [08:00:00.000, 09:00:00.000)",
+    "  highBoundary should be the maximum instant: 08:59:59.999",
     "",
     "For Time: fills unknown components with maximum values.",
     "  @T10:30.highBoundary(9) \u2192 @T10:30:59.999",
     "",
     "For Quantity: applies to the numeric value, preserves unit.",
-    "  1.587 'm'.highBoundary(8) \u2192 1.58750000 'm'",
+    "  1.587 'm'.highBoundary(8) \u2192 1.5875 'm'",
     "",
     "If precision > implementation max, result is empty.",
     "Empty input \u2192 empty result.",
@@ -101,21 +113,28 @@
     "  Time: at least 9 (to milliseconds)",
     "",
     "=== Implementation note on uncertainty ===",
-    "The boundary functions model 'measurement uncertainty':",
+    "The boundary functions model measurement uncertainty:",
     "  - A value like 1.587 represents the interval [1.5865, 1.5875)",
     "  - lowBoundary gives the closed lower bound",
     "  - highBoundary gives the open upper bound (or supremum)",
-    "This is critical for correct date/time comparisons under partial precision."
+    "This is critical for correct date/time comparisons under partial precision.",
+    "",
+    "=== Parsing note ===",
+    "-120.highBoundary(2) parses as -(120.highBoundary(2)) = -120.50",
+    "(-120).highBoundary(2) parses as highBoundary on -120 = -119.50"
   ],
   "_todo": [
     "[ ] Improve passing rate (0/65 passing)",
     "[ ] Parser may need to support negative decimal literals like (-1.587)",
     "[ ] Verify timezone handling for DateTime boundaries (+14:00 and -12:00)",
     "[ ] Test interaction with Quantity type",
-    "[ ] Clarify: does precision(39) fail for Decimal or return empty?"
+    "[ ] Open question: should precision(39) fail for Decimal or return empty? (spec says empty)",
+    "[x] Verified return type is always decimal for boundary functions, even at precision=0",
+    "[x] Verified trailing zeros are significant in decimal output",
+    "[x] Documented spec vs official test discrepancy for highBoundary DateTime minutes"
   ],
   "meta": {
-    "status": "drafted"
+    "status": "reviewed"
   },
   "cases": [
     {
@@ -151,18 +170,6 @@
           "value": 8
         }
       ]
-    },
-    {
-      "name": "precision_integer_literal",
-      "expr": "1.precision()",
-      "input": {},
-      "expect": [
-        {
-          "type": "integer",
-          "value": 0
-        }
-      ],
-      "_comment": "Integer has 0 decimal places"
     },
     {
       "name": "precision_date_year",
@@ -288,7 +295,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": 1.5865
+          "value": "1.58650000"
         }
       ]
     },
@@ -299,7 +306,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": 1.5865
+          "value": "1.586500"
         }
       ]
     },
@@ -310,7 +317,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": 1.58
+          "value": "1.58"
         }
       ]
     },
@@ -320,8 +327,8 @@
       "input": {},
       "expect": [
         {
-          "type": "integer",
-          "value": 1
+          "type": "decimal",
+          "value": "1"
         }
       ]
     },
@@ -332,7 +339,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": -1.5875
+          "value": "-1.58750000"
         }
       ]
     },
@@ -343,7 +350,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": -1.5875
+          "value": "-1.587500"
         }
       ]
     },
@@ -354,7 +361,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": -1.59
+          "value": "-1.59"
         }
       ]
     },
@@ -364,8 +371,8 @@
       "input": {},
       "expect": [
         {
-          "type": "integer",
-          "value": -2
+          "type": "decimal",
+          "value": "-2"
         }
       ]
     },
@@ -375,8 +382,8 @@
       "input": {},
       "expect": [
         {
-          "type": "integer",
-          "value": 0
+          "type": "decimal",
+          "value": "0"
         }
       ]
     },
@@ -387,7 +394,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": 0.5
+          "value": "0.50000"
         }
       ]
     },
@@ -398,7 +405,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": 12.58
+          "value": "12.58"
         }
       ]
     },
@@ -409,7 +416,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": 12.4995
+          "value": "12.4995"
         }
       ]
     },
@@ -420,7 +427,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": 119.5
+          "value": "119.50"
         }
       ]
     },
@@ -431,7 +438,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": -120.5
+          "value": "-120.50"
         }
       ]
     },
@@ -442,7 +449,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": 0.0
+          "value": "0.0"
         }
       ]
     },
@@ -453,7 +460,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": -0.0
+          "value": "-0.0"
         }
       ],
       "_comment": "Spec: (-0.0034).lowBoundary(1) = -0.0 (negative zero)"
@@ -484,7 +491,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": 1.5875
+          "value": "1.58750000"
         }
       ]
     },
@@ -495,7 +502,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": 1.5875
+          "value": "1.587500"
         }
       ]
     },
@@ -506,7 +513,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": 1.59
+          "value": "1.59"
         }
       ]
     },
@@ -516,8 +523,8 @@
       "input": {},
       "expect": [
         {
-          "type": "integer",
-          "value": 2
+          "type": "decimal",
+          "value": "2"
         }
       ]
     },
@@ -528,7 +535,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": -1.5865
+          "value": "-1.58650000"
         }
       ]
     },
@@ -539,7 +546,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": -1.5865
+          "value": "-1.586500"
         }
       ]
     },
@@ -550,7 +557,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": -1.58
+          "value": "-1.58"
         }
       ]
     },
@@ -561,7 +568,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": 1.5
+          "value": "1.50000000"
         }
       ]
     },
@@ -571,8 +578,8 @@
       "input": {},
       "expect": [
         {
-          "type": "integer",
-          "value": 2
+          "type": "decimal",
+          "value": "2"
         }
       ]
     },
@@ -583,7 +590,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": 1.5
+          "value": "1.50000"
         }
       ]
     },
@@ -594,7 +601,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": 12.59
+          "value": "12.59"
         }
       ]
     },
@@ -605,7 +612,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": 12.5005
+          "value": "12.5005"
         }
       ]
     },
@@ -616,7 +623,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": 120.5
+          "value": "120.50"
         }
       ]
     },
@@ -627,7 +634,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": -119.5
+          "value": "-119.50"
         }
       ],
       "_comment": "Negative: greatest value in [-120.5, -119.5) is -119.5"
@@ -639,7 +646,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": -120.5
+          "value": "-120.5"
         }
       ],
       "_comment": "Parses as -(120.highBoundary(2)) = -120.50"
@@ -651,7 +658,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": 0.0
+          "value": "0.0"
         }
       ],
       "_comment": "0.0034 rounded to 1 decimal is 0.0 (highBoundary \u2248 0.05)"
@@ -663,7 +670,7 @@
       "expect": [
         {
           "type": "decimal",
-          "value": 0.0
+          "value": "0.0"
         }
       ],
       "_comment": "-0.0034 highBoundary at precision 1 is 0.0"
@@ -693,7 +700,7 @@
       "input": {},
       "expect": [
         {
-          "type": "date",
+          "type": "dateTime",
           "value": "2014-01"
         }
       ]
@@ -726,7 +733,7 @@
       "input": {},
       "expect": [
         {
-          "type": "date",
+          "type": "dateTime",
           "value": "2014-01-01"
         }
       ]
@@ -749,7 +756,7 @@
       "input": {},
       "expect": [
         {
-          "type": "date",
+          "type": "dateTime",
           "value": "2014-12"
         }
       ]
@@ -761,9 +768,15 @@
       "expect": [
         {
           "type": "dateTime",
-          "value": "2014-01-01T08:00:59.999-12:00"
+          "value": "2014-01-01T08:59:59.999-12:00"
         }
-      ]
+      ],
+      "_spec_vs_official": {
+        "spec_says": "2014-01-01T08:59:59.999",
+        "official_says": "2014-01-01T08:00:59.999-12:00",
+        "we_follow": "spec",
+        "reason": "Input hour=08 means interval [08:00:00, 09:00:00). Max instant is 08:59:59.999"
+      }
     },
     {
       "name": "highBoundary_datetime_with_tz",
@@ -794,7 +807,7 @@
       "input": {},
       "expect": [
         {
-          "type": "unknown",
+          "type": "Quantity",
           "value": {
             "value": 1.5865,
             "unit": "cm"
@@ -808,7 +821,7 @@
       "input": {},
       "expect": [
         {
-          "type": "unknown",
+          "type": "Quantity",
           "value": {
             "value": 1.5875,
             "unit": "m"

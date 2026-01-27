@@ -1,12 +1,13 @@
 {
   "meta": {
-    "status": "drafted",
-    "spec_summary": "String matching functions: startsWith, endsWith, contains. All return Boolean. Empty prefix/suffix/substring yields true. Empty input collection yields empty. Multiple items in input is an error."
+    "status": "reviewed",
+    "spec_summary": "String matching functions: startsWith, endsWith, contains. All return Boolean. Empty string ('') argument yields true. Empty input collection yields empty. Multiple items in input or non-String argument is an error. Case-sensitive by default."
   },
   "todo": [
     "Improve passing rate (0/30 passing) - functions not yet implemented (parse errors)",
     "Verify error behavior for multiple items in input collection",
-    "Test with non-string types that might convert to string"
+    "Clarify behavior when argument evaluates to empty collection (not empty string) - spec unclear",
+    "Add test for dynamic/computed argument (e.g., startsWith(length().toString()))"
   ],
   "cases": [
     {

@@ -1,13 +1,15 @@
 {
   "meta": {
-    "status": "drafted",
-    "spec_summary": "iif(criterion, true-result [, otherwise-result]) - Immediate if (conditional operator). Criterion must evaluate to a Boolean. Returns true-result if criterion is true; returns otherwise-result if criterion is false or empty; returns empty collection if otherwise-result is omitted and criterion is false/empty. Short-circuit evaluation: true-result only evaluated if true, otherwise-result only if false/empty. Criterion must be singleton boolean; multi-item collection or non-boolean is an error.",
-    "open_questions": [
-      "Does iif require exactly a boolean, or can it accept types that implicitly convert to boolean?",
-      "When input has multiple items and iif is called as a method, is this an error or does it process each item?"
+    "status": "reviewed",
+    "spec_summary": "iif(criterion, true-result [, otherwise-result]) - Immediate if (conditional operator). Criterion MUST evaluate to a singleton Boolean or empty collection (spec says 'expected to evaluate to a Boolean'). Returns true-result if criterion is true; returns otherwise-result if criterion is false or empty; returns empty collection if otherwise-result is omitted and criterion is false/empty. Short-circuit evaluation is required: true-result only evaluated if criterion is true, otherwise-result only evaluated if criterion is false/empty. Multi-item criterion is an error. Non-boolean criterion (string, integer, etc.) is an error. When called as method (e.g., collection.iif(...)), multi-item input is an error - only singleton or empty input allowed.",
+    "spec_ref": "spec/index.md lines 1005-1018",
+    "verified_against_official": [
+      "testCollectionBoolean1-6: criterion behaviors (empty, multi-item, short-circuit)",
+      "testIif1-12: various iif patterns including method invocation",
+      "Non-boolean criterion (testIif6) and multi-item input (testIif10) confirmed as errors"
     ],
     "todo": [
-      "Improve passing rate (0/35 passing)"
+      "Improve passing rate (0/35 passing) - blocked by parser not supporting iif function"
     ]
   },
   "cases": [

@@ -48,6 +48,39 @@ def find_additional_xml() -> Path | None:
     return None
 
 
+def normalize_output(out_type: str, value: str) -> dict:
+    """Normalize output values - strip FHIRPath literal prefixes since type is explicit."""
+    result = {"type": out_type}
+    
+    # Date/DateTime/Time: strip @ prefix (and @T for time)
+    if out_type in ("date", "dateTime"):
+        if value.startswith("@"):
+            value = value[1:]
+        result["value"] = value
+    elif out_type == "time":
+        if value.startswith("@T"):
+            value = value[2:]
+        elif value.startswith("@"):
+            value = value[1:]
+        result["value"] = value
+    # Quantity: parse "number 'unit'" into structured form
+    elif out_type == "Quantity":
+        import re
+        match = re.match(r"^([\d.+-eE]+)\s*'([^']*)'$", value)
+        if match:
+            result["value"] = {
+                "value": match.group(1),
+                "unit": match.group(2),
+            }
+        else:
+            # Fallback: keep as string if can't parse
+            result["value"] = value
+    else:
+        result["value"] = value
+    
+    return result
+
+
 def parse_tests_xml(path: Path):
     raw = "\n".join(ln for ln in path.read_text().splitlines() if not ln.strip().startswith("<?xml"))
     raw = re.sub(r"<!--.*?-->", "", raw, flags=re.DOTALL)
@@ -128,10 +161,8 @@ def parse_tests_xml(path: Path):
                 for out_match in re.finditer(r"<output([^>]*)>(.*?)</output>", body, flags=re.DOTALL):
                     out_attrs = parse_attrs(out_match.group(1))
                     value = html.unescape(strip_tags(out_match.group(2))).strip()
-                    outputs.append({
-                        "type": out_attrs.get("type", ""),
-                        "value": value,
-                    })
+                    out_type = out_attrs.get("type", "")
+                    outputs.append(normalize_output(out_type, value))
                 if outputs:
                     entry["outputs"] = outputs
                 tests.append(entry)
@@ -175,10 +206,8 @@ def parse_tests_xml(path: Path):
         outputs = []
         for out in test.findall("output"):
             value = "".join(out.itertext()).strip()
-            outputs.append({
-                "type": out.get("type", ""),
-                "value": value,
-            })
+            out_type = out.get("type", "")
+            outputs.append(normalize_output(out_type, value))
         if outputs:
             entry["outputs"] = outputs
 

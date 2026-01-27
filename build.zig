@@ -90,4 +90,32 @@ pub fn build(b: *std.Build) void {
 
     const run_bench = b.addRunArtifact(bench);
     b.step("bench", "Run performance benchmarks").dependOn(&run_bench.step);
+
+    // Adapter verification test
+    const verify_module = b.createModule(.{
+        .root_source_file = b.path("src/verify_adapters.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    const verify = b.addExecutable(.{
+        .name = "verify-adapters",
+        .root_module = verify_module,
+    });
+    b.installArtifact(verify);
+    const run_verify = b.addRunArtifact(verify);
+    b.step("verify-adapters", "Verify adapter correctness").dependOn(&run_verify.step);
+
+    // Adapter overhead benchmark
+    const overhead_module = b.createModule(.{
+        .root_source_file = b.path("src/bench_overhead.zig"),
+        .target = target,
+        .optimize = .ReleaseFast,
+    });
+    const overhead = b.addExecutable(.{
+        .name = "bench-overhead",
+        .root_module = overhead_module,
+    });
+    b.installArtifact(overhead);
+    const run_overhead = b.addRunArtifact(overhead);
+    b.step("bench-overhead", "Benchmark adapter overhead vs direct access").dependOn(&run_overhead.step);
 }

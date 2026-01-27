@@ -224,26 +224,31 @@ Use `wiggum/scripts/blockers.py` for all updates; the scripts keep the format de
 - Do not embed literal `\n` sequences in commit messages; use multiple `-m` flags or a here‑doc so the body has real line breaks.
 - External drivers can decide whether to keep or revert the commit based on the final step status.
 
+
 ## CROSS_CHECK mode
 
-Compare our artisinal tests against fhirpath.js reference implementation and adjudicate differences.
+Compare our artisinal tests against fhirpath.js reference implementation and adjudicate differences through careful spec analysis.
 
-**Goal**: Ensure our expected values match the reference implementation, or document why they differ.
+**Goal**: Ensure our expected values are correct per the FHIRPath specification, using fhirpath.js as a reference point for discovering potential issues.
 
 **Setup**: Run `cd vendor/fhirpath.js && bun install` once to install fhirpath.js.
 
 **Steps**:
 1. The mode chooser will give you a sample of unadjudicated differences (typically 3)
-2. For each difference:
-   a. Check the FHIRPath spec to determine correct behavior
-   b. Add an `_adjudicated` annotation to the test case with your findings
-   c. If our test is wrong, fix the expected value AND record the old value in the annotation
-   d. If fhirpath.js is wrong, document why in the annotation
+2. For each difference, **carefully review the FHIRPath spec**:
+   a. Find the relevant section in `spec/index.md` (search for function name, operator, or concept)
+   b. Read the full specification text, including any notes, examples, and edge cases
+   c. Check if there are related official tests in `tests/r5/tests-fhir-r5.json`
+   d. Determine the correct behavior according to the spec
+3. Add an `_adjudicated` annotation documenting your findings
+4. If our test was wrong, fix the expected value AND record the old value
+
+**Key principle**: The spec is the source of truth, not fhirpath.js. fhirpath.js may have bugs or different interpretations. Your job is to determine what the spec actually says.
 
 **Running manually**:
 ```bash
 python scripts/cross_check.py              # all unadjudicated diffs
-python scripts/cross_check.py -n 20        # limit to 20 tests
+python scripts/cross_check.py -n 100       # limit to 100 tests
 python scripts/cross_check.py math         # filter by filename
 python scripts/cross_check.py --sample 3   # random sample of 3 diffs
 ```
@@ -255,26 +260,34 @@ python scripts/cross_check.py --sample 3   # random sample of 3 diffs
   "expr": "(-3.5).round()",
   "expect": [{"type": "integer", "value": -4}],
   "_adjudicated": {
-    "fhirpath_js": -3,
+    "fhirpath_js": [{"type": "number", "value": -3}],
     "our_old_value": null,
     "verdict": "ours_correct",
-    "reason": "Spec says values <= -0.5 round away from zero. fhirpath.js rounds toward zero.",
-    "spec_ref": "§Math functions, round()"
+    "reason": "Spec §5.7.2 says 'a decimal value less than or equal to -0.5 and greater than -1.0 will round to -1', implying rounding away from zero. -3.5 should round to -4, not -3.",
+    "spec_ref": "§5.7.2 round()"
   }
 }
 ```
 
 **Adjudication fields**:
-- `fhirpath_js`: What fhirpath.js returned
+- `fhirpath_js`: What fhirpath.js returned (copy exactly from cross_check output)
 - `our_old_value`: Our previous expected value if we changed it (null if unchanged)
 - `verdict`: One of the values below
-- `reason`: Explanation of the decision
-- `spec_ref`: Optional reference to spec section
+- `reason`: Detailed explanation citing the spec
+- `spec_ref`: Section reference (e.g., "§5.7.2 round()" or "§6.3 Type Functions")
 
 **Verdict values**:
-- `ours_correct` - our expected value is correct per spec, fhirpath.js is wrong
-- `theirs_correct` - fhirpath.js is correct, we fixed our test (record old value in `our_old_value`)
-- `both_valid` - both interpretations are valid (spec ambiguity)
+- `ours_correct` - our expected value is correct per spec, fhirpath.js is wrong or has a bug
+- `theirs_correct` - fhirpath.js is correct per spec, we fixed our test (record old value)
+- `both_valid` - spec is ambiguous, both interpretations are defensible (explain why)
 - `js_limitation` - difference due to JS limitations (e.g., Number type can't distinguish int/decimal)
+
+**Spec review checklist**:
+- [ ] Found the relevant spec section
+- [ ] Read the full function/operator description
+- [ ] Checked for edge cases mentioned in the spec
+- [ ] Looked for related examples in the spec
+- [ ] Checked official tests for similar cases
+- [ ] Documented reasoning with spec citations
 
 **Note**: The cross_check.py script automatically skips tests with `_adjudicated` annotations.

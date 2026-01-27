@@ -1,0 +1,29 @@
+{
+  "cases": [
+    {
+      "name": "simple path",
+      "expr": "name.given",
+      "input": { "name": { "given": ["Ann", "Bob"] } },
+      "expect": ["Ann", "Bob"]
+    },
+    {
+      "name": "array navigation",
+      "expr": "name.given",
+      "input": { "name": [ { "given": ["Ann"] }, { "given": ["Bob"] } ] },
+      "expect": ["Ann", "Bob"]
+    },
+    {
+      "name": "env root",
+      "expr": "%root.name.given",
+      "input": { "ignored": true },
+      "env": { "root": { "name": { "given": ["Ann"] } } },
+      "expect": ["Ann"]
+    },
+    {
+      "name": "delimited identifier",
+      "expr": "`given-name`",
+      "input": { "given-name": "Ann" },
+      "expect": ["Ann"]
+    }
+  ]
+}

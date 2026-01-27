@@ -1,0 +1,75 @@
+{
+  "meta": {
+    "status": "drafted",
+    "feature": "existence",
+    "source": "spec/index.adoc#Existence"
+  },
+  "spec": {
+    "summary": [
+      "empty() returns true when the input collection has no items; otherwise false.",
+      "exists() returns true when the input collection has any items; otherwise false.",
+      "exists(criteria) is shorthand for where(criteria).exists()."
+    ],
+    "examples": [
+      "Patient.name.empty()",
+      "Patient.name.exists()"
+    ]
+  },
+  "todo": [
+    "[ ] Implement empty() on collections (true for {}, false otherwise).",
+    "[ ] Implement exists() on collections (true for non-empty, false for {}).",
+    "[ ] Implement exists(criteria) as where(criteria).exists().",
+    "[ ] Add criteria-based tests once where() is supported.",
+    "[ ] Improve passing rate (0/8 passing)."
+  ],
+  "cases": [
+    {
+      "name": "empty on missing field returns true",
+      "expr": "name.empty()",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "empty on empty array returns true",
+      "expr": "name.empty()",
+      "input": { "name": [] },
+      "expect": [true]
+    },
+    {
+      "name": "empty on non-empty array returns false",
+      "expr": "name.empty()",
+      "input": { "name": ["Ann"] },
+      "expect": [false]
+    },
+    {
+      "name": "exists on missing field returns false",
+      "expr": "name.exists()",
+      "input": {},
+      "expect": [false]
+    },
+    {
+      "name": "exists on empty array returns false",
+      "expr": "name.exists()",
+      "input": { "name": [] },
+      "expect": [false]
+    },
+    {
+      "name": "exists on non-empty array returns true",
+      "expr": "name.exists()",
+      "input": { "name": ["Ann", "Bob"] },
+      "expect": [true]
+    },
+    {
+      "name": "empty on scalar value returns false",
+      "expr": "active.empty()",
+      "input": { "active": true },
+      "expect": [false]
+    },
+    {
+      "name": "exists on scalar value returns true",
+      "expr": "active.exists()",
+      "input": { "active": true },
+      "expect": [true]
+    }
+  ]
+}

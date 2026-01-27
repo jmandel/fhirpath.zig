@@ -1,0 +1,59 @@
+{
+  "meta": {
+    "status": "drafted",
+    "feature": "indexer",
+    "source": "spec/index.adoc#Subsetting"
+  },
+  "spec": {
+    "summary": [
+      "The indexer returns a collection containing only the item at the given 0-based index.",
+      "If the input collection is empty or the index is out of bounds, the result is empty."
+    ],
+    "examples": [
+      "Patient.name[0]"
+    ]
+  },
+  "todo": [
+    "[ ] Implement parsing of indexer expressions (e.g., path[0]).",
+    "[ ] Implement indexer evaluation with 0-based bounds checking.",
+    "[ ] Add string indexing tests once string semantics are supported.",
+    "[ ] Improve passing rate (0/5 passing)."
+  ],
+  "cases": [
+    {
+      "name": "indexer selects first item",
+      "expr": "name[0]",
+      "input": { "name": ["Ann", "Bob"] },
+      "expect": ["Ann"]
+    },
+    {
+      "name": "indexer selects second item",
+      "expr": "name[1]",
+      "input": { "name": ["Ann", "Bob"] },
+      "expect": ["Bob"]
+    },
+    {
+      "name": "indexer out of range returns empty",
+      "expr": "name[2]",
+      "input": { "name": ["Ann", "Bob"] },
+      "expect": []
+    },
+    {
+      "name": "indexer on empty collection returns empty",
+      "expr": "name[0]",
+      "input": { "name": [] },
+      "expect": []
+    },
+    {
+      "name": "indexer after path over nested arrays",
+      "expr": "name.given[0]",
+      "input": {
+        "name": [
+          { "given": ["Ann", "Annie"] },
+          { "given": ["Bob"] }
+        ]
+      },
+      "expect": ["Ann"]
+    }
+  ]
+}

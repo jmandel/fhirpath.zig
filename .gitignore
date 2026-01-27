@@ -1,0 +1,16 @@
+# Zig build artifacts
+/.zig-cache/
+/zig-cache/
+/zig-out/
+
+# Scratch/work dirs
+/build/
+
+# Driver logs
+/driver.log
+
+# OS/editor cruft
+.DS_Store
+*.swp
+*.swo
+*~

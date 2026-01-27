@@ -194,9 +194,23 @@ fn compareExpected(expected: []const std.json.Value, actual: []const std.json.Va
     if (expected.len != actual.len) return false;
     var i: usize = 0;
     while (i < expected.len) : (i += 1) {
-        if (!jsonEqual(expected[i], actual[i])) return false;
+        // Unwrap {type, value} format if present
+        const exp_val = unwrapTypedValue(expected[i]);
+        if (!jsonEqual(exp_val, actual[i])) return false;
     }
     return true;
+}
+
+fn unwrapTypedValue(val: std.json.Value) std.json.Value {
+    // If val is {type: ..., value: ...}, return just the value
+    if (val != .object) return val;
+    const obj = val.object;
+    if (obj.get("value")) |v| {
+        // For Quantity, value is {value: num, unit: str} - keep as-is for now
+        // since actual output won't have this structure yet
+        return v;
+    }
+    return val;
 }
 
 fn jsonEqual(a: std.json.Value, b: std.json.Value) bool {

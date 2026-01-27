@@ -1,0 +1,71 @@
+{
+  "meta": {
+    "status": "drafted",
+    "feature": "select",
+    "source": "spec/index.md#select(projection: expression)"
+  },
+  "spec": {
+    "summary": [
+      "select(projection) evaluates the projection for each item in the input collection and concatenates the results into a single output collection.",
+      "If a projection result is empty, no element is added for that input item.",
+      "If a projection yields multiple items, all of them are flattened into the output collection.",
+      "The projection expression may refer to $this (current item) and $index (0-based index).",
+      "If the input collection is empty, the result is empty."
+    ],
+    "examples": [
+      "Bundle.entry.select(resource as Patient)",
+      "Patient.name.where(use = 'usual').select(given.first() + ' ' + family)"
+    ]
+  },
+  "todo": [
+    "[ ] Implement parsing of select() function calls.",
+    "[ ] Implement select() evaluation with per-item projection.",
+    "[ ] Flatten projection results into a single output collection.",
+    "[ ] Bind $this and $index within projection evaluation.",
+    "[ ] Add error tests for projection expressions once error harness exists.",
+    "[ ] Improve passing rate (0/5 passing)."
+  ],
+  "cases": [
+    {
+      "name": "select identity with $this",
+      "expr": "name.select($this)",
+      "input": { "name": ["Ann", "Bob"] },
+      "expect": ["Ann", "Bob"]
+    },
+    {
+      "name": "select flattens nested collections",
+      "expr": "name.select(given)",
+      "input": {
+        "name": [
+          { "given": ["Ann", "Annie"] },
+          { "given": ["Bob"] }
+        ]
+      },
+      "expect": ["Ann", "Annie", "Bob"]
+    },
+    {
+      "name": "select drops empty projection results",
+      "expr": "name.select(text)",
+      "input": {
+        "name": [
+          { "text": "Ann" },
+          { "given": ["Bob"] },
+          { "text": "Cyd" }
+        ]
+      },
+      "expect": ["Ann", "Cyd"]
+    },
+    {
+      "name": "select exposes $index",
+      "expr": "given.select($index)",
+      "input": { "given": ["Ann", "Bob", "Cyd"] },
+      "expect": [0, 1, 2]
+    },
+    {
+      "name": "select over empty input yields empty",
+      "expr": "name.select($this)",
+      "input": { "name": [] },
+      "expect": []
+    }
+  ]
+}

@@ -714,7 +714,7 @@ pub fn stringify(self: *Adapter, ref: NodeRef) []const u8; // original JSON text
 - Wraps our custom `jsondoc.JsonDoc` DOM
 - Linear field scan (fast for small objects typical in FHIR)
 - Supports `span()` and `stringify()` for zero-copy operations
-- **3-4x faster** than StdJsonAdapter for FHIR navigation patterns
+- Tuned for FHIR-shaped JSON and span preservation
 
 **StdJsonAdapter** (`src/backends/stdjson.zig`):
 - Wraps `std.json.Value` from the standard library
@@ -722,26 +722,23 @@ pub fn stringify(self: *Adapter, ref: NodeRef) []const u8; // original JSON text
 - Useful when JSON is already parsed elsewhere
 - No span support (std.json doesn't preserve source positions)
 
-### Performance Comparison
+### Performance and tradeoffs (high-level)
 
-Navigation benchmarks (50K iterations on realistic FHIR patterns):
+We keep the adapter abstraction so we can choose the backend based on tradeoffs:
+- JsonDoc preserves spans for zero-copy output and is tuned for FHIR-shaped JSON.
+- StdJson is convenient when JSON is already parsed or when std.json compatibility matters.
 
-| Pattern | JsonDoc | std.json | Ratio |
-|---------|---------|----------|-------|
-| `code.coding.code` (3-level) | 0.53ms | 2.24ms | 4.2x |
-| `name.given` (array) | 0.93ms | 2.44ms | 2.6x |
-| `component.code.coding.code` | 1.31ms | 5.10ms | 3.9x |
-| `identifier.where(sys=X).value` | 0.91ms | 3.57ms | 3.9x |
-| Bundle (100 entries) | 8.05ms | 25.95ms | 3.2x |
-
-Why JsonDoc is faster:
-- Linear scan beats hash lookup for objects with 5-15 fields (typical in FHIR)
-- Better cache locality (contiguous node array vs scattered pointers)
-- No hash computation overhead
+The benchmark harness in `src/bench.zig` compares backends under both
+parse-once (navigation-only) and parse-each (parse+eval) modes. We avoid
+hardcoding specific numbers here because they vary by machine and inputs.
 
 ### Usage
 
-The evaluator will be generic over the adapter type:
+The adapter interface is used for benchmark coverage and adapter verification.
+The core evaluator is adapter-based, so additional backends can plug in without
+duplicating evaluation logic.
+
+Entry points (subject to change):
 
 ```zig
 pub fn EvalContext(comptime A: type) type {
@@ -754,15 +751,13 @@ pub fn EvalContext(comptime A: type) type {
 }
 
 // Entry points
-pub fn evalWithJsonDoc(expr: []const u8, json: []const u8, ...) !Result;
+pub fn evalWithJson(expr: []const u8, json: []const u8, ...) !Result; // uses JsonDoc adapter
+// Optional convenience entry point:
 pub fn evalWithStdJson(expr: []const u8, value: *std.json.Value, ...) !Result;
 ```
 
 ### Recommendation
 
-Use JsonDoc (the default) for best performance. Use StdJsonAdapter only when:
-- JSON is already parsed as `std.json.Value` elsewhere
-- You need std.json compatibility for external code
-
-The ~500 lines of `jsondoc.zig` is well worth maintaining for the 3-4x
-performance improvement in navigation-heavy workloads.
+Use JsonDoc by default when you want span preservation or zero-copy outputs.
+Use StdJsonAdapter when the input is already a `std.json.Value` or when host
+compatibility is more important than span support.

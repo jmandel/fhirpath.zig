@@ -43,7 +43,7 @@ pub const Item = struct {
     source_end: u32,
     data_pos: u32,
     data_end: u32,
-    node: ?u32,
+    node: ?usize,
     value: ?Value,
 };
 

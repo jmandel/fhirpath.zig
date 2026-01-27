@@ -3,6 +3,7 @@ const lib = @import("lib.zig");
 const eval = @import("eval.zig");
 const ast = @import("ast.zig");
 const jsondoc = @import("jsondoc.zig");
+const JsonDocAdapter = @import("backends/jsondoc.zig").JsonDocAdapter;
 const item = @import("item.zig");
 const convert = @import("convert.zig");
 const schema = @import("schema.zig");
@@ -76,13 +77,14 @@ pub fn main() !void {
     defer if (model_bytes) |bytes| allocator.free(bytes);
     defer if (schema_obj) |*s| s.deinit();
 
-    var ctx = eval.EvalContext{
+    var adapter = JsonDocAdapter.init(&doc);
+    var ctx = eval.EvalContext(JsonDocAdapter){
         .allocator = allocator,
-        .doc = &doc,
+        .adapter = &adapter,
         .types = &types,
         .schema = if (schema_obj) |*s| s else null,
     };
-    var result = eval.evalExpression(&ctx, expr, doc.root, null) catch |err| {
+    var result = eval.evalExpression(&ctx, expr, adapter.root(), null) catch |err| {
         std.debug.print("Eval error: {}\n", .{err});
         return;
     };

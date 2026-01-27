@@ -671,3 +671,98 @@ We will iterate on these with you. Proposed topics:
 - Schema/model access and type inference.
 - Custom function invocation strategy.
 - Error handling and tracing.
+
+---
+
+## NodeAdapter Pattern (JSON Backend Abstraction)
+
+The engine uses a compile-time generic NodeAdapter pattern to abstract JSON
+document traversal. This enables:
+
+1. **Multiple backends**: JsonDoc (custom, fast) or std.json.Value (standard library)
+2. **Zero-cost abstraction**: Zig monomorphizes all adapter calls at compile time
+3. **Optional capabilities**: Span preservation, zero-copy stringify
+4. **Future extensibility**: WASM host adapter for direct JS object navigation
+
+### Interface (`src/node.zig`)
+
+Any adapter must implement:
+
+```zig
+pub const NodeRef = /* backend-specific node reference type */;
+
+pub fn kind(self: *Adapter, ref: NodeRef) node.Kind;
+pub fn objectGet(self: *Adapter, ref: NodeRef, key: []const u8) ?NodeRef;
+pub fn objectCount(self: *Adapter, ref: NodeRef) usize;
+pub fn objectIter(self: *Adapter, ref: NodeRef) ObjectIter;
+pub fn arrayLen(self: *Adapter, ref: NodeRef) usize;
+pub fn arrayAt(self: *Adapter, ref: NodeRef, idx: usize) NodeRef;
+pub fn string(self: *Adapter, ref: NodeRef) []const u8;
+pub fn numberText(self: *Adapter, ref: NodeRef) []const u8;
+pub fn boolean(self: *Adapter, ref: NodeRef) bool;
+```
+
+Optional capabilities (detected via `@hasDecl`):
+```zig
+pub fn span(self: *Adapter, ref: NodeRef) node.Span;      // zero-copy source positions
+pub fn stringify(self: *Adapter, ref: NodeRef) []const u8; // original JSON text
+```
+
+### Implementations
+
+**JsonDocAdapter** (`src/backends/jsondoc.zig`):
+- Wraps our custom `jsondoc.JsonDoc` DOM
+- Linear field scan (fast for small objects typical in FHIR)
+- Supports `span()` and `stringify()` for zero-copy operations
+- **3-4x faster** than StdJsonAdapter for FHIR navigation patterns
+
+**StdJsonAdapter** (`src/backends/stdjson.zig`):
+- Wraps `std.json.Value` from the standard library
+- Hash-based object lookup
+- Useful when JSON is already parsed elsewhere
+- No span support (std.json doesn't preserve source positions)
+
+### Performance Comparison
+
+Navigation benchmarks (50K iterations on realistic FHIR patterns):
+
+| Pattern | JsonDoc | std.json | Ratio |
+|---------|---------|----------|-------|
+| `code.coding.code` (3-level) | 0.53ms | 2.24ms | 4.2x |
+| `name.given` (array) | 0.93ms | 2.44ms | 2.6x |
+| `component.code.coding.code` | 1.31ms | 5.10ms | 3.9x |
+| `identifier.where(sys=X).value` | 0.91ms | 3.57ms | 3.9x |
+| Bundle (100 entries) | 8.05ms | 25.95ms | 3.2x |
+
+Why JsonDoc is faster:
+- Linear scan beats hash lookup for objects with 5-15 fields (typical in FHIR)
+- Better cache locality (contiguous node array vs scattered pointers)
+- No hash computation overhead
+
+### Usage
+
+The evaluator will be generic over the adapter type:
+
+```zig
+pub fn EvalContext(comptime A: type) type {
+    return struct {
+        allocator: std.mem.Allocator,
+        adapter: *A,
+        types: *item.TypeTable,
+        schema: ?*schema.Schema,
+    };
+}
+
+// Entry points
+pub fn evalWithJsonDoc(expr: []const u8, json: []const u8, ...) !Result;
+pub fn evalWithStdJson(expr: []const u8, value: *std.json.Value, ...) !Result;
+```
+
+### Recommendation
+
+Use JsonDoc (the default) for best performance. Use StdJsonAdapter only when:
+- JSON is already parsed as `std.json.Value` elsewhere
+- You need std.json compatibility for external code
+
+The ~500 lines of `jsondoc.zig` is well worth maintaining for the 3-4x
+performance improvement in navigation-heavy workloads.

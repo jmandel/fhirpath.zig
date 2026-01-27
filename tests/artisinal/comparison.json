@@ -1,0 +1,582 @@
+{
+  "_spec_summary": [
+    "Comparison and equality operators: =, !=, ~, !~, <, <=, >, >=",
+    "",
+    "=== GENERAL EMPTY COLLECTION SEMANTICS ===",
+    "- Operators propagate empty by default: if either operand is empty, =, !=, <, <=, >, >= return empty.",
+    "- Equivalence is special: {} ~ {} returns true; value ~ {} returns false (and vice versa).",
+    "- != and !~ are defined as (A = B).not() and (A ~ B).not(), so empty input yields empty output.",
+    "",
+    "=== EQUALITY (=) ===",
+    "- If both operands are singleton collections, compare values; types must match or be implicitly convertible.",
+    "- If both operands have multiple items, compare pairwise in order: any false -> false; all true -> true; any empty -> empty.",
+    "- If the collections have different lengths, result is false (after pairwise rules).",
+    "- Primitives: String is case-sensitive Unicode; Decimal ignores trailing zeroes; Boolean exact; Date/DateTime/Time use precision rules.",
+    "- Complex types: all child properties must be equal recursively.",
+    "- Quantity equality: dimensions must match; invalid units -> empty; calendar vs definite durations above days are un-comparable (empty).",
+    "",
+    "=== EQUIVALENCE (~) ===",
+    "- Like equality but less strict: strings ignore case/locale and normalize whitespace; decimals round to least precise operand.",
+    "- Date/DateTime/Time with different precision yields false (not empty).",
+    "- Multi-item collections are compared without regard to order, but cardinality must match.",
+    "- Quantity equivalence uses dimensions; invalid units -> false; calendar and UCUM durations are equivalent (1 year ~ 1 'a').",
+    "",
+    "=== COMPARISON (<, <=, >, >=) ===",
+    "- Defined for String, Integer, Decimal, Quantity, Date, DateTime, Time only.",
+    "- Both operands must be singleton collections; multi-item operands are errors.",
+    "- Types must match or be implicitly convertible (Integer <-> Decimal); otherwise error.",
+    "- String ordering is lexical by Unicode code points.",
+    "- Date/DateTime/Time compare precision stepwise; if precision differs, result is empty.",
+    "- DateTime timezone handling is policy-driven when offsets are missing; otherwise compare in a common offset.",
+    "- Quantity comparison requires compatible units; invalid units -> empty; calendar vs definite durations above days are un-comparable (empty).",
+    "",
+    "Spec refs: Operations -> Equality / Equivalent / Comparison sections (spec/index.md)."
+  ],
+  "_todo": [
+    "[ ] Improve passing rate (37/61 passing) - gaps in decimal/date/time equality, equivalence, and date/time comparison",
+    "[ ] Implement equality/equivalence operators (=, !=, ~, !~) with collection semantics",
+    "[ ] Implement comparison operators (<, <=, >, >=) with singleton/type checks",
+    "[ ] Implement date/time precision + timezone comparison rules",
+    "[ ] Implement quantity comparison/equality with UCUM units or return empty/false when unsupported",
+    "[ ] Add tests for complex type equality/equivalence"
+  ],
+  "meta": {
+    "status": "drafted"
+  },
+  "cases": [
+    {
+      "_section": "=== EMPTY COLLECTION SEMANTICS ==="
+    },
+    {
+      "name": "equals: empty = empty yields empty",
+      "expr": "{} = {}",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "equals: value = empty yields empty",
+      "expr": "1 = {}",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "equals: empty = value yields empty",
+      "expr": "{} = 1",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "not equals: empty != empty yields empty",
+      "expr": "{} != {}",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "equivalent: empty ~ empty yields true",
+      "expr": "{} ~ {}",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "equivalent: value ~ empty yields false",
+      "expr": "1 ~ {}",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ]
+    },
+    {
+      "name": "not equivalent: empty !~ empty yields false",
+      "expr": "{} !~ {}",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ]
+    },
+    {
+      "name": "not equivalent: value !~ empty yields true",
+      "expr": "1 !~ {}",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "_section": "=== EQUALITY (=) SINGLETONS ==="
+    },
+    {
+      "name": "equals: integer equality",
+      "expr": "1 = 1",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "equals: integer not equal",
+      "expr": "1 = 2",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ]
+    },
+    {
+      "name": "equals: integer and decimal compare after implicit conversion",
+      "expr": "1 = 1.0",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "equals: decimal trailing zeros ignored",
+      "expr": "1.0 = 1.00",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "equals: string comparison is case-sensitive",
+      "expr": "'abc' = 'ABC'",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ]
+    },
+    {
+      "name": "equals: boolean true",
+      "expr": "true = true",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "equals: boolean false",
+      "expr": "true = false",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ]
+    },
+    {
+      "name": "equals: date same precision",
+      "expr": "@2012 = @2012",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "equals: date different precision yields empty",
+      "expr": "@2012-01 = @2012",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "equals: datetime seconds precision ignores trailing zeros",
+      "expr": "@2012-01-01T10:30:31.0 = @2012-01-01T10:30:31",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "equals: time seconds precision ignores trailing zeros",
+      "expr": "@T10:30:00 = @T10:30:00.0",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "_section": "=== EQUALITY (=) MULTI-ITEM ==="
+    },
+    {
+      "name": "equals: multi-item order matters",
+      "expr": "(1 | 2) = (1 | 2)",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "equals: multi-item order mismatch yields false",
+      "expr": "(1 | 2) = (2 | 1)",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ]
+    },
+    {
+      "name": "equals: multi-item length mismatch yields false",
+      "expr": "(1 | 2 | 3) = (1 | 2)",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ]
+    },
+    {
+      "name": "equals: multi-item with any empty comparison yields empty",
+      "expr": "(@2012-01 | @2012) = (@2012 | @2012)",
+      "input": {},
+      "expect": []
+    },
+    {
+      "_section": "=== NOT EQUALS (!=) ==="
+    },
+    {
+      "name": "not equals: true when different",
+      "expr": "1 != 2",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "not equals: false when equal",
+      "expr": "1 != 1",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ]
+    },
+    {
+      "name": "not equals: empty propagates",
+      "expr": "1 != {}",
+      "input": {},
+      "expect": []
+    },
+    {
+      "_section": "=== EQUIVALENCE (~) ==="
+    },
+    {
+      "name": "equivalent: string case-insensitive",
+      "expr": "'abc' ~ 'ABC'",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "equivalent: decimal precision uses least precise",
+      "expr": "1.0 ~ 1.00",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "equivalent: date precision mismatch yields false",
+      "expr": "@2012-01 ~ @2012",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ]
+    },
+    {
+      "name": "equivalent: datetime seconds precision ignores trailing zeros",
+      "expr": "@2012-01-01T10:30:31.0 ~ @2012-01-01T10:30:31",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "equivalent: multi-item order independent",
+      "expr": "(1 | 2) ~ (2 | 1)",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "equivalent: multi-item cardinality mismatch yields false",
+      "expr": "(1 | 2 | 2) ~ (1 | 2)",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ]
+    },
+    {
+      "_section": "=== NOT EQUIVALENT (!~) ==="
+    },
+    {
+      "name": "not equivalent: false when equivalent",
+      "expr": "'abc' !~ 'ABC'",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ]
+    },
+    {
+      "name": "not equivalent: true when not equivalent",
+      "expr": "'abc' !~ 'xyz'",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "not equivalent: precision mismatch yields true",
+      "expr": "@2012-01 !~ @2012",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "_section": "=== COMPARISON: NUMERIC + STRING ==="
+    },
+    {
+      "name": "greater than: integer",
+      "expr": "10 > 5",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "greater than: integer vs decimal",
+      "expr": "10 > 5.0",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "less than: integer vs decimal",
+      "expr": "10 < 5.0",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ]
+    },
+    {
+      "name": "less or equal: integer vs decimal",
+      "expr": "10 <= 10.0",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "greater or equal: integer vs decimal",
+      "expr": "10 >= 10.0",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "string ordering is lexical",
+      "expr": "'abc' > 'ABC'",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "string ordering lexical: lower is not less than upper",
+      "expr": "'abc' < 'ABC'",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ]
+    },
+    {
+      "name": "comparison: empty propagates",
+      "expr": "1 > {}",
+      "input": {},
+      "expect": []
+    },
+    {
+      "_section": "=== COMPARISON: DATE/TIME ==="
+    },
+    {
+      "name": "greater than: date same precision",
+      "expr": "@2018-03-01 > @2018-01-01",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "greater than: date precision mismatch yields empty",
+      "expr": "@2018-03 > @2018-03-01",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "greater than: datetime same precision",
+      "expr": "@2018-03-01T10:30:00 > @2018-03-01T10:00:00",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "greater than: datetime precision mismatch yields empty",
+      "expr": "@2018-03-01T10 > @2018-03-01T10:30",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "greater than: time same precision",
+      "expr": "@T10:30:00 > @T10:00:00",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "greater than: time precision mismatch yields empty",
+      "expr": "@T10 > @T10:30",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "greater than: time equal to seconds precision yields false",
+      "expr": "@T10:30:00 > @T10:30:00.0",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ]
+    },
+    {
+      "_section": "=== ERROR CASES (COMPARISON ONLY) ==="
+    },
+    {
+      "name": "comparison: multi-item left operand is error",
+      "expr": "(1 | 2) > 1",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "name": "comparison: non-convertible types are error",
+      "expr": "1 > 'test'",
+      "input": {},
+      "expect_error": true
+    }
+  ]
+}

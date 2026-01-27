@@ -1,30 +1,37 @@
 #!/usr/bin/env bash
-# Watch wiggum loop logs, including new files as they appear
+# Watch wiggum loop logs - just tail the latest output log
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 
+# Kill tail on exit
+TAIL_PID=
+cleanup() {
+  [[ -n "$TAIL_PID" ]] && kill $TAIL_PID 2>/dev/null
+  exit 0
+}
+trap cleanup INT TERM EXIT
+
+latest() {
+  ls -t logs/*-output.log 2>/dev/null | head -1
+}
+
+echo "Watching wiggum logs (Ctrl-C to stop)..."
 while true; do
-  # Snapshot current files
-  mapfile -t files < <(ls -t logs/*-output.log logs/*-git.log driver.log wiggum-errors.log 2>/dev/null)
-  
-  if [[ ${#files[@]} -eq 0 ]]; then
+  f=$(latest)
+  if [[ -z "$f" ]]; then
     echo "Waiting for log files..."
     sleep 2
     continue
   fi
   
-  # Tail current files, kill when new file appears
-  tail -F "${files[@]}" 2>/dev/null &
+  echo "==> $f <=="
+  tail -f "$f" &
   TAIL_PID=$!
   
-  # Check every 3s for new files
-  while kill -0 $TAIL_PID 2>/dev/null; do
-    sleep 3
-    mapfile -t new_files < <(ls -t logs/*-output.log logs/*-git.log driver.log wiggum-errors.log 2>/dev/null)
-    if [[ "${files[*]}" != "${new_files[*]}" ]]; then
-      kill $TAIL_PID 2>/dev/null
-      wait $TAIL_PID 2>/dev/null
-      echo -e "\n=== New log file detected ==="
-      break
-    fi
+  while [[ "$(latest)" == "$f" ]]; do
+    sleep 2
+    kill -0 $TAIL_PID 2>/dev/null || break
   done
+  
+  kill $TAIL_PID 2>/dev/null
+  wait $TAIL_PID 2>/dev/null
 done

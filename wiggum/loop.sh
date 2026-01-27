@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-# Ensure zig and bun are on PATH
-export PATH="$PATH:$HOME/.local/bin:$HOME/.bun/bin"
-
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Prevent multiple instances

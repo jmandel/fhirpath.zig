@@ -1,13 +1,14 @@
 {
   "meta": {
-    "status": "drafted",
+    "status": "reviewed",
     "feature": "indexer",
-    "source": "spec/index.adoc#Subsetting"
+    "source": "spec/index.md#Subsetting"
   },
   "spec": {
     "summary": [
       "The indexer returns a collection containing only the item at the given 0-based index.",
-      "If the input collection is empty or the index is out of bounds, the result is empty."
+      "If the input collection is empty or the index is out of bounds, the result is empty.",
+      "Unless a model specifies otherwise, collections are 0-based; even if a model is 1-based, derived collections are 0-based."
     ],
     "examples": [
       "Patient.name[0]"

@@ -3,24 +3,7 @@
 import fhirpath from "fhirpath";
 import * as types from "fhirpath/src/types";
 
-function printUsage() {
-  console.log(`Usage: cli.ts [options] <expression> [json]
-
-Evaluate a FHIRPath expression using fhirpath.js
-
-Options:
-  -t, --typed    Output {type, value} format (like our harness)
-  -h, --help     Show this help
-
-Examples:
-  cli.ts 'true'
-  cli.ts 'name.given' '{"name":{"given":["Ann","Bob"]}}'
-  cli.ts -t '1 + 2'
-`);
-}
-
 function getTypeAndValue(r: any): { type: string; value: any } {
-  // Check FHIRPath internal types first (when resolveInternalTypes: false)
   if (r instanceof types.FP_Quantity) {
     return {
       type: "Quantity",
@@ -37,69 +20,76 @@ function getTypeAndValue(r: any): { type: string; value: any } {
     return { type: "time", value: r.toString() };
   }
   
-  // Primitive types
   if (r === null || r === undefined) return { type: "null", value: null };
   if (typeof r === "boolean") return { type: "boolean", value: r };
-  if (typeof r === "number") {
-    // NOTE: JavaScript cannot distinguish Integer from Decimal - both are Number
-    // We report "number" to be honest about this limitation
-    return { type: "number", value: r };
-  }
+  if (typeof r === "number") return { type: "number", value: r };
   if (typeof r === "string") return { type: "string", value: r };
   if (Array.isArray(r)) return { type: "array", value: r };
   if (typeof r === "object") return { type: "object", value: r };
   return { type: "unknown", value: r };
 }
 
-async function main() {
-  const args = process.argv.slice(2);
-  let typed = false;
-  let expression = "";
-  let jsonInput = "{}";
+// Batch mode: read JSON array of {expr, input} from stdin
+async function batchMode() {
+  const input = await Bun.stdin.text();
+  const tests: Array<{expr: string, input: any}> = JSON.parse(input);
+  
+  const results: Array<{results?: any[], error?: string}> = [];
+  
+  for (const test of tests) {
+    try {
+      const raw = fhirpath.evaluate(test.input || {}, test.expr, null, null, { resolveInternalTypes: false });
+      results.push({ results: raw.map(r => getTypeAndValue(r)) });
+    } catch (e: any) {
+      results.push({ error: e.message || String(e) });
+    }
+  }
+  
+  console.log(JSON.stringify(results));
+}
 
-  // Parse args
+// Single expression mode
+async function singleMode(args: string[]) {
+  let typed = false;
   const positional: string[] = [];
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
-    if (arg === "-h" || arg === "--help") {
-      printUsage();
-      process.exit(0);
-    } else if (arg === "-t" || arg === "--typed") {
+  
+  for (const arg of args) {
+    if (arg === "-t" || arg === "--typed") {
       typed = true;
-    } else {
+    } else if (arg !== "-h" && arg !== "--help") {
       positional.push(arg);
     }
   }
-
+  
   if (positional.length === 0) {
-    printUsage();
+    console.log(`Usage: cli.ts [options] <expression> [json]
+       cli.ts --batch < tests.json
+
+Options:
+  -t, --typed    Output {type, value} format
+  --batch        Batch mode: read [{expr, input}, ...] from stdin
+`);
     process.exit(1);
   }
-
-  expression = positional[0];
-  if (positional.length > 1) {
-    jsonInput = positional[1];
-  }
-
+  
+  const expression = positional[0];
+  const jsonInput = positional[1] || "{}";
+  
   let input: any;
   try {
     input = JSON.parse(jsonInput);
   } catch (e) {
-    console.error(`Invalid JSON input: ${e}`);
+    console.error(`Invalid JSON: ${e}`);
     process.exit(1);
   }
-
+  
   try {
-    // Use resolveInternalTypes: false to get proper FP_* types for Quantity, DateTime, etc.
-    const results = fhirpath.evaluate(input, expression, null, null, { resolveInternalTypes: false });
-    
+    const raw = fhirpath.evaluate(input, expression, null, null, { resolveInternalTypes: false });
     if (typed) {
-      const typedResults = results.map(r => getTypeAndValue(r));
-      console.log(JSON.stringify(typedResults, null, 2));
+      console.log(JSON.stringify(raw.map(r => getTypeAndValue(r)), null, 2));
     } else {
-      // For non-typed output, resolve to simple values
-      const simpleResults = fhirpath.evaluate(input, expression);
-      console.log(JSON.stringify(simpleResults, null, 2));
+      const simple = fhirpath.evaluate(input, expression);
+      console.log(JSON.stringify(simple, null, 2));
     }
   } catch (e: any) {
     console.error(`FHIRPath error: ${e.message || e}`);
@@ -107,4 +97,9 @@ async function main() {
   }
 }
 
-main();
+const args = process.argv.slice(2);
+if (args.includes("--batch")) {
+  batchMode();
+} else {
+  singleMode(args);
+}

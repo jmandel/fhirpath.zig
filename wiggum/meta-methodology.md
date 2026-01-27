@@ -23,7 +23,7 @@ Methodology is the **policy and procedure** source:
 - **Modes** and their goals (EXPLORE/DEVELOP/CONFIRM/TACKLE_BLOCKER).
 - **How to select modes** (randomized chooser, floors, inputs).
 - **Testing posture** (what to run, how to report skips).
-- **Git discipline** (subject+body, test reporting).
+- **Git discipline** (subject+body, test reporting, learnings).
 - **Artifact formats** (artisinal tests, blockers schema).
 - **Rework policy** (blocking vs non‑blocking).
 - **Completion signaling** (STEP COMPLETE / FAILED / PROJECT FINISHED).
@@ -40,14 +40,18 @@ If a rule is important for compliance, it should be in methodology. The prompt s
 - **blockers script**: add/update/resolve blockers by slug; never hand‑edit the YAML.
 - **logging**: one‑line logs and git logs per iteration to enable replay and forensic debugging.
 
-## Example minimal prompt template
-```
+<example kind="prompt:minimal">
 Read the root MDs, especially methodology.md. Follow it exactly for one session.
 Run choose_mode, perform the selected mode, and end with the required output lines specified in methodology.md.
-```
+</example>
 
-## Example methodology skeleton
-```
+<example kind="prompt:overstuffed:bad">
+Read all docs, run choose_mode, do EXPLORE/DEVELOP/CONFIRM/TACKLE_BLOCKER, remember to run tests, commit with
+subject+body, add blockers via script, update YAML, include one-line log, output STEP COMPLETE, do not forget...
+</example>
+<note>Why bad: duplicates policy, drifts from methodology, and becomes stale.</note>
+
+<example kind="methodology:skeleton">
 # Methodology
 
 ## For each session (required)
@@ -70,97 +74,79 @@ Run choose_mode, perform the selected mode, and end with the required output lin
 ## Rework policy
 ## Git discipline
 ## Artifact formats
-```
+</example>
 
 ## Concrete examples (copy‑ready)
 
-### Minimal prompt (good)
-```
-Read the root MDs, especially methodology.md. Follow it exactly for one session.
-Run choose_mode, perform the selected mode, and end with the required output lines specified in methodology.md.
-```
-
-### Overstuffed prompt (bad)
-```
-Read all docs, run choose_mode, do EXPLORE/DEVELOP/CONFIRM/TACKLE_BLOCKER, remember to run tests, commit with
-subject+body, add blockers via script, update YAML, include one-line log, output STEP COMPLETE, do not forget...
-```
-Why bad: duplicates policy, drifts from methodology, and becomes stale.
-
-### One‑line log examples
-Good:
-```
+<example kind="one-line:good">
 ONE-LINE LOG: Added artisinal select() spec/tests with 5 cases; harness fails on function-call parse.
-```
-Bad:
-```
-ONE-LINE LOG: did stuff
-```
+</example>
 
-### Commit message examples
-Good (subject + body):
-```
+<example kind="one-line:bad">
+ONE-LINE LOG: did stuff
+</example>
+
+<example kind="commit:good">
 Add artisinal select spec tests
 
 - Draft select() spec summary and 5 cases (flattening, empty, $index)
 - Tests: zig build harness -- tests/artisinal/select.json (fails: function-call parse)
 - Learnings: spec implies projection flattens; empty projection yields no element
-```
-Bad (subject only):
-```
+</example>
+
+<example kind="commit:bad">
 Add select tests
-```
+</example>
 
-### Tests reporting examples
-If tests run:
-```
+<example kind="tests:run">
 - Tests: zig build harness -- tests/artisinal/where.json (fails: indexer parse)
-```
-If tests skipped:
-```
-- Tests: skipped (reason: only doc edit; no code changes)
-```
+</example>
 
-### Blocker entry example
-Preferred command:
-```
+<example kind="tests:skipped">
+- Tests: skipped (reason: only doc edit; no code changes)
+</example>
+
+<example kind="blocker:command">
 python wiggum/scripts/blockers.py add --title "Parser fails on function calls" \
   --severity high \
   --description "Expressions like name.empty() fail to parse; blocks many tests. Repro: zig build harness -- tests/artisinal/existence.json. See spec: index.md#functions."
-```
+</example>
 
-Resulting YAML (excerpt):
-```
+<example kind="blocker:yaml">
 - slug: parser-fails-on-function-calls
   status: open
   severity: high
   title: Parser fails on function calls
   description: Expressions like name.empty() fail to parse; blocks many tests...
-```
+</example>
 
-### TACKLE_BLOCKER flow (example)
-1. `python scripts/choose_mode.py` → `Mode: TACKLE_BLOCKER` and prints a slug.
-2. `python wiggum/scripts/blockers.py show <slug>` to read details.
-3. Work the fix (code + tests).
-4. `python wiggum/scripts/blockers.py update <slug> --status in_progress` or `resolve`.
-5. Commit with test info and one‑line log.
+<example kind="flow:tackle_blocker">
+1. python scripts/choose_mode.py → Mode: TACKLE_BLOCKER + slug
+2. python wiggum/scripts/blockers.py show <slug>
+3. Work the fix (code + tests)
+4. python wiggum/scripts/blockers.py update <slug> --status in_progress (or resolve)
+5. Commit with test info + one-line log
+</example>
 
-### Mode examples
-EXPLORE:
-- Identify missing artisinal file for `where()`.
-- Write `tests/artisinal/where.json` with spec summary + TODOs + edge‑case tests.
+<example kind="mode:explore">
+- Identify missing artisinal file for where().
+- Write tests/artisinal/where.json with spec summary + TODOs + edge cases.
+</example>
 
-DEVELOP:
+<example kind="mode:develop">
 - Run harness for a specific artisinal file.
 - Implement minimal parser/eval changes to make those tests pass.
+</example>
 
-CONFIRM:
-- Re‑read existing artisinal file vs spec section.
+<example kind="mode:confirm">
+- Re-read existing artisinal file vs spec section.
 - Tighten tests or notes if they diverge from spec.
+</example>
 
-### Rework example (blocking)
+<example kind="rework:blocking">
 You start DEVELOP but discover the parser can’t handle any function calls (blocks most tests).
 Action: add a blocker, do the minimal parser fix needed, then return to the original task.
+</example>
 
 ## Common failure modes (and how to avoid them)
 - **No status line** → always end with `STEP COMPLETE` / `STEP FAILED` / `PROJECT FINISHED`.

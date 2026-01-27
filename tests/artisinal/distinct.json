@@ -1,6 +1,6 @@
 {
   "meta": {
-    "status": "drafted",
+    "status": "reviewed",
     "feature": "distinct",
     "source": "spec/index.md#distinct() : collection"
   },
@@ -23,7 +23,7 @@
     "[ ] Implement distinct() evaluation using equals (=) to remove duplicates.",
     "[ ] Implement isDistinct() as count() = distinct().count().",
     "[ ] Confirm equals semantics for complex types once object equality is supported.",
-    "[ ] Improve passing rate (0/8 passing)."
+    "[ ] Improve passing rate (0/8 passing; parse errors for function calls)."
   ],
   "cases": [
     {

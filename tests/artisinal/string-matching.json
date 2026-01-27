@@ -1,0 +1,194 @@
+{
+  "meta": {
+    "status": "drafted",
+    "spec_summary": "String matching functions: startsWith, endsWith, contains. All return Boolean. Empty prefix/suffix/substring yields true. Empty input collection yields empty. Multiple items in input is an error."
+  },
+  "todo": [
+    "Improve passing rate (0/30 passing) - functions not yet implemented (parse errors)",
+    "Verify error behavior for multiple items in input collection",
+    "Test with non-string types that might convert to string"
+  ],
+  "cases": [
+    {
+      "name": "startsWith - matching prefix",
+      "expr": "'abcdefg'.startsWith('abc')",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "startsWith - non-matching prefix",
+      "expr": "'abcdefg'.startsWith('xyz')",
+      "input": {},
+      "expect": [false]
+    },
+    {
+      "name": "startsWith - empty prefix yields true",
+      "expr": "'abcdefg'.startsWith('')",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "startsWith - prefix longer than string",
+      "expr": "'abc'.startsWith('abcdefg')",
+      "input": {},
+      "expect": [false]
+    },
+    {
+      "name": "startsWith - exact match",
+      "expr": "'abc'.startsWith('abc')",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "startsWith - empty string with empty prefix",
+      "expr": "''.startsWith('')",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "startsWith - empty input collection yields empty",
+      "expr": "{}.startsWith('abc')",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "startsWith - single char prefix",
+      "expr": "'12345'.startsWith('1')",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "startsWith - single char prefix no match",
+      "expr": "'12345'.startsWith('2')",
+      "input": {},
+      "expect": [false]
+    },
+    {
+      "name": "endsWith - matching suffix",
+      "expr": "'abcdefg'.endsWith('efg')",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "endsWith - non-matching suffix",
+      "expr": "'abcdefg'.endsWith('abc')",
+      "input": {},
+      "expect": [false]
+    },
+    {
+      "name": "endsWith - empty suffix yields true",
+      "expr": "'abcdefg'.endsWith('')",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "endsWith - suffix longer than string",
+      "expr": "'efg'.endsWith('abcdefg')",
+      "input": {},
+      "expect": [false]
+    },
+    {
+      "name": "endsWith - exact match",
+      "expr": "'abc'.endsWith('abc')",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "endsWith - empty string with empty suffix",
+      "expr": "''.endsWith('')",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "endsWith - empty input collection yields empty",
+      "expr": "{}.endsWith('abc')",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "endsWith - single char suffix",
+      "expr": "'12345'.endsWith('5')",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "endsWith - single char suffix no match",
+      "expr": "'12345'.endsWith('4')",
+      "input": {},
+      "expect": [false]
+    },
+    {
+      "name": "contains - substring in middle",
+      "expr": "'abcdefg'.contains('cde')",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "contains - substring at start",
+      "expr": "'abcdefg'.contains('abc')",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "contains - substring at end",
+      "expr": "'abcdefg'.contains('efg')",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "contains - substring not present",
+      "expr": "'abcdefg'.contains('xyz')",
+      "input": {},
+      "expect": [false]
+    },
+    {
+      "name": "contains - empty substring yields true",
+      "expr": "'abcdefg'.contains('')",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "contains - substring longer than string",
+      "expr": "'abc'.contains('abcdefg')",
+      "input": {},
+      "expect": [false]
+    },
+    {
+      "name": "contains - exact match",
+      "expr": "'abc'.contains('abc')",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "contains - empty string with empty substring",
+      "expr": "''.contains('')",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "contains - empty input collection yields empty",
+      "expr": "{}.contains('abc')",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "contains - single char present",
+      "expr": "'12345'.contains('3')",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "contains - single char not present",
+      "expr": "'12345'.contains('6')",
+      "input": {},
+      "expect": [false]
+    },
+    {
+      "name": "contains - partial match (consecutive chars required)",
+      "expr": "'12345'.contains('35')",
+      "input": {},
+      "expect": [false],
+      "note": "'35' is not a substring because '3' and '5' are not consecutive"
+    }
+  ]
+}

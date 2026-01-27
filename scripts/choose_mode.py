@@ -7,6 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_BLOCKERS = ROOT / "wiggum.config" / "blockers.yaml"
+DEFAULT_STATE = ROOT / "wiggum" / "state.json"
 
 
 def load_state_file(path: Path) -> dict:
@@ -185,7 +186,7 @@ def choose_mode(state: dict, params: dict, seed: int | None, blockers: list[dict
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Choose a work-loop mode based on project state.")
-    parser.add_argument("--state", type=str, default="", help="Path to a JSON state summary.")
+    parser.add_argument("--state", type=str, default=str(DEFAULT_STATE), help="Path to a JSON state summary.")
     parser.add_argument("--root", type=str, default="tests/artisinal", help="Artisinal tests root.")
     parser.add_argument("--seed", type=int, default=None, help="Optional RNG seed.")
     parser.add_argument("--blockers", type=str, default=str(DEFAULT_BLOCKERS), help="Path to blockers.yaml")

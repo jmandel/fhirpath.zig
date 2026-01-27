@@ -10,8 +10,8 @@ This project is spec‑driven. Official tests are treated as pointers to require
 ## Official tests and source data
 - Converted official tests live at:
   - `zig/tests/r5/tests-fhir-r5.json`
-  - (original XML) `zig/tests/r5/tests-fhir-r5.xml`
   - example inputs `zig/tests/r5/input/`
+  - (original XML, used to generate tests-fhir-r5.josn) `zig/tests/r5/tests-fhir-r5.xml`
 - These are produced by `zig/scripts/prepare_tests_json.py` after `zig/scripts/fetch_spec.sh`.
 - `zig/build/tmp-spec/` is a scratch checkout used by the fetch script; don’t treat it as the authoritative test location.
 
@@ -38,31 +38,7 @@ By default the script derives this state from `tests/artisinal/*.json` using `me
 - `reviewed` → written + reviewed
 - `implemented` → written + reviewed + implemented
 
-You can also pass an explicit state file:
-
-```
-python zig/scripts/choose_mode.py --state tests/artisinal/state.json
-```
-
-State format:
-
-```
-{
-  "artisinal_total": 12,
-  "reviewed_total": 5,
-  "implemented_total": 3,
-  "params": {
-    "explore_scale": 10.0,
-    "floor": 0.15,
-    "seed": 12345
-  }
-}
-```
-
-Parameters:
-- `explore_scale`: how quickly EXPLORE probability drops as the number of artisinal files grows.
-- `floor`: minimum probability for each mode (default 0.15).
-- `seed`: optional RNG seed for reproducibility.
+The chooser derives state from the repository. If any internal state file is used by tooling, it should live under `wiggum/`.
 
 ### EXPLORE
 Goal: expand coverage.

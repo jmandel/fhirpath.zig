@@ -29,7 +29,7 @@ pub const Env = struct {
     }
 };
 
-const EvalError = error{ InvalidFunction, InvalidPredicate } || error{OutOfMemory};
+const EvalError = error{ InvalidFunction, InvalidPredicate, SingletonRequired } || error{OutOfMemory};
 
 pub fn evalWithJson(
     allocator: std.mem.Allocator,
@@ -242,7 +242,72 @@ fn evalFunction(
         }
         return out;
     }
+    if (std.mem.eql(u8, call.name, "single")) {
+        var out = ValueList.empty;
+        if (input.len == 1) {
+            try out.append(allocator, input[0]);
+            return out;
+        }
+        if (input.len == 0) return out;
+        return error.SingletonRequired;
+    }
+    if (std.mem.eql(u8, call.name, "first")) {
+        var out = ValueList.empty;
+        if (input.len == 0) return out;
+        try out.append(allocator, input[0]);
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "last")) {
+        var out = ValueList.empty;
+        if (input.len == 0) return out;
+        try out.append(allocator, input[input.len - 1]);
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "tail")) {
+        var out = ValueList.empty;
+        if (input.len <= 1) return out;
+        try out.appendSlice(allocator, input[1..]);
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "skip")) {
+        const num = try parseIntegerArg(call);
+        if (num <= 0) return sliceValues(allocator, input);
+        const len_i64: i64 = @intCast(input.len);
+        if (num >= len_i64) return ValueList.empty;
+        const offset: usize = @intCast(num);
+        return sliceValues(allocator, input[offset..]);
+    }
+    if (std.mem.eql(u8, call.name, "take")) {
+        const num = try parseIntegerArg(call);
+        if (num <= 0) return ValueList.empty;
+        const len_i64: i64 = @intCast(input.len);
+        if (num >= len_i64) return sliceValues(allocator, input);
+        const count: usize = @intCast(num);
+        return sliceValues(allocator, input[0..count]);
+    }
     return error.InvalidFunction;
+}
+
+fn parseIntegerArg(call: ast.FunctionCall) EvalError!i64 {
+    if (call.args.len != 1) return error.InvalidFunction;
+    return integerLiteral(call.args[0]) orelse error.InvalidFunction;
+}
+
+fn integerLiteral(expr: ast.Expr) ?i64 {
+    return switch (expr) {
+        .Literal => |lit| switch (lit) {
+            .Number => |text| std.fmt.parseInt(i64, text, 10) catch null,
+            else => null,
+        },
+        else => null,
+    };
+}
+
+fn sliceValues(allocator: std.mem.Allocator, values: []const std.json.Value) EvalError!ValueList {
+    var out = ValueList.empty;
+    if (values.len == 0) return out;
+    try out.appendSlice(allocator, values);
+    return out;
 }
 
 fn literalToJson(lit: ast.Literal) std.json.Value {

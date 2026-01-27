@@ -1,6 +1,6 @@
 {
   "meta": {
-    "status": "drafted",
+    "status": "implemented",
     "feature": "subsetting",
     "source": "spec/index.md#Subsetting"
   },
@@ -23,10 +23,10 @@
     ]
   },
   "todo": [
-    "[ ] Implement subsetting functions single(), first(), last(), tail(), skip(), take().",
+    "[x] Implement subsetting functions single(), first(), last(), tail(), skip(), take().",
     "[ ] Add error tests for single() on multi-item inputs once the harness supports error assertions.",
     "[ ] Add negative num tests for skip()/take() when unary minus is supported in the harness.",
-    "[ ] Improve passing rate (0/16 passing)."
+    "[x] Improve passing rate (16/16 passing)."
   ],
   "cases": [
     {

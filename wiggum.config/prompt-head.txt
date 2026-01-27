@@ -1,19 +1,4 @@
-Read all mds in repo root and follow the methodology by running choose_mode, then proceed with this step autonomously making progress as long as you can.
-
-Before the final status line, output exactly one line:
-ONE-LINE LOG: <high-signal summary of what changed or learned, <=140 chars>
-
-Then output exactly one of:
-STEP COMPLETE
-STEP FAILED
-PROJECT FINISHED
-
-Context:
-- One-line logs accumulate across sessions for future prompts.
-- Full logs are in ./logs and are very verbose; use rg/grep if you need to inspect history.
-- Blockers are managed via wiggum/scripts/blockers.py (do not hand-edit the blockers file).
-- If choose_mode selects TACKLE_BLOCKER, it will print a Blocker slug; use the blockers script to show/update/resolve it.
-- Git commits must include a detailed body (not just a one-line subject). Use subject + blank line + bullet list of changes/tests.
-- In any mode, if you discover an urgent external blocker, add it via the blockers script with an excellent bug-report style description (clear steps, rationale, pointers).
+Read the root MDs, especially methodology.md. Follow it exactly for one session.
+Run choose_mode, perform the selected mode, and end with the required output lines specified in methodology.md.
 
 RECENT ONE-LINE LOGS (most recent last, up to 1000):

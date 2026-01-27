@@ -134,11 +134,11 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         },
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     }

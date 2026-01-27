@@ -55,7 +55,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -145,7 +145,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -156,7 +156,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -255,7 +255,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -266,7 +266,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -321,7 +321,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -387,7 +387,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -464,7 +464,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -475,7 +475,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -486,7 +486,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -563,7 +563,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -615,7 +615,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -626,7 +626,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -705,7 +705,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -749,7 +749,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },

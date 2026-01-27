@@ -38,7 +38,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },

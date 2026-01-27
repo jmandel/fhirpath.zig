@@ -7,15 +7,15 @@
     "  - No expectation of order in result",
     "  - Returns distinct list of elements from both inputs",
     "  - Can also be invoked using the | operator",
-    "  - A.union(B) where A:1,1,2,3 and B:2,3 → 1,2,3",
-    "  - A.union({}) → distinct elements of A",
+    "  - A.union(B) where A:1,1,2,3 and B:2,3 \u2192 1,2,3",
+    "  - A.union({}) \u2192 distinct elements of A",
     "",
     "combine(other: collection, [preserveOrder: Boolean]) : collection",
     "  - Merges without eliminating duplicates",
     "  - When preserveOrder is false/absent: no order guarantee",
     "  - When preserveOrder is true: other appended to input (STU)",
     "  - Combining empty with non-empty returns non-empty",
-    "  - A.combine(B) → all elements from both (with duplicates)",
+    "  - A.combine(B) \u2192 all elements from both (with duplicates)",
     "",
     "intersect(other: collection) : collection",
     "  - Returns elements that are in BOTH collections",
@@ -26,7 +26,7 @@
     "  - Returns elements NOT in other collection",
     "  - Duplicates NOT eliminated",
     "  - Order IS preserved",
-    "  - (1|2|3).exclude(2) → (1|3)"
+    "  - (1|2|3).exclude(2) \u2192 (1|3)"
   ],
   "_todo": [
     "Improve passing rate (0/55 passing)",
@@ -183,7 +183,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ],
       "_note": "Both deduplicate, so result is same"
@@ -315,7 +315,7 @@
           "value": "3"
         }
       ],
-      "_note": "| creates [1,2], combine adds another 2 → [1,2,2]"
+      "_note": "| creates [1,2], combine adds another 2 \u2192 [1,2,2]"
     },
     {
       "_section": "=== INTERSECT BASIC ==="
@@ -339,7 +339,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -361,7 +361,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -372,7 +372,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -383,7 +383,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -443,7 +443,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -454,7 +454,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -465,7 +465,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -476,7 +476,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -487,7 +487,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -809,7 +809,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "false"
+          "value": false
         }
       ],
       "_note": "combine keeps duplicates, so not distinct"
@@ -821,7 +821,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     }

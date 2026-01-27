@@ -1,7 +1,7 @@
 {
   "meta": {
     "status": "reviewed",
-    "spec_summary": "Math functions operate on numeric types (Integer, Long, Decimal, Quantity). All return empty on empty input. All signal error on multiple items. Key functions: abs() preserves type, ceiling/floor/truncate return Integer (or Quantity with integer value), exp/ln/log/sqrt/power return Decimal. Domain handling differs by function: sqrt/power return empty on domain errors (negative sqrt, -1^0.5); log signals error on invalid input (≤0) or base (≤0) per spec, though official tests don't cover these error cases.",
+    "spec_summary": "Math functions operate on numeric types (Integer, Long, Decimal, Quantity). All return empty on empty input. All signal error on multiple items. Key functions: abs() preserves type, ceiling/floor/truncate return Integer (or Quantity with integer value), exp/ln/log/sqrt/power return Decimal. Domain handling differs by function: sqrt/power return empty on domain errors (negative sqrt, -1^0.5); log signals error on invalid input (\u22640) or base (\u22640) per spec, though official tests don't cover these error cases.",
     "open_questions": [
       "How much precision should exp/ln/sqrt carry? Spec examples show 1 decimal place but practical implementations may vary.",
       "ln(0) and ln(-1) behavior not explicitly specified - probably error like log, but no official tests."

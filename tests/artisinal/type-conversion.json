@@ -10,8 +10,8 @@
       "",
       "=== SINGLETON REQUIREMENT ===",
       "All conversion functions require singleton input (0 or 1 items).",
-      "Multiple items → evaluation ends with an error signal to calling environment.",
-      "Empty input → empty result (for BOTH toX and convertsToX).",
+      "Multiple items \u2192 evaluation ends with an error signal to calling environment.",
+      "Empty input \u2192 empty result (for BOTH toX and convertsToX).",
       "",
       "=== toBoolean() ===",
       "Converts to Boolean if input is:",
@@ -19,52 +19,52 @@
       "  - String: case-insensitive match to specific values:",
       "      true:  'true', 't', 'yes', 'y', '1', '1.0'",
       "      false: 'false', 'f', 'no', 'n', '0', '0.0'",
-      "      other strings → empty",
-      "  - Integer: 1→true, 0→false, other integers→empty",
-      "  - Decimal: 1.0 (or decimal equivalent like 1.00)→true, 0.0 (or equivalent)→false, others→empty",
-      "Other types → empty",
+      "      other strings \u2192 empty",
+      "  - Integer: 1\u2192true, 0\u2192false, other integers\u2192empty",
+      "  - Decimal: 1.0 (or decimal equivalent like 1.00)\u2192true, 0.0 (or equivalent)\u2192false, others\u2192empty",
+      "Other types \u2192 empty",
       "",
       "=== toInteger() ===",
       "Converts to Integer if input is:",
       "  - Integer: passthrough",
       "  - String: must match regex (\\+|-)?\\d+ (NO decimal point allowed!)",
-      "      '42'→42, '-17'→-17, '+5'→5",
-      "      '1.0'→empty (decimal format not allowed)",
-      "      'abc'→empty",
-      "  - Boolean: true→1, false→0",
-      "Other types → empty",
+      "      '42'\u219242, '-17'\u2192-17, '+5'\u21925",
+      "      '1.0'\u2192empty (decimal format not allowed)",
+      "      'abc'\u2192empty",
+      "  - Boolean: true\u21921, false\u21920",
+      "Other types \u2192 empty",
       "",
       "=== toDecimal() ===",
       "Converts to Decimal if input is:",
       "  - Integer or Decimal: passthrough (Integer promoted to Decimal)",
       "  - String: must match regex (\\+|-)?\\d+(\\.\\d+)?",
-      "      '3.14'→3.14, '42'→42, '-0.5'→-0.5",
-      "      '1.a'→empty",
-      "  - Boolean: true→1.0, false→0.0",
-      "Other types → empty",
+      "      '3.14'\u21923.14, '42'\u219242, '-0.5'\u2192-0.5",
+      "      '1.a'\u2192empty",
+      "  - Boolean: true\u21921.0, false\u21920.0",
+      "Other types \u2192 empty",
       "",
       "=== toString() ===",
       "Converts to String. Nearly all primitive types convert:",
       "  - String: passthrough",
       "  - Boolean: 'true' or 'false'",
-      "  - Integer: standard representation, e.g., 42→'42', -1→'-1'",
-      "  - Decimal: preserves precision, e.g., 1.0→'1.0', 3.14→'3.14'",
-      "  - Quantity: value + unit, UCUM units quoted: 53 'km'→\"53 'km'\", calendar unquoted: 4 days→'4 days'",
-      "  - Date: YYYY-MM-DD without @ prefix, e.g., @2020-01-01→'2020-01-01'",
+      "  - Integer: standard representation, e.g., 42\u2192'42', -1\u2192'-1'",
+      "  - Decimal: preserves precision, e.g., 1.0\u2192'1.0', 3.14\u2192'3.14'",
+      "  - Quantity: value + unit, UCUM units quoted: 53 'km'\u2192\"53 'km'\", calendar unquoted: 4 days\u2192'4 days'",
+      "  - Date: YYYY-MM-DD without @ prefix, e.g., @2020-01-01\u2192'2020-01-01'",
       "  - DateTime: full ISO format without @ prefix, preserves precision",
-      "  - Time: hh:mm:ss.fff without @T prefix, e.g., @T10:30→'10:30'",
-      "Other types → empty",
+      "  - Time: hh:mm:ss.fff without @T prefix, e.g., @T10:30\u2192'10:30'",
+      "Other types \u2192 empty",
       "",
       "=== toQuantity([unit]) ===",
       "Converts to Quantity if input is:",
       "  - Integer or Decimal: value with default unit '1'",
       "  - Quantity: passthrough (or converted if unit arg provided)",
       "  - String: parsed via regex (?'value'(\\+|-)?\\d+(\\.\\d+)?)\\s*('(?'unit'[^']+)'|(?'time'[a-zA-Z]+))?",
-      "      '4 days'→4 days (calendar duration)",
-      "      '10 \\'kg\\''→10 'kg' (UCUM unit with quotes)",
-      "      '1.0'→1.0 '1'",
-      "      'abc'→empty",
-      "  - Boolean: true→1.0 '1', false→0.0 '1'",
+      "      '4 days'\u21924 days (calendar duration)",
+      "      '10 \\'kg\\''\u219210 'kg' (UCUM unit with quotes)",
+      "      '1.0'\u21921.0 '1'",
+      "      'abc'\u2192empty",
+      "  - Boolean: true\u21921.0 '1', false\u21920.0 '1'",
       "Optional unit argument: UCUM code for conversion. If conversion not supported, returns empty.",
       "Calendar duration conversions: 1 year=12 months=365 days, 1 month=30 days, 1 day=24 hours, etc.",
       "",
@@ -73,8 +73,8 @@
       "  - Date: passthrough",
       "  - DateTime: extracts year/month/day WITHOUT timezone conversion",
       "  - String: format YYYY-MM-DD (partial dates allowed: YYYY, YYYY-MM)",
-      "      '2024-01-15'→@2024-01-15, '2024-01'→@2024-01, '2024'→@2024",
-      "Other types → empty",
+      "      '2024-01-15'\u2192@2024-01-15, '2024-01'\u2192@2024-01, '2024'\u2192@2024",
+      "Other types \u2192 empty",
       "",
       "=== toDateTime() ===",
       "Converts to DateTime if input is:",
@@ -87,15 +87,15 @@
       "Converts to Time if input is:",
       "  - Time: passthrough",
       "  - String: format hh:mm:ss.fff (partial times allowed: hh, hh:mm)",
-      "      '14'→@T14, '14:34'→@T14:34, '14:34:28.123'→@T14:34:28.123",
-      "Other types → empty",
+      "      '14'\u2192@T14, '14:34'\u2192@T14:34, '14:34:28.123'\u2192@T14:34:28.123",
+      "Other types \u2192 empty",
       "",
       "=== toLong() (STU) ===",
       "Like toInteger but for 64-bit integers.",
       "Same conversion rules, larger range.",
       "",
       "=== SURPRISING BEHAVIORS ===",
-      "1. toInteger rejects decimal strings: '1.0'.toInteger() → empty",
+      "1. toInteger rejects decimal strings: '1.0'.toInteger() \u2192 empty",
       "2. toBoolean only accepts specific string values, not any truthy/falsy",
       "3. Decimal equivalent: 1.00 and 1.0 both convert to true via toBoolean",
       "4. toString on Date/DateTime/Time removes the @ prefix",
@@ -112,8 +112,8 @@
       "[ ] Add toLong/convertsToLong tests (STU feature)",
       "[ ] Test numeric range limits (overflow behavior)",
       "[ ] Add toQuantity(unit) UCUM conversion tests",
-      "[x] Add tests for DateTime→toDate extraction (added, parser-blocked)",
-      "[x] Add tests for Date→toDateTime promotion (added, parser-blocked)",
+      "[x] Add tests for DateTime\u2192toDate extraction (added, parser-blocked)",
+      "[x] Add tests for Date\u2192toDateTime promotion (added, parser-blocked)",
       "[x] Add toString tests for Date/DateTime/Time (added, parser-blocked)",
       "[x] Verify toTime accepts partial times (hour-only, hour:minute) per official tests",
       "[x] Verify toDate accepts partial dates per official tests",
@@ -133,7 +133,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -144,7 +144,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "false"
+          "value": false
         }
       ]
     },
@@ -155,7 +155,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -166,7 +166,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -177,7 +177,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -188,7 +188,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -199,7 +199,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -210,7 +210,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -221,7 +221,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -232,7 +232,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "false"
+          "value": false
         }
       ]
     },
@@ -243,7 +243,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "false"
+          "value": false
         }
       ]
     },
@@ -254,7 +254,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "false"
+          "value": false
         }
       ]
     },
@@ -265,7 +265,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "false"
+          "value": false
         }
       ]
     },
@@ -276,7 +276,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "false"
+          "value": false
         }
       ]
     },
@@ -293,7 +293,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -304,7 +304,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "false"
+          "value": false
         }
       ]
     },
@@ -328,7 +328,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -339,7 +339,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "false"
+          "value": false
         }
       ]
     },
@@ -356,7 +356,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -367,7 +367,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "false"
+          "value": false
         }
       ]
     },
@@ -384,7 +384,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -395,7 +395,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "false"
+          "value": false
         }
       ]
     },
@@ -406,7 +406,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -417,7 +417,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "false"
+          "value": false
         }
       ]
     },
@@ -428,7 +428,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -540,7 +540,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -551,7 +551,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "false"
+          "value": false
         }
       ]
     },
@@ -562,7 +562,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "false"
+          "value": false
         }
       ]
     },
@@ -573,7 +573,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -584,7 +584,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -696,7 +696,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -707,7 +707,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "false"
+          "value": false
         }
       ]
     },
@@ -718,7 +718,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -729,7 +729,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -791,7 +791,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -802,7 +802,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "false"
+          "value": false
         }
       ]
     },
@@ -830,7 +830,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -841,7 +841,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -852,7 +852,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -863,7 +863,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -976,7 +976,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -987,7 +987,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -998,7 +998,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -1009,7 +1009,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "false"
+          "value": false
         }
       ]
     },
@@ -1020,7 +1020,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -1082,7 +1082,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -1093,7 +1093,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "false"
+          "value": false
         }
       ]
     },
@@ -1144,7 +1144,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -1155,7 +1155,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "false"
+          "value": false
         }
       ]
     },
@@ -1206,7 +1206,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -1217,7 +1217,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "false"
+          "value": false
         }
       ]
     },
@@ -1257,7 +1257,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ],
       "_note": "Official test testStringHourConvertsToTime confirms this"
@@ -1282,7 +1282,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ],
       "skip": "Parser: date/time literals cannot have method calls"
@@ -1307,7 +1307,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ],
       "skip": "Parser: date/time literals cannot have method calls"
@@ -1436,7 +1436,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ],
       "skip": "Parser: parenthesized expressions not supported"
@@ -1448,7 +1448,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ],
       "skip": "Parser: date/time literals cannot have method calls"
@@ -1460,7 +1460,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ],
       "skip": "Parser: date/time literals cannot have method calls"
@@ -1472,7 +1472,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ],
       "skip": "Parser: date/time literals cannot have method calls"
@@ -1484,7 +1484,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ],
       "_note": "Spec says 'decimal equivalent' so 1.00 should work like 1.0"
@@ -1518,7 +1518,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "false"
+          "value": false
         }
       ],
       "_note": "Official test confirms: '1 wk'.convertsToQuantity().not() is true"

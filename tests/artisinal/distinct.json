@@ -103,7 +103,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -120,7 +120,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "false"
+          "value": false
         }
       ]
     },
@@ -136,7 +136,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     }

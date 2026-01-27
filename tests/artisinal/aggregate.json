@@ -29,42 +29,42 @@
     "Returns the sum of all elements in the input collection (in the same type).",
     "Input types: Integer, Long, Decimal, or Quantity.",
     "ALL elements must be the SAME type, otherwise an EXCEPTION is thrown.",
-    "Empty input → empty result.",
+    "Empty input \u2192 empty result.",
     "Result type matches input type exactly.",
     "Spec examples:",
-    "  (1.0 | 2.0 | 3.0 | 4.0 | 5.0).sum() → 15.0",
-    "  (1.0 'mg' | 2.0 'mg' | 3.0 'mg' | 4.0 'mg' | 5.0 'mg').sum() → 15.0 'mg'",
+    "  (1.0 | 2.0 | 3.0 | 4.0 | 5.0).sum() \u2192 15.0",
+    "  (1.0 'mg' | 2.0 'mg' | 3.0 'mg' | 4.0 'mg' | 5.0 'mg').sum() \u2192 15.0 'mg'",
     "",
     "=== min() : Integer | Long | Decimal | Quantity | Date | DateTime | Time | String ===",
     "Returns the minimum element in the input collection.",
     "Uses comparison semantics defined by Comparison Operators for the type.",
     "ALL elements must be the SAME type, otherwise an EXCEPTION is thrown.",
-    "Empty input → empty result.",
+    "Empty input \u2192 empty result.",
     "Spec examples:",
-    "  (2, 4, 8, 6).min() → 2",
-    "  (2L, 4L, 8L, 6L).min() → 2L",
-    "  (@2012-12-31, @2013-01-01, @2012-01-01).min() → @2012-01-01",
+    "  (2, 4, 8, 6).min() \u2192 2",
+    "  (2L, 4L, 8L, 6L).min() \u2192 2L",
+    "  (@2012-12-31, @2013-01-01, @2012-01-01).min() \u2192 @2012-01-01",
     "",
     "=== max() : Integer | Long | Decimal | Quantity | Date | DateTime | Time | String ===",
     "Returns the maximum element in the input collection.",
     "Uses comparison semantics defined by Comparison Operators for the type.",
     "ALL elements must be the SAME type, otherwise an EXCEPTION is thrown.",
-    "Empty input → empty result.",
+    "Empty input \u2192 empty result.",
     "Spec examples:",
-    "  (2, 4, 8, 6).max() → 8",
-    "  (2L, 4L, 8L, 6L).max() → 8L",
-    "  (@2012-12-31, @2013-01-01, @2012-01-01).max() → @2013-01-01",
+    "  (2, 4, 8, 6).max() \u2192 8",
+    "  (2L, 4L, 8L, 6L).max() \u2192 8L",
+    "  (@2012-12-31, @2013-01-01, @2012-01-01).max() \u2192 @2013-01-01",
     "",
     "=== avg() : Decimal | Quantity ===",
     "Returns the average of all elements in the input collection.",
     "Input types: Decimal or Quantity.",
     "Integer/Long inputs are IMPLICITLY CONVERTED to Decimal before evaluation.",
     "ALL elements must be the SAME type, otherwise an EXCEPTION is thrown.",
-    "Empty input → empty result.",
+    "Empty input \u2192 empty result.",
     "Result is always Decimal (or Quantity with Decimal value).",
     "Spec examples:",
-    "  (5.5 | 4.7 | 4.8).avg() → 5.0",
-    "  (5.5 'cm' | 4.7 'cm' | 4.8 'cm').avg() → 5.0 'cm'",
+    "  (5.5 | 4.7 | 4.8).avg() \u2192 5.0",
+    "  (5.5 'cm' | 4.7 'cm' | 4.8 'cm').avg() \u2192 5.0 'cm'",
     "",
     "=== Type homogeneity requirement (CRITICAL) ===",
     "For sum/min/max/avg: ALL elements MUST be the SAME type.",
@@ -108,7 +108,7 @@
     "   evaluation returned. This is unlike sum/min/max/avg which require homogeneous types.",
     "",
     "Q: For avg with Quantity, is result unit preserved exactly?",
-    "A: Yes. Per spec example: (5.5 'cm' | 4.7 'cm' | 4.8 'cm').avg() → 5.0 'cm'",
+    "A: Yes. Per spec example: (5.5 'cm' | 4.7 'cm' | 4.8 'cm').avg() \u2192 5.0 'cm'",
     "   The unit string is preserved in the result Quantity.",
     "",
     "Q: What happens if aggregate expression returns empty on some iterations?",
@@ -151,7 +151,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -162,7 +162,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -173,7 +173,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },
@@ -184,7 +184,7 @@
       "expect": [
         {
           "type": "boolean",
-          "value": "true"
+          "value": true
         }
       ]
     },

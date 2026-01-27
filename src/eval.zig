@@ -995,6 +995,37 @@ fn evalFunction(
         }
         return out;
     }
+    if (std.mem.eql(u8, call.name, "aggregate")) {
+        if (call.args.len < 1 or call.args.len > 2) return error.InvalidFunction;
+
+        var total = if (call.args.len == 2)
+            try evalExpressionCtx(ctx, call.args[1], ctx.root_item, env, null)
+        else
+            ItemList.empty;
+
+        if (input.len == 0) return total;
+
+        var agg_env = Env.init(ctx.allocator);
+        defer agg_env.deinit();
+
+        if (env) |e| {
+            var it = e.map.iterator();
+            while (it.next()) |entry| {
+                try agg_env.map.put(entry.key_ptr.*, entry.value_ptr.*);
+            }
+        }
+
+        errdefer total.deinit(ctx.allocator);
+
+        for (input, 0..) |it, idx| {
+            try agg_env.map.put("$total", total.items);
+            const next_total = try evalExpressionCtx(ctx, call.args[0], it, &agg_env, idx);
+            total.deinit(ctx.allocator);
+            total = next_total;
+        }
+
+        return total;
+    }
     if (std.mem.eql(u8, call.name, "single")) {
         var out = ItemList.empty;
         if (input.len == 1) {

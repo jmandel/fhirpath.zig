@@ -88,12 +88,12 @@
     "Without UCUM support, units must match exactly or result is empty."
   ],
   "_todo": [
-    "[ ] Improve passing rate (0/68 passing)",
+    "[ ] Improve passing rate (17/74 passing)",
     "[ ] Parser: Support union operator | in parenthesized expressions (blocks 61 tests)",
     "[ ] Parser: Support $this, $index, $total special variables",
     "[ ] Parser: Support date/time literals (@2012-01-01, @T10:30:00)",
     "[ ] Parser: Support Quantity literals (1.0 'mg')",
-    "[ ] Implement aggregate() function with iteration variables",
+    "[x] Implement aggregate() function with iteration variables",
     "[ ] Implement sum() function",
     "[ ] Implement min() function",
     "[ ] Implement max() function",

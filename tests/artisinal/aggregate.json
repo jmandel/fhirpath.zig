@@ -1,0 +1,504 @@
+{
+  "_spec_summary": [
+    "AGGREGATE FUNCTIONS - General-purpose aggregation and built-in aggregate operations.",
+    "All aggregate functions are STU (Standard for Trial Use).",
+    "",
+    "=== aggregate(aggregator : expression [, init : value]) : value ===",
+    "Performs general-purpose aggregation by iterating over the input collection.",
+    "Within the aggregator expression, these variables are available:",
+    "  - $this: the current element being processed",
+    "  - $index: the 0-based index of current element",
+    "  - $total: the running aggregation value",
+    "$total is initialized to 'init' if provided, otherwise empty ({}).",
+    "After each iteration, $total is set to the result of evaluating the aggregator.",
+    "The final result is the value of $total after all elements are processed.",
+    "",
+    "Empty input collection: returns the init value (or empty if no init).",
+    "",
+    "Common patterns:",
+    "  sum:     value.aggregate($this + $total, 0)",
+    "  min:     value.aggregate(iif($total.empty(), $this, iif($this < $total, $this, $total)))",
+    "  max:     value.aggregate(iif($total.empty(), $this, iif($this > $total, $this, $total)))",
+    "  average: value.aggregate($total + $this, 0) / value.count()",
+    "",
+    "=== sum() : Integer | Long | Decimal | Quantity ===",
+    "Returns the sum of all elements in the input collection.",
+    "Input types: Integer, Long, Decimal, or Quantity.",
+    "ALL elements must be the same type, otherwise an error is thrown.",
+    "Empty input → empty result.",
+    "Result type matches input type.",
+    "Examples:",
+    "  (1.0 | 2.0 | 3.0).sum() → 6.0",
+    "  (1.0 'mg' | 2.0 'mg' | 3.0 'mg').sum() → 6.0 'mg'",
+    "",
+    "=== min() : Integer | Long | Decimal | Quantity | Date | DateTime | Time | String ===",
+    "Returns the minimum element in the input collection.",
+    "Uses comparison semantics defined by Comparison Operators for the type.",
+    "Input types: Integer, Long, Decimal, Quantity, Date, DateTime, Time, String.",
+    "ALL elements must be the same type, otherwise an error is thrown.",
+    "Empty input → empty result.",
+    "Examples:",
+    "  (2, 4, 8, 6).min() → 2",
+    "  (@2012-12-31, @2013-01-01, @2012-01-01).min() → @2012-01-01",
+    "",
+    "=== max() : Integer | Long | Decimal | Quantity | Date | DateTime | Time | String ===",
+    "Returns the maximum element in the input collection.",
+    "Uses comparison semantics defined by Comparison Operators for the type.",
+    "Input types: Integer, Long, Decimal, Quantity, Date, DateTime, Time, String.",
+    "ALL elements must be the same type, otherwise an error is thrown.",
+    "Empty input → empty result.",
+    "Examples:",
+    "  (2, 4, 8, 6).max() → 8",
+    "  (@2012-12-31, @2013-01-01, @2012-01-01).max() → @2013-01-01",
+    "",
+    "=== avg() : Decimal | Quantity ===",
+    "Returns the average of all elements in the input collection.",
+    "Input types: Decimal or Quantity (Integer/Long are implicitly converted to Decimal).",
+    "ALL elements must be the same type, otherwise an error is thrown.",
+    "Empty input → empty result.",
+    "Examples:",
+    "  (5.5 | 4.7 | 4.8).avg() → 5.0",
+    "  (5.5 'cm' | 4.7 'cm' | 4.8 'cm').avg() → 5.0 'cm'",
+    "",
+    "=== Type homogeneity requirement ===",
+    "For sum/min/max/avg: all elements MUST be the same type.",
+    "Mixing Integer with Decimal, or different Quantity units, throws an error.",
+    "This is stricter than aggregate(), which has no such restriction.",
+    "",
+    "=== Edge cases ===",
+    "Single element: returns that element (for sum/min/max), that element as Decimal (for avg)",
+    "Empty collection: returns empty for all functions",
+    "Quantity units: must all be the same unit string (no UCUM conversion)"
+  ],
+  "_todo": [
+    "[ ] Improve passing rate (0/65 passing)",
+    "[ ] Parser: Support union operator | in parenthesized expressions (blocks 59 tests)",
+    "[ ] Implement aggregate() function with $this, $index, $total variables",
+    "[ ] Implement sum() function",
+    "[ ] Implement min() function",
+    "[ ] Implement max() function",
+    "[ ] Implement avg() function",
+    "[ ] Verify $index behavior in aggregate",
+    "[ ] Test aggregate with complex aggregator expressions",
+    "[ ] Add tests for Long type once supported",
+    "[ ] Verify Quantity unit handling for sum/avg"
+  ],
+  "_open_questions": [
+    "Does aggregate preserve type or can it change types during iteration?",
+    "For avg with Quantity, is result unit preserved exactly?",
+    "What happens if aggregate expression returns empty on some iterations?"
+  ],
+  "meta": {
+    "status": "drafted"
+  },
+  "cases": [
+    {
+      "_comment": "=== aggregate() basic tests ==="
+    },
+    {
+      "name": "aggregate: sum pattern with init=0",
+      "expr": "(1 | 2 | 3 | 4 | 5).aggregate($this + $total, 0)",
+      "input": {},
+      "expect": [15]
+    },
+    {
+      "name": "aggregate: sum with non-zero init",
+      "expr": "(1 | 2 | 3).aggregate($this + $total, 10)",
+      "input": {},
+      "expect": [16]
+    },
+    {
+      "name": "aggregate: sum 1-9 equals 45 (official test)",
+      "expr": "(1|2|3|4|5|6|7|8|9).aggregate($this + $total, 0) = 45",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "aggregate: sum 1-9 with init=2 equals 47 (official test)",
+      "expr": "(1|2|3|4|5|6|7|8|9).aggregate($this + $total, 2) = 47",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "aggregate: min pattern (official test)",
+      "expr": "(1|2|3|4|5|6|7|8|9).aggregate(iif($total.empty(), $this, iif($this < $total, $this, $total))) = 1",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "aggregate: max pattern (official test)",
+      "expr": "(1|2|3|4|5|6|7|8|9).aggregate(iif($total.empty(), $this, iif($this > $total, $this, $total))) = 9",
+      "input": {},
+      "expect": [true]
+    },
+    {
+      "name": "aggregate: empty input with init returns init",
+      "expr": "{}.aggregate($this + $total, 42)",
+      "input": {},
+      "expect": [42]
+    },
+    {
+      "name": "aggregate: empty input without init returns empty",
+      "expr": "{}.aggregate($this + $total)",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "aggregate: single element with init",
+      "expr": "(5).aggregate($this + $total, 0)",
+      "input": {},
+      "expect": [5]
+    },
+    {
+      "name": "aggregate: single element without init",
+      "expr": "(5).aggregate(iif($total.empty(), $this, $this + $total))",
+      "input": {},
+      "expect": [5]
+    },
+    {
+      "name": "aggregate: product pattern",
+      "expr": "(1 | 2 | 3 | 4).aggregate($this * $total, 1)",
+      "input": {},
+      "expect": [24]
+    },
+    {
+      "name": "aggregate: string concatenation",
+      "expr": "('a' | 'b' | 'c').aggregate($total & $this, '')",
+      "input": {},
+      "expect": ["abc"]
+    },
+    {
+      "name": "aggregate: counting pattern",
+      "expr": "('x' | 'y' | 'z').aggregate($total + 1, 0)",
+      "input": {},
+      "expect": [3]
+    },
+    {
+      "name": "aggregate: with decimals",
+      "expr": "(1.5 | 2.5 | 3.0).aggregate($this + $total, 0.0)",
+      "input": {},
+      "expect": [7.0]
+    },
+    {
+      "_comment": "=== sum() tests ==="
+    },
+    {
+      "name": "sum: integers",
+      "expr": "(1 | 2 | 3 | 4 | 5).sum()",
+      "input": {},
+      "expect": [15]
+    },
+    {
+      "name": "sum: decimals",
+      "expr": "(1.0 | 2.0 | 3.0 | 4.0 | 5.0).sum()",
+      "input": {},
+      "expect": [15.0]
+    },
+    {
+      "name": "sum: single integer",
+      "expr": "(42).sum()",
+      "input": {},
+      "expect": [42]
+    },
+    {
+      "name": "sum: single decimal",
+      "expr": "(3.14).sum()",
+      "input": {},
+      "expect": [3.14]
+    },
+    {
+      "name": "sum: empty returns empty",
+      "expr": "{}.sum()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "sum: negative integers",
+      "expr": "(-1 | -2 | -3).sum()",
+      "input": {},
+      "expect": [-6]
+    },
+    {
+      "name": "sum: mixed positive and negative",
+      "expr": "(-5 | 10 | -3 | 8).sum()",
+      "input": {},
+      "expect": [10]
+    },
+    {
+      "name": "sum: quantities with same unit",
+      "expr": "(1.0 'mg' | 2.0 'mg' | 3.0 'mg').sum()",
+      "input": {},
+      "expect": [{"value": 6.0, "unit": "mg"}]
+    },
+    {
+      "name": "sum: decimal precision preserved",
+      "expr": "(0.1 | 0.2).sum()",
+      "input": {},
+      "expect": [0.3]
+    },
+    {
+      "name": "sum: from field values",
+      "expr": "items.value.sum()",
+      "input": {"items": [{"value": 10}, {"value": 20}, {"value": 30}]},
+      "expect": [60]
+    },
+    {
+      "_comment": "=== min() tests ==="
+    },
+    {
+      "name": "min: integers",
+      "expr": "(2 | 4 | 8 | 6).min()",
+      "input": {},
+      "expect": [2]
+    },
+    {
+      "name": "min: decimals",
+      "expr": "(2.5 | 1.5 | 3.5).min()",
+      "input": {},
+      "expect": [1.5]
+    },
+    {
+      "name": "min: single element",
+      "expr": "(42).min()",
+      "input": {},
+      "expect": [42]
+    },
+    {
+      "name": "min: empty returns empty",
+      "expr": "{}.min()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "min: strings (lexicographic)",
+      "expr": "('banana' | 'apple' | 'cherry').min()",
+      "input": {},
+      "expect": ["apple"]
+    },
+    {
+      "name": "min: dates",
+      "expr": "(@2012-12-31 | @2013-01-01 | @2012-01-01).min()",
+      "input": {},
+      "expect": ["2012-01-01"]
+    },
+    {
+      "name": "min: dateTimes",
+      "expr": "(@2020-06-15T10:00:00 | @2020-06-15T08:00:00 | @2020-06-15T12:00:00).min()",
+      "input": {},
+      "expect": ["2020-06-15T08:00:00"]
+    },
+    {
+      "name": "min: times",
+      "expr": "(@T14:30:00 | @T09:00:00 | @T18:45:00).min()",
+      "input": {},
+      "expect": ["09:00:00"]
+    },
+    {
+      "name": "min: negative integers",
+      "expr": "(-5 | -2 | -8 | -1).min()",
+      "input": {},
+      "expect": [-8]
+    },
+    {
+      "name": "min: quantities",
+      "expr": "(3.0 'kg' | 1.5 'kg' | 2.0 'kg').min()",
+      "input": {},
+      "expect": [{"value": 1.5, "unit": "kg"}]
+    },
+    {
+      "name": "min: from field values",
+      "expr": "items.value.min()",
+      "input": {"items": [{"value": 30}, {"value": 10}, {"value": 20}]},
+      "expect": [10]
+    },
+    {
+      "_comment": "=== max() tests ==="
+    },
+    {
+      "name": "max: integers",
+      "expr": "(2 | 4 | 8 | 6).max()",
+      "input": {},
+      "expect": [8]
+    },
+    {
+      "name": "max: decimals",
+      "expr": "(2.5 | 1.5 | 3.5).max()",
+      "input": {},
+      "expect": [3.5]
+    },
+    {
+      "name": "max: single element",
+      "expr": "(42).max()",
+      "input": {},
+      "expect": [42]
+    },
+    {
+      "name": "max: empty returns empty",
+      "expr": "{}.max()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "max: strings (lexicographic)",
+      "expr": "('banana' | 'apple' | 'cherry').max()",
+      "input": {},
+      "expect": ["cherry"]
+    },
+    {
+      "name": "max: dates",
+      "expr": "(@2012-12-31 | @2013-01-01 | @2012-01-01).max()",
+      "input": {},
+      "expect": ["2013-01-01"]
+    },
+    {
+      "name": "max: dateTimes",
+      "expr": "(@2020-06-15T10:00:00 | @2020-06-15T08:00:00 | @2020-06-15T12:00:00).max()",
+      "input": {},
+      "expect": ["2020-06-15T12:00:00"]
+    },
+    {
+      "name": "max: times",
+      "expr": "(@T14:30:00 | @T09:00:00 | @T18:45:00).max()",
+      "input": {},
+      "expect": ["18:45:00"]
+    },
+    {
+      "name": "max: negative integers",
+      "expr": "(-5 | -2 | -8 | -1).max()",
+      "input": {},
+      "expect": [-1]
+    },
+    {
+      "name": "max: quantities",
+      "expr": "(3.0 'kg' | 1.5 'kg' | 2.0 'kg').max()",
+      "input": {},
+      "expect": [{"value": 3.0, "unit": "kg"}]
+    },
+    {
+      "name": "max: from field values",
+      "expr": "items.value.max()",
+      "input": {"items": [{"value": 30}, {"value": 10}, {"value": 20}]},
+      "expect": [30]
+    },
+    {
+      "_comment": "=== avg() tests ==="
+    },
+    {
+      "name": "avg: decimals",
+      "expr": "(5.5 | 4.7 | 4.8).avg()",
+      "input": {},
+      "expect": [5.0]
+    },
+    {
+      "name": "avg: integers (converted to decimal)",
+      "expr": "(2 | 4 | 6).avg()",
+      "input": {},
+      "expect": [4.0]
+    },
+    {
+      "name": "avg: single element",
+      "expr": "(10.0).avg()",
+      "input": {},
+      "expect": [10.0]
+    },
+    {
+      "name": "avg: empty returns empty",
+      "expr": "{}.avg()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "avg: quantities",
+      "expr": "(5.5 'cm' | 4.7 'cm' | 4.8 'cm').avg()",
+      "input": {},
+      "expect": [{"value": 5.0, "unit": "cm"}]
+    },
+    {
+      "name": "avg: result can have decimal places",
+      "expr": "(1 | 2).avg()",
+      "input": {},
+      "expect": [1.5]
+    },
+    {
+      "name": "avg: three values averaging to non-terminating decimal",
+      "expr": "(1 | 1 | 1).avg()",
+      "input": {},
+      "expect": [1.0]
+    },
+    {
+      "name": "avg: from field values (integers)",
+      "expr": "items.value.avg()",
+      "input": {"items": [{"value": 10}, {"value": 20}, {"value": 30}]},
+      "expect": [20.0]
+    },
+    {
+      "_comment": "=== Edge cases and error conditions ==="
+    },
+    {
+      "name": "sum: two elements",
+      "expr": "(100 | 200).sum()",
+      "input": {},
+      "expect": [300]
+    },
+    {
+      "name": "min: two equal elements",
+      "expr": "(5 | 5).min()",
+      "input": {},
+      "expect": [5]
+    },
+    {
+      "name": "max: two equal elements",
+      "expr": "(5 | 5).max()",
+      "input": {},
+      "expect": [5]
+    },
+    {
+      "name": "min: all same values",
+      "expr": "(3 | 3 | 3 | 3).min()",
+      "input": {},
+      "expect": [3]
+    },
+    {
+      "name": "max: all same values",
+      "expr": "(3 | 3 | 3 | 3).max()",
+      "input": {},
+      "expect": [3]
+    },
+    {
+      "name": "sum: zero in collection",
+      "expr": "(0 | 5 | 0 | 10).sum()",
+      "input": {},
+      "expect": [15]
+    },
+    {
+      "name": "avg: identical values",
+      "expr": "(7.0 | 7.0 | 7.0).avg()",
+      "input": {},
+      "expect": [7.0]
+    },
+    {
+      "name": "min: first element is minimum",
+      "expr": "(1 | 5 | 3 | 9).min()",
+      "input": {},
+      "expect": [1]
+    },
+    {
+      "name": "min: last element is minimum",
+      "expr": "(5 | 3 | 9 | 1).min()",
+      "input": {},
+      "expect": [1]
+    },
+    {
+      "name": "max: first element is maximum",
+      "expr": "(9 | 5 | 3 | 1).max()",
+      "input": {},
+      "expect": [9]
+    },
+    {
+      "name": "max: last element is maximum",
+      "expr": "(1 | 3 | 5 | 9).max()",
+      "input": {},
+      "expect": [9]
+    }
+  ]
+}

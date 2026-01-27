@@ -392,6 +392,64 @@ fn evalFunction(
         try out.append(ctx.allocator, makeStringItem(ctx, str[start_usize .. start_usize + result_len]));
         return out;
     }
+    // Math functions
+    if (std.mem.eql(u8, call.name, "abs")) {
+        if (input.len == 0) return ItemList.empty;
+        if (input.len > 1) return error.SingletonRequired;
+        return evalAbs(ctx, input[0]);
+    }
+    if (std.mem.eql(u8, call.name, "ceiling")) {
+        if (input.len == 0) return ItemList.empty;
+        if (input.len > 1) return error.SingletonRequired;
+        return evalCeiling(ctx, input[0]);
+    }
+    if (std.mem.eql(u8, call.name, "floor")) {
+        if (input.len == 0) return ItemList.empty;
+        if (input.len > 1) return error.SingletonRequired;
+        return evalFloor(ctx, input[0]);
+    }
+    if (std.mem.eql(u8, call.name, "truncate")) {
+        if (input.len == 0) return ItemList.empty;
+        if (input.len > 1) return error.SingletonRequired;
+        return evalTruncate(ctx, input[0]);
+    }
+    if (std.mem.eql(u8, call.name, "round")) {
+        if (input.len == 0) return ItemList.empty;
+        if (input.len > 1) return error.SingletonRequired;
+        const precision: i64 = if (call.args.len > 0) (try parseIntegerArg(call)) else 0;
+        return evalRound(ctx, input[0], precision);
+    }
+    if (std.mem.eql(u8, call.name, "exp")) {
+        if (input.len == 0) return ItemList.empty;
+        if (input.len > 1) return error.SingletonRequired;
+        return evalExp(ctx, input[0]);
+    }
+    if (std.mem.eql(u8, call.name, "ln")) {
+        if (input.len == 0) return ItemList.empty;
+        if (input.len > 1) return error.SingletonRequired;
+        return evalLn(ctx, input[0]);
+    }
+    if (std.mem.eql(u8, call.name, "log")) {
+        if (call.args.len != 1) return error.InvalidFunction;
+        if (input.len == 0) return ItemList.empty;
+        if (input.len > 1) return error.SingletonRequired;
+        const base_opt = try evalDecimalArg(ctx, call.args[0], env);
+        if (base_opt == null) return ItemList.empty; // empty base yields empty
+        return evalLog(ctx, input[0], base_opt.?);
+    }
+    if (std.mem.eql(u8, call.name, "sqrt")) {
+        if (input.len == 0) return ItemList.empty;
+        if (input.len > 1) return error.SingletonRequired;
+        return evalSqrt(ctx, input[0]);
+    }
+    if (std.mem.eql(u8, call.name, "power")) {
+        if (call.args.len != 1) return error.InvalidFunction;
+        if (input.len == 0) return ItemList.empty;
+        if (input.len > 1) return error.SingletonRequired;
+        const exp_opt = try evalDecimalArg(ctx, call.args[0], env);
+        if (exp_opt == null) return ItemList.empty; // empty exponent yields empty
+        return evalPower(ctx, input[0], exp_opt.?);
+    }
     return error.InvalidFunction;
 }
 
@@ -446,6 +504,22 @@ fn integerLiteral(expr: ast.Expr) ?i64 {
         },
         else => null,
     };
+}
+
+fn evalDecimalArg(ctx: *EvalContext, expr: ast.Expr, env: ?*Env) EvalError!?f64 {
+    // For number literal, return directly
+    switch (expr) {
+        .Literal => |lit| switch (lit) {
+            .Number => |text| return std.fmt.parseFloat(f64, text) catch null,
+            else => {},
+        },
+        else => {},
+    }
+    // Evaluate the expression and get numeric value
+    var result = try evalExpressionCtx(ctx, expr, makeEmptyItem(ctx), env, null);
+    defer result.deinit(ctx.allocator);
+    if (result.items.len == 0) return null;
+    return itemToFloat(ctx, result.items[0]);
 }
 
 fn sliceItems(ctx: *EvalContext, values: []const item.Item) EvalError!ItemList {
@@ -800,4 +874,212 @@ fn isDate(s: []const u8) bool {
 
 fn isTime(s: []const u8) bool {
     return std.mem.indexOfScalar(u8, s, ':') != null and std.mem.indexOfScalar(u8, s, 'T') == null;
+}
+
+// ============================================================================
+// Math function implementations
+// ============================================================================
+
+fn itemToFloat(ctx: *EvalContext, it: item.Item) ?f64 {
+    const val = itemToValue(ctx, it);
+    return switch (val) {
+        .integer => |i| @floatFromInt(i),
+        .decimal => |s| std.fmt.parseFloat(f64, s) catch null,
+        else => null,
+    };
+}
+
+fn itemIsInteger(ctx: *EvalContext, it: item.Item) bool {
+    const val = itemToValue(ctx, it);
+    return val == .integer;
+}
+
+fn itemIntegerValue(ctx: *EvalContext, it: item.Item) ?i64 {
+    const val = itemToValue(ctx, it);
+    return switch (val) {
+        .integer => |i| i,
+        else => null,
+    };
+}
+
+fn makeDecimalItem(ctx: *EvalContext, v: f64) EvalError!item.Item {
+    // Format decimal value to string
+    var buf: [64]u8 = undefined;
+    const str = formatDecimal(&buf, v);
+    const owned = try ctx.allocator.dupe(u8, str);
+    const type_id = ctx.types.getOrAdd("System.Decimal") catch 0;
+    return .{
+        .data_kind = .value,
+        .value_kind = .decimal,
+        .type_id = type_id,
+        .source_pos = 0,
+        .source_end = 0,
+        .data_pos = 0,
+        .data_end = 0,
+        .node = null,
+        .value = .{ .decimal = owned },
+    };
+}
+
+fn formatDecimal(buf: []u8, v: f64) []const u8 {
+    // Check if value is a whole number
+    const int_val: i64 = @intFromFloat(v);
+    const diff = v - @as(f64, @floatFromInt(int_val));
+    if (@abs(diff) < 1e-10) {
+        // Format as integer with .0 suffix for decimal type
+        return std.fmt.bufPrint(buf, "{d}.0", .{int_val}) catch "0.0";
+    }
+    // General decimal formatting
+    return std.fmt.bufPrint(buf, "{d}", .{v}) catch "0.0";
+}
+
+fn evalAbs(ctx: *EvalContext, it: item.Item) EvalError!ItemList {
+    var out = ItemList.empty;
+    const val = itemToValue(ctx, it);
+    switch (val) {
+        .integer => |i| {
+            const abs_val = if (i < 0) -i else i;
+            try out.append(ctx.allocator, makeIntegerItem(ctx, abs_val));
+        },
+        .decimal => |s| {
+            const f = std.fmt.parseFloat(f64, s) catch return out;
+            const abs_val = @abs(f);
+            try out.append(ctx.allocator, try makeDecimalItem(ctx, abs_val));
+        },
+        else => {}, // return empty for non-numeric types
+    }
+    return out;
+}
+
+fn evalCeiling(ctx: *EvalContext, it: item.Item) EvalError!ItemList {
+    var out = ItemList.empty;
+    const val = itemToValue(ctx, it);
+    switch (val) {
+        .integer => |i| {
+            // Integer unchanged
+            try out.append(ctx.allocator, makeIntegerItem(ctx, i));
+        },
+        .decimal => |s| {
+            const f = std.fmt.parseFloat(f64, s) catch return out;
+            const ceil_val: i64 = @intFromFloat(@ceil(f));
+            try out.append(ctx.allocator, makeIntegerItem(ctx, ceil_val));
+        },
+        else => {}, // return empty for non-numeric types
+    }
+    return out;
+}
+
+fn evalFloor(ctx: *EvalContext, it: item.Item) EvalError!ItemList {
+    var out = ItemList.empty;
+    const val = itemToValue(ctx, it);
+    switch (val) {
+        .integer => |i| {
+            // Integer unchanged
+            try out.append(ctx.allocator, makeIntegerItem(ctx, i));
+        },
+        .decimal => |s| {
+            const f = std.fmt.parseFloat(f64, s) catch return out;
+            const floor_val: i64 = @intFromFloat(@floor(f));
+            try out.append(ctx.allocator, makeIntegerItem(ctx, floor_val));
+        },
+        else => {}, // return empty for non-numeric types
+    }
+    return out;
+}
+
+fn evalTruncate(ctx: *EvalContext, it: item.Item) EvalError!ItemList {
+    var out = ItemList.empty;
+    const val = itemToValue(ctx, it);
+    switch (val) {
+        .integer => |i| {
+            // Integer unchanged
+            try out.append(ctx.allocator, makeIntegerItem(ctx, i));
+        },
+        .decimal => |s| {
+            const f = std.fmt.parseFloat(f64, s) catch return out;
+            const trunc_val: i64 = @intFromFloat(@trunc(f));
+            try out.append(ctx.allocator, makeIntegerItem(ctx, trunc_val));
+        },
+        else => {}, // return empty for non-numeric types
+    }
+    return out;
+}
+
+fn evalRound(ctx: *EvalContext, it: item.Item, precision: i64) EvalError!ItemList {
+    var out = ItemList.empty;
+    if (precision < 0) return error.InvalidFunction; // negative precision is an error
+
+    const val = itemToValue(ctx, it);
+    const f: f64 = switch (val) {
+        .integer => |i| @floatFromInt(i),
+        .decimal => |s| std.fmt.parseFloat(f64, s) catch return out,
+        else => return out, // return empty for non-numeric types
+    };
+
+    // Round to specified precision
+    const scale = std.math.pow(f64, 10.0, @floatFromInt(precision));
+    const rounded = @round(f * scale) / scale;
+
+    if (precision == 0) {
+        // Return integer when precision is 0
+        const int_val: i64 = @intFromFloat(rounded);
+        try out.append(ctx.allocator, makeIntegerItem(ctx, int_val));
+    } else {
+        try out.append(ctx.allocator, try makeDecimalItem(ctx, rounded));
+    }
+    return out;
+}
+
+fn evalExp(ctx: *EvalContext, it: item.Item) EvalError!ItemList {
+    var out = ItemList.empty;
+    const f = itemToFloat(ctx, it) orelse return out;
+    const result = @exp(f);
+    try out.append(ctx.allocator, try makeDecimalItem(ctx, result));
+    return out;
+}
+
+fn evalLn(ctx: *EvalContext, it: item.Item) EvalError!ItemList {
+    var out = ItemList.empty;
+    const f = itemToFloat(ctx, it) orelse return out;
+    if (f <= 0) return out; // domain error returns empty
+    const result = @log(f);
+    try out.append(ctx.allocator, try makeDecimalItem(ctx, result));
+    return out;
+}
+
+fn evalLog(ctx: *EvalContext, it: item.Item, base: f64) EvalError!ItemList {
+    var out = ItemList.empty;
+    const f = itemToFloat(ctx, it) orelse return out;
+    if (f <= 0 or base <= 0 or base == 1) return out; // domain errors return empty
+    const result = @log(f) / @log(base);
+    try out.append(ctx.allocator, try makeDecimalItem(ctx, result));
+    return out;
+}
+
+fn evalSqrt(ctx: *EvalContext, it: item.Item) EvalError!ItemList {
+    var out = ItemList.empty;
+    const f = itemToFloat(ctx, it) orelse return out;
+    if (f < 0) return out; // domain error returns empty
+    const result = @sqrt(f);
+    try out.append(ctx.allocator, try makeDecimalItem(ctx, result));
+    return out;
+}
+
+fn evalPower(ctx: *EvalContext, it: item.Item, exponent: f64) EvalError!ItemList {
+    var out = ItemList.empty;
+    const base = itemToFloat(ctx, it) orelse return out;
+    // Check for domain errors (negative base with fractional exponent)
+    if (base < 0 and @mod(exponent, 1.0) != 0) return out; // returns empty
+    const result = std.math.pow(f64, base, exponent);
+    // Check if result is valid (not NaN or infinite)
+    if (std.math.isNan(result) or std.math.isInf(result)) return out;
+    
+    // If base was integer and exponent is non-negative integer, return integer
+    if (itemIsInteger(ctx, it) and exponent >= 0 and @mod(exponent, 1.0) == 0) {
+        const int_result: i64 = @intFromFloat(result);
+        try out.append(ctx.allocator, makeIntegerItem(ctx, int_result));
+    } else {
+        try out.append(ctx.allocator, try makeDecimalItem(ctx, result));
+    }
+    return out;
 }

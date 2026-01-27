@@ -5,6 +5,7 @@ const ast = @import("ast.zig");
 const jsondoc = @import("jsondoc.zig");
 const item = @import("item.zig");
 const convert = @import("convert.zig");
+const schema = @import("schema.zig");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -14,15 +15,35 @@ pub fn main() !void {
     const args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, args);
 
-    if (args.len < 2 or std.mem.eql(u8, args[1], "--help") or std.mem.eql(u8, args[1], "-h")) {
+    var typed_output = false;
+    var model_path: ?[]const u8 = null;
+    var expr_str: ?[]const u8 = null;
+    var json_str: []const u8 = "{}";
+
+    var i: usize = 1;
+    while (i < args.len) : (i += 1) {
+        const arg = args[i];
+        if (std.mem.eql(u8, arg, "--help") or std.mem.eql(u8, arg, "-h")) {
+            printUsage();
+            return;
+        } else if (std.mem.eql(u8, arg, "--typed") or std.mem.eql(u8, arg, "-t")) {
+            typed_output = true;
+        } else if (std.mem.eql(u8, arg, "--model") or std.mem.eql(u8, arg, "-m")) {
+            i += 1;
+            if (i < args.len) model_path = args[i];
+        } else if (expr_str == null) {
+            expr_str = arg;
+        } else {
+            json_str = arg;
+        }
+    }
+
+    if (expr_str == null) {
         printUsage();
         return;
     }
 
-    const expr_str = args[1];
-    const json_str = if (args.len > 2) args[2] else "{}";
-
-    const expr = lib.parseExpression(allocator, expr_str) catch |err| {
+    const expr = lib.parseExpression(allocator, expr_str.?) catch |err| {
         std.debug.print("Expression parse error: {}\n", .{err});
         return;
     };
@@ -37,7 +58,30 @@ pub fn main() !void {
     };
     defer doc.deinit();
 
-    var ctx = eval.EvalContext{ .allocator = allocator, .doc = &doc, .types = &types, .schema = null };
+    // Load schema if specified
+    var schema_obj: ?schema.Schema = null;
+    var model_bytes: ?[]u8 = null;
+    if (model_path) |path| {
+        if (std.fs.cwd().readFileAlloc(allocator, path, 128 * 1024 * 1024)) |bytes| {
+            model_bytes = bytes;
+            if (schema.Schema.init(allocator, "default", "FHIR", bytes)) |s| {
+                schema_obj = s;
+            } else |err| {
+                std.debug.print("Schema init error: {}\n", .{err});
+            }
+        } else |err| {
+            std.debug.print("Model load error: {}\n", .{err});
+        }
+    }
+    defer if (model_bytes) |bytes| allocator.free(bytes);
+    defer if (schema_obj) |*s| s.deinit();
+
+    var ctx = eval.EvalContext{
+        .allocator = allocator,
+        .doc = &doc,
+        .types = &types,
+        .schema = if (schema_obj) |*s| s else null,
+    };
     var result = eval.evalExpression(&ctx, expr, doc.root, null) catch |err| {
         std.debug.print("Eval error: {}\n", .{err});
         return;
@@ -47,8 +91,22 @@ pub fn main() !void {
     var out_arr = std.ArrayList(std.json.Value).empty;
     defer out_arr.deinit(allocator);
     for (result.items) |it| {
-        const val = try convert.itemToJsonValue(allocator, &doc, it);
-        try out_arr.append(allocator, val);
+        if (typed_output) {
+            // Get type name from schema or TypeTable
+            var type_name: []const u8 = "";
+            if (schema.isModelType(it.type_id)) {
+                if (schema_obj) |*s| {
+                    type_name = s.typeName(it.type_id);
+                }
+            } else {
+                type_name = types.name(it.type_id);
+            }
+            const val = try convert.itemToTypedJsonValue(allocator, &doc, it, type_name);
+            try out_arr.append(allocator, val);
+        } else {
+            const val = try convert.itemToJsonValue(allocator, &doc, it);
+            try out_arr.append(allocator, val);
+        }
     }
 
     const output = std.json.Stringify.valueAlloc(
@@ -65,9 +123,13 @@ pub fn main() !void {
 
 fn printUsage() void {
     const usage =
-        \\Usage: fhirpath <expression> [json]
+        \\Usage: fhirpath [options] <expression> [json]
         \\ 
         \\Evaluate a FHIRPath expression against JSON input.
+        \\ 
+        \\Options:
+        \\  -t, --typed       Output {type, value} objects
+        \\  -m, --model PATH  Load FHIR model for type resolution
         \\ 
         \\Arguments:
         \\  expression  FHIRPath expression to evaluate
@@ -75,8 +137,8 @@ fn printUsage() void {
         \\ 
         \\Examples:
         \\  fhirpath 'name.given' '{"name":{"given":["Ann","Bob"]}}'
-        \\  fhirpath 'name.where(use = "official")' '{"name":[{"use":"official","given":["Ann"]}]}'
-        \\  fhirpath 'items.count()' '{"items":[1,2,3]}'
+        \\  fhirpath -t 'true'   # outputs [{"type":"System.Boolean","value":true}]
+        \\  fhirpath -t -m models/r5/model.bin 'identifier' '<patient-json>'
         \\ 
     ;
     std.debug.print("{s}", .{usage});

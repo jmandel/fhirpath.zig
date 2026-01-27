@@ -3,7 +3,7 @@
 This project is spec‑driven. Official tests are treated as pointers to required behavior, not as the full definition.
 
 ## For each session (required)
-1. Read the root MDs: `design.md`, `principles.md`, `tests/artisinal/README.md`, and this file.
+1. Root MDs (`methodology.md`, `design.md`, `principles.md`) are provided at session start.
 2. Run the chooser: `python scripts/choose_mode.py`.
 3. Perform exactly one mode (see “The work loop”).
 4. Run relevant tests for your change:
@@ -118,6 +118,7 @@ grep -r '"skip":' tests/artisinal/   # find skipped tests
 - Implement the smallest correct change to make tests pass
 - Add/adjust tests only if they clarify the spec or correct a wrong assumption
 - Update `_todo` checkboxes and pass rates in affected files
+- **Incremental progress is success**: If you leave something better than you found it, consider the step complete and wrap up. Don't chase perfection—ship the improvement.
 
 ### CONFIRM
 Goal: verify correctness of existing tests.

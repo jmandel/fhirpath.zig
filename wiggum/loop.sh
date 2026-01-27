@@ -67,15 +67,30 @@ recent_logs() {
   fi
 }
 
+root_md_files() {
+  # Include root MD files with filename + contents
+  local files=("$ROOT/methodology.md" "$ROOT/design.md" "$ROOT/principles.md")
+  for f in "${files[@]}"; do
+    if [[ -f "$f" ]]; then
+      local name="${f#$ROOT/}"
+      printf "=== %s ===\n" "$name"
+      cat "$f"
+      printf "\n\n"
+    fi
+  done
+}
+
 build_prompt() {
   local history
   local head
   local tail
+  local mds
+  mds="$(root_md_files)"
   history="$(recent_logs)"
   if [[ -f "$HEAD_FILE" ]]; then
     head="$(cat "$HEAD_FILE")"
   else
-    head=$'Read all mds in repo root and follow the methodology by running choose_mode, then proceed with this step autonomously making progress as long as you can.\n\nBefore the final status line, output exactly one line:\nONE-LINE LOG: <high-signal summary of what changed or learned, <=140 chars>\n\nThen output exactly one of:\nSTEP COMPLETE\nSTEP FAILED\nPROJECT FINISHED\n\nContext:\n- One-line logs accumulate across sessions for future prompts.\n- Full logs are in ./logs and are very verbose; use rg/grep if you need to inspect history.\n\nRECENT ONE-LINE LOGS (most recent last, up to 1000):'
+    head=$'Follow the methodology by running choose_mode, then proceed with this step autonomously making progress as long as you can.\n\nBefore the final status line, output exactly one line:\nONE-LINE LOG: <high-signal summary of what changed or learned, <=140 chars>\n\nThen output exactly one of:\nSTEP COMPLETE\nSTEP FAILED\nPROJECT FINISHED\n\nContext:\n- One-line logs accumulate across sessions for future prompts.\n- Full logs are in ./logs and are very verbose; use rg/grep if you need to inspect history.\n\nRECENT ONE-LINE LOGS (most recent last, up to 1000):'
   fi
 
   if [[ -f "$TAIL_FILE" ]]; then
@@ -84,7 +99,7 @@ build_prompt() {
     tail=""
   fi
 
-  printf "%s\n%s\n%s" "$head" "$history" "$tail"
+  printf "%s\n\n%s\n%s\n%s" "$mds" "$head" "$history" "$tail"
 }
 
 next_log_id() {

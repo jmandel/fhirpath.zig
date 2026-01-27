@@ -175,7 +175,16 @@ PY
 
   if [[ "$STATUS" != "STEP COMPLETE" ]]; then
     echo "$(date -Is) Resetting to $BEFORE (status=$STATUS)" >> "$ERROR_LOG"
+    # Preserve upstream-issues.yaml across resets (tracking upstream bugs is valuable even on failed steps)
+    UPSTREAM_FILE="$ROOT/wiggum/upstream-issues.yaml"
+    UPSTREAM_BACKUP=""
+    if [[ -f "$UPSTREAM_FILE" ]]; then
+      UPSTREAM_BACKUP=$(cat "$UPSTREAM_FILE")
+    fi
     git reset --hard "$BEFORE"
+    if [[ -n "$UPSTREAM_BACKUP" ]]; then
+      echo "$UPSTREAM_BACKUP" > "$UPSTREAM_FILE"
+    fi
   fi
   
   echo "$(date -Is) Step $ID complete, looping" >> "$ERROR_LOG"

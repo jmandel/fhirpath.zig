@@ -1,0 +1,19 @@
+# Upstream Issues (YAML)
+#
+# Track issues to report to FHIRPath specification/reference implementation maintainers.
+# Format is simple YAML for deterministic parsing by scripts.
+# Only single-line values are supported.
+#
+# Allowed status values: draft, ready, reported, acknowledged, fixed, wontfix, duplicate
+# Allowed severity values: low, medium, high, critical
+# Allowed category values: spec-ambiguity, spec-error, test-error, test-missing, clarification
+# Allowed target values: fhirpath-editors, fhir-test-cases, fhir-jira
+#
+# Workflow:
+#   1. Add issue with status=draft while investigating
+#   2. Change to status=ready when ready to file upstream
+#   3. Run `upstream.py report <slug>` to generate report, then update to status=reported
+#   4. Update to acknowledged/fixed/wontfix/duplicate based on upstream response
+
+version: 1
+issues: []

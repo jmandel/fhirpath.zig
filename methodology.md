@@ -192,6 +192,96 @@ blockers:
 
 Use `wiggum/scripts/blockers.py` for all updates; the scripts keep the format deterministic for tooling.
 
+## Upstream issues (spec bugs, test discrepancies)
+
+When we discover issues that should be reported to FHIRPath maintainers, track them using `wiggum/scripts/upstream.py`. This is for issues in **the specification or official tests**, not our artisinal tests.
+
+### When to file an upstream issue
+
+File an upstream issue when you find:
+- **Spec bugs**: Errors, ambiguities, or contradictions in the FHIRPath specification
+- **Spec/test disagreements**: Official tests that contradict the spec language (NOT artisinal vs official)
+- **Test errors**: Incorrect expected values in official test suites
+- **Missing tests**: Important edge cases the official tests don't cover
+- **Clarification requests**: Spec wording that multiple implementations interpret differently
+
+**Do NOT file upstream for**:
+- Differences between our artisinal tests and official tests (our tests might be wrong)
+- Implementation bugs in fhirpath.zig
+- Internal blockers (use `blockers.py` instead)
+
+### Target: fhirpath-editors
+
+Currently we file upstream issues to the FHIRPath editors. The `upstream.py` CLI tracks the target explicitly so we can generalize later if needed (e.g., different targets for spec vs test issues).
+
+Upstream repositories:
+- **FHIRPath spec**: https://github.com/HL7/FHIRPath (file spec issues here)
+- **FHIR test cases**: https://github.com/FHIR/fhir-test-cases (file test issues here)
+- **FHIR JIRA**: https://jira.hl7.org/projects/FHIR (formal HL7 tracker)
+
+### Workflow
+
+1. **Draft**: Add issue with `status=draft` while investigating
+   ```bash
+   python wiggum/scripts/upstream.py add \
+       --title "union() ordering not specified" \
+       --category spec-ambiguity \
+       --description "Spec does not define whether union() preserves order" \
+       --spec_section "5.4.1"
+   ```
+
+2. **Ready**: Mark as ready when investigation is complete
+   ```bash
+   python wiggum/scripts/upstream.py ready union-ordering-not-specified
+   ```
+
+3. **Report**: Generate the issue report for filing
+   ```bash
+   python wiggum/scripts/upstream.py report union-ordering-not-specified
+   ```
+   Copy the output and file at the appropriate upstream repository.
+
+4. **Track**: Update with the upstream issue URL
+   ```bash
+   python wiggum/scripts/upstream.py reported union-ordering-not-specified \
+       --url "https://github.com/HL7/FHIRPath/issues/123"
+   ```
+
+### CLI commands
+
+```bash
+# List pending issues (excludes reported/fixed)
+python wiggum/scripts/upstream.py list
+
+# List all issues including reported
+python wiggum/scripts/upstream.py list --all
+
+# Show issue details
+python wiggum/scripts/upstream.py show <slug>
+
+# Add a spec ambiguity
+python wiggum/scripts/upstream.py add --title "..." --category spec-ambiguity --spec_section "..."
+
+# Add a test error
+python wiggum/scripts/upstream.py add --title "..." --category test-error \
+    --test_file "tests-fhir-r5.xml" --test_name "testFoo" \
+    --expected "true" --actual "false"
+
+# Generate report for filing
+python wiggum/scripts/upstream.py report <slug>
+
+# Mark as reported
+python wiggum/scripts/upstream.py reported <slug> --url "..."
+```
+
+### Issue categories
+
+- `spec-ambiguity`: Spec language is unclear or can be interpreted multiple ways
+- `spec-error`: Spec contains an error or contradiction
+- `test-error`: Official test has wrong expected value
+- `test-missing`: Important case not covered by official tests
+- `clarification`: Request for clarification on intended behavior
+
 ## Why this loop converges
 - Official tests seed coverage.
 - Artisinal tests document the spec in our own words and expand edge‑case coverage.

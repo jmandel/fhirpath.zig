@@ -43,17 +43,15 @@
       }
     ]
   },
-  "reason": [
+  "reasonCode": [
     {
-      "concept": {
-        "coding": [
-          {
-            "system": "http://snomed.info/sct",
-            "code": "413095006"
-          }
-        ],
-        "text": "Clinical Review"
-      }
+      "coding": [
+        {
+          "system": "http://snomed.info/sct",
+          "code": "413095006"
+        }
+      ],
+      "text": "Clinical Review"
     }
   ],
   "description": "Discussion on the results of your recent MRI",
@@ -64,14 +62,14 @@
     }
   ],
   "created": "2015-12-02",
-  "note": [{ "text": "Further expand on the results of the MRI and determine the next actions that may be appropriate." }],
+  "comment": "Further expand on the results of the MRI and determine the next actions that may be appropriate.",
   "participant": [
     {
       "actor": {
         "reference": "Patient/example",
         "display": "Peter James Chalmers"
       },
-      "required": true,
+      "required": "required",
       "status": "needs-action"
     },
     {
@@ -85,7 +83,7 @@
           ]
         }
       ],
-      "required": true,
+      "required": "required",
       "status": "needs-action"
     },
     {
@@ -93,7 +91,7 @@
         "reference": "Location/1",
         "display": "South Wing, second floor"
       },
-      "required": true,
+      "required": "required",
       "status": "accepted"
     }
   ],

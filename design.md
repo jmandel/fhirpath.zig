@@ -17,7 +17,8 @@ This doc is split into two parts:
 - Zero JSON materialization unless the caller requests `node.data`.
 - Zero-copy JSON spans when results point into the input buffer.
 - Custom functions (including `trace`) provided by host as name -> host_id map.
-- Schemas registered by FHIR version string; optional default schema.
+- Schemas registered by (name, prefix); optional default schema.
+- All non-System types are schema-defined at runtime (no hardcoded FHIR enums).
 - Simple, explicit memory boundaries.
 - Env variable names are bare; `%name` in the expression triggers env lookup.
 - Date/Time/DateTime are ISO-8601 strings and preserve original precision.
@@ -82,14 +83,23 @@ This mirrors the current WAT engine behavior: trimming updates `norm_scale` but
 preserves `scale`.
 
 ### Schema registration
-Schemas are keyed by FHIR version string (no separate schema name). A default
-schema may be set at registration time and is used when eval omits a version.
+Schemas are keyed by a **name** (e.g. `"r4"`, `"r5"`, or `"custom"`) and a
+**prefix** (e.g. `"FHIR"`). The prefix is used to construct fully qualified
+type names like `FHIR.Patient` or `FHIR.HumanName`. A default schema may be set
+at registration time and is used when eval omits a schema name.
+
+Type IDs are **schema-local**. The high bit (`0x80000000`) marks a model type
+id; the remaining bits are an index into that schema’s Type table. The same
+numeric type id may refer to different types across schemas, so callers must
+interpret `type_id` in the context of the selected schema for a given eval.
 
 ```zig
 export fn fhirpath_ctx_register_schema(
     ctx: u32,
-    fhir_ver_ptr: u32,
-    fhir_ver_len: u32,
+    schema_name_ptr: u32,
+    schema_name_len: u32,
+    prefix_ptr: u32,
+    prefix_len: u32,
     model_ptr: u32,
     model_len: u32,
     is_default: u32, // 0 or 1
@@ -98,7 +108,7 @@ export fn fhirpath_ctx_register_schema(
 
 Behavior:
 - If `is_default=1`, this schema becomes the default (last one wins).
-- If `fhir_ver_len=0`, return `Status.invalid_options`.
+- If `schema_name_len=0`, return `Status.invalid_options`.
 
 ### Evaluation
 ```zig
@@ -108,15 +118,15 @@ export fn fhirpath_eval(
     expr_len: u32,
     json_ptr: u32,
     json_len: u32,
-    fhir_ver_ptr: u32, // version string
-    fhir_ver_len: u32,
+    schema_name_ptr: u32, // schema name (e.g., "r5")
+    schema_name_len: u32,
     opts_ptr: u32,
     opts_len: u32,
 ) Status;
 ```
 
 Behavior:
-- If `fhir_ver_len=0`, use default schema if set; otherwise return `Status.model_error`.
+- If `schema_name_len=0`, use default schema if set; otherwise return `Status.model_error`.
 - If `opts_len=0`, no env and no custom functions are provided.
 
 ### Result iteration (iterator-only)
@@ -359,9 +369,9 @@ returning a result.
 Minimal public JS API:
 ```js
 const engine = await FhirPathEngine.instantiate(wasm, { functions });
-engine.registerSchema({ fhirVersion: "5.0.0", model, isDefault: true });
+engine.registerSchema({ name: "r5", prefix: "FHIR", model, isDefault: true });
 
-const res = engine.eval({ expr, json, fhirVersion: "5.0.0", env });
+const res = engine.eval({ expr, json, schema: "r5", env });
 for (const node of res) {
   console.log(node.meta.typeName);
   // data is lazy, only decoded if accessed
@@ -549,6 +559,12 @@ Model type ids are computed as:
 ```
 type_id = 0x80000000 | (type_index + 1)
 ```
+
+Type ids **do not** encode schema identity; the schema is selected at eval time.
+This allows multiple schemas (FHIR versions or non-FHIR) to coexist in memory.
+
+No FHIR-specific enums are compiled into the engine. All FHIR type resolution
+comes from the model blob registered at runtime.
 
 ### Type Table
 

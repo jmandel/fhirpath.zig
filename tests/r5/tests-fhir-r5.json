@@ -1,5 +1,5 @@
 {
-  "source": "/tmp/v3.claude.codex/zig/tests/r5/tests-fhir-r5.xml",
+  "source": "/home/jmandel/hobby/fhirpath.zig/tests/r5/tests-fhir-r5.xml",
   "tests": [
     {
       "name": "defineVariable1",

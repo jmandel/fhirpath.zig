@@ -195,24 +195,9 @@ def write_tests_json(out_path: Path, source_path: Path, tests: list[dict]):
     out_path.write_text(json.dumps(payload, indent=2, ensure_ascii=True))
 
 
-def discover_versions() -> list[str]:
-    versions: set[str] = set()
-    for base in candidate_tests_dirs():
-        if not base.exists():
-            continue
-        for entry in sorted(base.iterdir()):
-            if not entry.is_dir():
-                continue
-            xml_path = entry / f"tests-fhir-{entry.name}.xml"
-            if xml_path.exists():
-                versions.add(entry.name)
-    return sorted(versions)
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fhir-version", action="append", help="FHIR version (r4, r5, ...)")
-    parser.add_argument("--all", action="store_true", help="Generate for all available versions")
     parser.add_argument("--xml", help="Input XML path (single file)")
     parser.add_argument("--out", help="Output JSON path (single file)")
     parser.add_argument(
@@ -238,16 +223,10 @@ def main() -> int:
 
     out_dir = Path(args.out_dir)
     versions: list[str] = []
-    if args.all:
-        versions = discover_versions()
-    elif args.fhir_version:
+    if args.fhir_version:
         versions = args.fhir_version
     else:
-        versions = ["r4"]
-
-    if not versions:
-        print("ERROR: no test versions found", file=sys.stderr)
-        return 2
+        versions = ["r5"]
 
     for version in versions:
         version = version.lower().strip()

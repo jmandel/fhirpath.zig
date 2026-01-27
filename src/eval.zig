@@ -1,95 +1,109 @@
 const std = @import("std");
 const ast = @import("ast.zig");
+const jsondoc = @import("jsondoc.zig");
+const item = @import("item.zig");
+const schema = @import("schema.zig");
 
-pub const ValueList = std.ArrayList(std.json.Value);
+pub const ItemList = std.ArrayList(item.Item);
 
-pub const EvalResult = struct {
-    values: ValueList,
-    parsed: std.json.Parsed(std.json.Value),
-
-    pub fn deinit(self: *EvalResult) void {
-        self.values.deinit();
-        self.parsed.deinit();
-    }
+pub const EvalContext = struct {
+    allocator: std.mem.Allocator,
+    doc: *jsondoc.JsonDoc,
+    types: *item.TypeTable,
+    schema: ?*schema.Schema,
 };
 
 pub const Env = struct {
-    map: std.StringHashMap(std.json.Value),
+    map: std.StringHashMap([]const item.Item),
 
     pub fn init(allocator: std.mem.Allocator) Env {
-        return .{ .map = std.StringHashMap(std.json.Value).init(allocator) };
+        return .{ .map = std.StringHashMap([]const item.Item).init(allocator) };
     }
 
     pub fn deinit(self: *Env) void {
         self.map.deinit();
     }
 
-    pub fn put(self: *Env, name: []const u8, value: std.json.Value) !void {
-        try self.map.put(name, value);
+    pub fn put(self: *Env, name: []const u8, values: []const item.Item) !void {
+        try self.map.put(name, values);
     }
 };
 
-const EvalError = error{ InvalidFunction, InvalidPredicate, SingletonRequired } || error{OutOfMemory};
+const EvalError = error{ InvalidFunction, InvalidPredicate, SingletonRequired } || error{OutOfMemory, InvalidJson, TrailingData};
+
+pub const EvalResult = struct {
+    items: ItemList,
+    doc: jsondoc.JsonDoc,
+
+    pub fn deinit(self: *EvalResult) void {
+        self.items.deinit();
+        self.doc.deinit();
+    }
+};
 
 pub fn evalWithJson(
     allocator: std.mem.Allocator,
     expr: ast.Expr,
     json_text: []const u8,
     env: ?*Env,
+    types: *item.TypeTable,
+    schema_ptr: ?*schema.Schema,
 ) !EvalResult {
-    const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_text, .{});
-    const values = try evalExpression(allocator, expr, parsed.value, env);
-    return .{ .values = values, .parsed = parsed };
+    var doc = try jsondoc.JsonDoc.init(allocator, json_text);
+    var ctx = EvalContext{ .allocator = allocator, .doc = &doc, .types = types, .schema = schema_ptr };
+    const items = try evalExpression(&ctx, expr, doc.root, env);
+    return .{ .items = items, .doc = doc };
 }
 
 pub fn evalExpression(
-    allocator: std.mem.Allocator,
+    ctx: *EvalContext,
     expr: ast.Expr,
-    root: std.json.Value,
+    root: jsondoc.NodeIndex,
     env: ?*Env,
-) EvalError!ValueList {
-    return evalExpressionCtx(allocator, expr, root, env, null);
+) EvalError!ItemList {
+    const root_item = try itemFromNode(ctx, root);
+    return evalExpressionCtx(ctx, expr, root_item, env, null);
 }
 
 fn evalExpressionCtx(
-    allocator: std.mem.Allocator,
+    ctx: *EvalContext,
     expr: ast.Expr,
-    root: std.json.Value,
+    root_item: item.Item,
     env: ?*Env,
     index: ?usize,
-) EvalError!ValueList {
+) EvalError!ItemList {
     switch (expr) {
-        .Path => |p| return evalPath(allocator, p, root, env, index),
-        .Binary => |b| return evalBinary(allocator, b, root, env, index),
+        .Path => |p| return evalPath(ctx, p, root_item, env, index),
+        .Binary => |b| return evalBinary(ctx, b, root_item, env, index),
         .Literal => |lit| {
-            var out = ValueList.empty;
-            try out.append(allocator, literalToJson(lit));
+            var out = ItemList.empty;
+            try out.append(ctx.allocator, literalToItem(ctx, lit));
             return out;
         },
     }
 }
 
 fn evalPath(
-    allocator: std.mem.Allocator,
+    ctx: *EvalContext,
     path: ast.PathExpr,
-    root: std.json.Value,
+    root_item: item.Item,
     env: ?*Env,
     index: ?usize,
-) EvalError!ValueList {
-    var current = ValueList.empty;
+) EvalError!ItemList {
+    var current = ItemList.empty;
 
     switch (path.root) {
-        .This => try current.append(allocator, root),
+        .This => try current.append(ctx.allocator, root_item),
         .Env => |name| {
             if (env) |e| {
-                if (e.map.get(name)) |val| {
-                    try current.append(allocator, val);
+                if (e.map.get(name)) |vals| {
+                    try current.appendSlice(ctx.allocator, vals);
                 }
             }
         },
         .Index => {
             if (index) |idx| {
-                try current.append(allocator, .{ .integer = @intCast(idx) });
+                try current.append(ctx.allocator, makeIntegerItem(ctx, @intCast(idx)));
             }
         },
     }
@@ -97,24 +111,24 @@ fn evalPath(
     for (path.steps) |step| {
         switch (step) {
             .Property => |name| {
-                var next = ValueList.empty;
-                for (current.items) |item| {
-                    try applySegment(item, name, &next, allocator);
+                var next = ItemList.empty;
+                for (current.items) |it| {
+                    try applySegment(ctx, it, name, &next);
                 }
-                current.deinit(allocator);
+                current.deinit(ctx.allocator);
                 current = next;
             },
             .Index => |idx| {
-                var next = ValueList.empty;
+                var next = ItemList.empty;
                 if (idx < current.items.len) {
-                    try next.append(allocator, current.items[idx]);
+                    try next.append(ctx.allocator, current.items[idx]);
                 }
-                current.deinit(allocator);
+                current.deinit(ctx.allocator);
                 current = next;
             },
             .Function => |call| {
-                const next = try evalFunction(allocator, call, current.items, env);
-                current.deinit(allocator);
+                const next = try evalFunction(ctx, call, current.items, env);
+                current.deinit(ctx.allocator);
                 current = next;
             },
         }
@@ -124,27 +138,40 @@ fn evalPath(
 }
 
 fn applySegment(
-    value: std.json.Value,
+    ctx: *EvalContext,
+    it: item.Item,
     name: []const u8,
-    out: *ValueList,
-    allocator: std.mem.Allocator,
+    out: *ItemList,
 ) !void {
-    switch (value) {
-        .object => |obj| {
-            if (obj.get(name)) |child| {
-                switch (child) {
-                    .array => |arr| {
-                        for (arr.items) |item| {
-                            try out.append(allocator, item);
+    if (it.node == null) return;
+    const node = ctx.doc.node(@intCast(it.node.?)).*;
+    var child_type_id: u32 = 0;
+    if (ctx.schema) |s| {
+        if (schema.isModelType(it.type_id)) {
+            if (s.childTypeForField(it.type_id, name)) |tid| child_type_id = tid;
+        }
+    }
+    switch (node.kind) {
+        .object => {
+            for (node.data.object) |field| {
+                if (std.mem.eql(u8, field.key, name)) {
+                    const child_node = ctx.doc.node(field.value).*;
+                    if (child_node.kind == .array) {
+                        for (child_node.data.array) |child_idx| {
+                            const child = try itemFromNodeWithType(ctx, child_idx, child_type_id);
+                            try out.append(ctx.allocator, child);
                         }
-                    },
-                    else => try out.append(allocator, child),
+                    } else {
+                        const child = try itemFromNodeWithType(ctx, field.value, child_type_id);
+                        try out.append(ctx.allocator, child);
+                    }
                 }
             }
         },
-        .array => |arr| {
-            for (arr.items) |child| {
-                try applySegment(child, name, out, allocator);
+        .array => {
+            for (node.data.array) |child_idx| {
+                const child = try itemFromNodeWithType(ctx, child_idx, child_type_id);
+                try applySegment(ctx, child, name, out);
             }
         },
         else => {},
@@ -152,138 +179,141 @@ fn applySegment(
 }
 
 fn evalBinary(
-    allocator: std.mem.Allocator,
+    ctx: *EvalContext,
     expr: ast.BinaryExpr,
-    root: std.json.Value,
+    root_item: item.Item,
     env: ?*Env,
     index: ?usize,
-) EvalError!ValueList {
-    var left = try evalExpressionCtx(allocator, expr.left.*, root, env, index);
-    defer left.deinit(allocator);
-    var right = try evalExpressionCtx(allocator, expr.right.*, root, env, index);
-    defer right.deinit(allocator);
-    return evalEquality(allocator, left.items, right.items);
+) EvalError!ItemList {
+    _ = expr.op;
+    var left = try evalExpressionCtx(ctx, expr.left.*, root_item, env, index);
+    defer left.deinit(ctx.allocator);
+    var right = try evalExpressionCtx(ctx, expr.right.*, root_item, env, index);
+    defer right.deinit(ctx.allocator);
+    return evalEquality(ctx, left.items, right.items);
 }
 
 fn evalEquality(
-    allocator: std.mem.Allocator,
-    left: []const std.json.Value,
-    right: []const std.json.Value,
-) EvalError!ValueList {
-    var out = ValueList.empty;
+    ctx: *EvalContext,
+    left: []const item.Item,
+    right: []const item.Item,
+) EvalError!ItemList {
+    var out = ItemList.empty;
     if (left.len == 0 or right.len == 0) return out;
     var matched = false;
     for (left) |l| {
         for (right) |r| {
-            if (jsonEqual(l, r)) {
+            if (itemsEqual(ctx, l, r)) {
                 matched = true;
                 break;
             }
         }
         if (matched) break;
     }
-    try out.append(allocator, .{ .bool = matched });
+    try out.append(ctx.allocator, makeBoolItem(ctx, matched));
     return out;
 }
 
 fn evalFunction(
-    allocator: std.mem.Allocator,
+    ctx: *EvalContext,
     call: ast.FunctionCall,
-    input: []const std.json.Value,
+    input: []const item.Item,
     env: ?*Env,
-) EvalError!ValueList {
+) EvalError!ItemList {
     if (std.mem.eql(u8, call.name, "count")) {
-        var out = ValueList.empty;
-        try out.append(allocator, .{ .integer = @intCast(input.len) });
+        var out = ItemList.empty;
+        try out.append(ctx.allocator, makeIntegerItem(ctx, @intCast(input.len)));
         return out;
     }
     if (std.mem.eql(u8, call.name, "empty")) {
-        var out = ValueList.empty;
-        try out.append(allocator, .{ .bool = input.len == 0 });
+        var out = ItemList.empty;
+        try out.append(ctx.allocator, makeBoolItem(ctx, input.len == 0));
         return out;
     }
     if (std.mem.eql(u8, call.name, "exists")) {
-        var out = ValueList.empty;
-        try out.append(allocator, .{ .bool = input.len != 0 });
+        var out = ItemList.empty;
+        try out.append(ctx.allocator, makeBoolItem(ctx, input.len != 0));
         return out;
     }
     if (std.mem.eql(u8, call.name, "distinct")) {
-        return distinctValues(allocator, input);
+        return distinctItems(ctx, input);
     }
     if (std.mem.eql(u8, call.name, "isDistinct")) {
-        var distinct = try distinctValues(allocator, input);
-        defer distinct.deinit(allocator);
-        var out = ValueList.empty;
-        try out.append(allocator, .{ .bool = distinct.items.len == input.len });
+        var distinct = try distinctItems(ctx, input);
+        defer distinct.deinit(ctx.allocator);
+        var out = ItemList.empty;
+        try out.append(ctx.allocator, makeBoolItem(ctx, distinct.items.len == input.len));
         return out;
     }
     if (std.mem.eql(u8, call.name, "select")) {
         if (call.args.len != 1) return error.InvalidFunction;
-        var out = ValueList.empty;
-        for (input, 0..) |item, idx| {
-            var projection = try evalExpressionCtx(allocator, call.args[0], item, env, idx);
-            defer projection.deinit(allocator);
+        var out = ItemList.empty;
+        for (input, 0..) |it, idx| {
+            var projection = try evalExpressionCtx(ctx, call.args[0], it, env, idx);
+            defer projection.deinit(ctx.allocator);
             if (projection.items.len == 0) continue;
-            try out.appendSlice(allocator, projection.items);
+            try out.appendSlice(ctx.allocator, projection.items);
         }
         return out;
     }
     if (std.mem.eql(u8, call.name, "where")) {
         if (call.args.len != 1) return error.InvalidFunction;
-        var out = ValueList.empty;
-        for (input, 0..) |item, idx| {
-            var criteria = try evalExpressionCtx(allocator, call.args[0], item, env, idx);
-            defer criteria.deinit(allocator);
+        var out = ItemList.empty;
+        for (input, 0..) |it, idx| {
+            var criteria = try evalExpressionCtx(ctx, call.args[0], it, env, idx);
+            defer criteria.deinit(ctx.allocator);
             if (criteria.items.len == 0) continue;
-            if (criteria.items.len != 1 or criteria.items[0] != .bool) return error.InvalidPredicate;
-            if (criteria.items[0].bool) {
-                try out.append(allocator, item);
+            if (criteria.items.len != 1) return error.InvalidPredicate;
+            const crit = criteria.items[0];
+            if (!itemIsBool(ctx, crit)) return error.InvalidPredicate;
+            if (itemBoolValue(ctx, crit)) {
+                try out.append(ctx.allocator, it);
             }
         }
         return out;
     }
     if (std.mem.eql(u8, call.name, "single")) {
-        var out = ValueList.empty;
+        var out = ItemList.empty;
         if (input.len == 1) {
-            try out.append(allocator, input[0]);
+            try out.append(ctx.allocator, input[0]);
             return out;
         }
         if (input.len == 0) return out;
         return error.SingletonRequired;
     }
     if (std.mem.eql(u8, call.name, "first")) {
-        var out = ValueList.empty;
+        var out = ItemList.empty;
         if (input.len == 0) return out;
-        try out.append(allocator, input[0]);
+        try out.append(ctx.allocator, input[0]);
         return out;
     }
     if (std.mem.eql(u8, call.name, "last")) {
-        var out = ValueList.empty;
+        var out = ItemList.empty;
         if (input.len == 0) return out;
-        try out.append(allocator, input[input.len - 1]);
+        try out.append(ctx.allocator, input[input.len - 1]);
         return out;
     }
     if (std.mem.eql(u8, call.name, "tail")) {
-        var out = ValueList.empty;
+        var out = ItemList.empty;
         if (input.len <= 1) return out;
-        try out.appendSlice(allocator, input[1..]);
+        try out.appendSlice(ctx.allocator, input[1..]);
         return out;
     }
     if (std.mem.eql(u8, call.name, "skip")) {
         const num = try parseIntegerArg(call);
-        if (num <= 0) return sliceValues(allocator, input);
+        if (num <= 0) return sliceItems(ctx, input);
         const len_i64: i64 = @intCast(input.len);
-        if (num >= len_i64) return ValueList.empty;
+        if (num >= len_i64) return ItemList.empty;
         const offset: usize = @intCast(num);
-        return sliceValues(allocator, input[offset..]);
+        return sliceItems(ctx, input[offset..]);
     }
     if (std.mem.eql(u8, call.name, "take")) {
         const num = try parseIntegerArg(call);
-        if (num <= 0) return ValueList.empty;
+        if (num <= 0) return ItemList.empty;
         const len_i64: i64 = @intCast(input.len);
-        if (num >= len_i64) return sliceValues(allocator, input);
+        if (num >= len_i64) return sliceItems(ctx, input);
         const count: usize = @intCast(num);
-        return sliceValues(allocator, input[0..count]);
+        return sliceItems(ctx, input[0..count]);
     }
     return error.InvalidFunction;
 }
@@ -303,98 +333,356 @@ fn integerLiteral(expr: ast.Expr) ?i64 {
     };
 }
 
-fn sliceValues(allocator: std.mem.Allocator, values: []const std.json.Value) EvalError!ValueList {
-    var out = ValueList.empty;
+fn sliceItems(ctx: *EvalContext, values: []const item.Item) EvalError!ItemList {
+    var out = ItemList.empty;
     if (values.len == 0) return out;
-    try out.appendSlice(allocator, values);
+    try out.appendSlice(ctx.allocator, values);
     return out;
 }
 
-fn literalToJson(lit: ast.Literal) std.json.Value {
-    return switch (lit) {
-        .Null => .null,
-        .Bool => |b| .{ .bool = b },
-        .String => |s| .{ .string = s },
-        .Number => |n| parseNumberLiteral(n),
-        .Date => |d| .{ .string = d },
-        .DateTime => |d| .{ .string = d },
-        .Time => |t| .{ .string = t },
-    };
-}
-
-fn parseNumberLiteral(text: []const u8) std.json.Value {
-    if (std.mem.indexOfScalar(u8, text, '.') != null) {
-        const value = std.fmt.parseFloat(f64, text) catch {
-            return .{ .number_string = text };
-        };
-        return .{ .float = value };
-    }
-    const value = std.fmt.parseInt(i64, text, 10) catch {
-        return .{ .number_string = text };
-    };
-    return .{ .integer = value };
-}
-
-fn distinctValues(
-    allocator: std.mem.Allocator,
-    input: []const std.json.Value,
-) EvalError!ValueList {
-    var out = ValueList.empty;
-    for (input) |item| {
+fn distinctItems(ctx: *EvalContext, input: []const item.Item) EvalError!ItemList {
+    var out = ItemList.empty;
+    for (input) |it| {
         var seen = false;
         for (out.items) |existing| {
-            if (jsonEqual(item, existing)) {
+            if (itemsEqual(ctx, it, existing)) {
                 seen = true;
                 break;
             }
         }
-        if (!seen) try out.append(allocator, item);
+        if (!seen) try out.append(ctx.allocator, it);
     }
     return out;
 }
 
-fn jsonEqual(a: std.json.Value, b: std.json.Value) bool {
+fn itemsEqual(ctx: *EvalContext, a: item.Item, b: item.Item) bool {
+    if (a.data_kind == .value and b.data_kind == .value) {
+        return valueEqual(a.value.?, b.value.?);
+    }
+    if (a.data_kind == .json_span and b.data_kind == .json_span and a.node != null and b.node != null) {
+        return nodeEqual(ctx.doc, @intCast(a.node.?), @intCast(b.node.?));
+    }
+    return valueEqual(itemToValue(ctx, a), itemToValue(ctx, b));
+}
+
+fn valueEqual(a: item.Value, b: item.Value) bool {
     if (!std.mem.eql(u8, @tagName(a), @tagName(b))) {
-        const na = numberValue(a);
-        const nb = numberValue(b);
-        if (na != null and nb != null) {
-            return na.? == nb.?;
-        }
+        const na = valueToNumber(a);
+        const nb = valueToNumber(b);
+        if (na != null and nb != null) return na.? == nb.?;
         return false;
     }
     switch (a) {
-        .null => return true,
-        .bool => |v| return v == b.bool,
+        .empty => return true,
+        .boolean => |v| return v == b.boolean,
         .integer => |v| return v == b.integer,
-        .float => |v| return v == b.float,
-        .number_string => |v| return std.mem.eql(u8, v, b.number_string),
+        .decimal => |v| return std.mem.eql(u8, v, b.decimal),
         .string => |v| return std.mem.eql(u8, v, b.string),
-        .array => |arr| {
-            const arr_b = b.array;
-            if (arr.items.len != arr_b.items.len) return false;
-            for (arr.items, 0..) |item, idx| {
-                if (!jsonEqual(item, arr_b.items[idx])) return false;
+        .date => |v| return std.mem.eql(u8, v, b.date),
+        .time => |v| return std.mem.eql(u8, v, b.time),
+        .dateTime => |v| return std.mem.eql(u8, v, b.dateTime),
+        .quantity => |v| return std.mem.eql(u8, v.value, b.quantity.value) and std.mem.eql(u8, v.unit, b.quantity.unit),
+    }
+}
+
+fn valueToNumber(v: item.Value) ?f64 {
+    return switch (v) {
+        .integer => |i| @floatFromInt(i),
+        .decimal => |s| std.fmt.parseFloat(f64, s) catch null,
+        else => null,
+    };
+}
+
+fn nodeEqual(doc: *jsondoc.JsonDoc, a_idx: jsondoc.NodeIndex, b_idx: jsondoc.NodeIndex) bool {
+    if (a_idx == b_idx) return true;
+    const a = doc.node(a_idx).*;
+    const b = doc.node(b_idx).*;
+    if (a.kind != b.kind) {
+        if (a.kind == .number and b.kind == .number) {
+            return numberEqual(a.data.number, b.data.number);
+        }
+        return false;
+    }
+    switch (a.kind) {
+        .null => return true,
+        .bool => return a.data.bool == b.data.bool,
+        .number => return numberEqual(a.data.number, b.data.number),
+        .string => return std.mem.eql(u8, a.data.string, b.data.string),
+        .array => {
+            const arr_a = a.data.array;
+            const arr_b = b.data.array;
+            if (arr_a.len != arr_b.len) return false;
+            for (arr_a, 0..) |child, idx| {
+                if (!nodeEqual(doc, child, arr_b[idx])) return false;
             }
             return true;
         },
-        .object => |obj| {
-            const obj_b = b.object;
-            if (obj.count() != obj_b.count()) return false;
-            var it = obj.iterator();
-            while (it.next()) |entry| {
-                const other = obj_b.get(entry.key_ptr.*) orelse return false;
-                if (!jsonEqual(entry.value_ptr.*, other)) return false;
+        .object => {
+            const obj_a = a.data.object;
+            const obj_b = b.data.object;
+            if (obj_a.len != obj_b.len) return false;
+            for (obj_a) |field| {
+                var found = false;
+                for (obj_b) |other| {
+                    if (std.mem.eql(u8, field.key, other.key)) {
+                        if (!nodeEqual(doc, field.value, other.value)) return false;
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) return false;
             }
             return true;
         },
     }
 }
 
-fn numberValue(v: std.json.Value) ?f64 {
-    return switch (v) {
-        .integer => |i| @floatFromInt(i),
-        .float => |f| f,
-        .number_string => |s| std.fmt.parseFloat(f64, s) catch null,
-        else => null,
+fn numberEqual(a: []const u8, b: []const u8) bool {
+    const na = std.fmt.parseFloat(f64, a) catch return std.mem.eql(u8, a, b);
+    const nb = std.fmt.parseFloat(f64, b) catch return std.mem.eql(u8, a, b);
+    return na == nb;
+}
+
+fn literalToItem(ctx: *EvalContext, lit: ast.Literal) item.Item {
+    return switch (lit) {
+        .Null => makeEmptyItem(ctx),
+        .Bool => |b| makeBoolItem(ctx, b),
+        .String => |s| makeStringItem(ctx, s),
+        .Number => |n| makeNumberItem(ctx, n),
+        .Date => |d| makeDateItem(ctx, d),
+        .DateTime => |d| makeDateTimeItem(ctx, d),
+        .Time => |t| makeTimeItem(ctx, t),
     };
+}
+
+fn makeNodeItem(ctx: *EvalContext, node_idx: jsondoc.NodeIndex, type_id_override: u32) !item.Item {
+    const node = ctx.doc.node(node_idx).*;
+    const type_id = if (type_id_override != 0) type_id_override else try typeIdForNode(ctx, node_idx);
+    return .{
+        .data_kind = .json_span,
+        .value_kind = .empty,
+        .type_id = type_id,
+        .source_pos = 0,
+        .source_end = 0,
+        .data_pos = node.start,
+        .data_end = node.end,
+        .node = node_idx,
+        .value = null,
+    };
+}
+
+fn itemFromNode(ctx: *EvalContext, node_idx: jsondoc.NodeIndex) !item.Item {
+    return makeNodeItem(ctx, node_idx, 0);
+}
+
+fn itemFromNodeWithType(ctx: *EvalContext, node_idx: jsondoc.NodeIndex, type_id: u32) !item.Item {
+    return makeNodeItem(ctx, node_idx, type_id);
+}
+
+fn makeEmptyItem(ctx: *EvalContext) item.Item {
+    _ = ctx;
+    return .{
+        .data_kind = .value,
+        .value_kind = .empty,
+        .type_id = 0,
+        .source_pos = 0,
+        .source_end = 0,
+        .data_pos = 0,
+        .data_end = 0,
+        .node = null,
+        .value = .{ .empty = {} },
+    };
+}
+
+fn makeBoolItem(ctx: *EvalContext, v: bool) item.Item {
+    const type_id = ctx.types.getOrAdd("System.Boolean") catch 0;
+    return .{
+        .data_kind = .value,
+        .value_kind = .boolean,
+        .type_id = type_id,
+        .source_pos = 0,
+        .source_end = 0,
+        .data_pos = 0,
+        .data_end = 0,
+        .node = null,
+        .value = .{ .boolean = v },
+    };
+}
+
+fn makeIntegerItem(ctx: *EvalContext, v: i64) item.Item {
+    const type_id = ctx.types.getOrAdd("System.Integer") catch 0;
+    return .{
+        .data_kind = .value,
+        .value_kind = .integer,
+        .type_id = type_id,
+        .source_pos = 0,
+        .source_end = 0,
+        .data_pos = 0,
+        .data_end = 0,
+        .node = null,
+        .value = .{ .integer = v },
+    };
+}
+
+fn makeNumberItem(ctx: *EvalContext, raw: []const u8) item.Item {
+    if (isInteger(raw)) {
+        const parsed = std.fmt.parseInt(i64, raw, 10) catch 0;
+        return makeIntegerItem(ctx, parsed);
+    }
+    const type_id = ctx.types.getOrAdd("System.Decimal") catch 0;
+    return .{
+        .data_kind = .value,
+        .value_kind = .decimal,
+        .type_id = type_id,
+        .source_pos = 0,
+        .source_end = 0,
+        .data_pos = 0,
+        .data_end = 0,
+        .node = null,
+        .value = .{ .decimal = raw },
+    };
+}
+
+fn makeStringItem(ctx: *EvalContext, s: []const u8) item.Item {
+    const type_id = ctx.types.getOrAdd("System.String") catch 0;
+    return .{
+        .data_kind = .value,
+        .value_kind = .string,
+        .type_id = type_id,
+        .source_pos = 0,
+        .source_end = 0,
+        .data_pos = 0,
+        .data_end = 0,
+        .node = null,
+        .value = .{ .string = s },
+    };
+}
+
+fn makeDateItem(ctx: *EvalContext, s: []const u8) item.Item {
+    const type_id = ctx.types.getOrAdd("System.Date") catch 0;
+    return .{
+        .data_kind = .value,
+        .value_kind = .date,
+        .type_id = type_id,
+        .source_pos = 0,
+        .source_end = 0,
+        .data_pos = 0,
+        .data_end = 0,
+        .node = null,
+        .value = .{ .date = s },
+    };
+}
+
+fn makeDateTimeItem(ctx: *EvalContext, s: []const u8) item.Item {
+    const type_id = ctx.types.getOrAdd("System.DateTime") catch 0;
+    return .{
+        .data_kind = .value,
+        .value_kind = .dateTime,
+        .type_id = type_id,
+        .source_pos = 0,
+        .source_end = 0,
+        .data_pos = 0,
+        .data_end = 0,
+        .node = null,
+        .value = .{ .dateTime = s },
+    };
+}
+
+fn makeTimeItem(ctx: *EvalContext, s: []const u8) item.Item {
+    const type_id = ctx.types.getOrAdd("System.Time") catch 0;
+    return .{
+        .data_kind = .value,
+        .value_kind = .time,
+        .type_id = type_id,
+        .source_pos = 0,
+        .source_end = 0,
+        .data_pos = 0,
+        .data_end = 0,
+        .node = null,
+        .value = .{ .time = s },
+    };
+}
+
+fn itemIsBool(ctx: *EvalContext, it: item.Item) bool {
+    if (it.data_kind == .value and it.value != null and it.value.? == .boolean) return true;
+    if (it.data_kind == .json_span and it.node != null) {
+        const node = ctx.doc.node(@intCast(it.node.?)).*;
+        return node.kind == .bool;
+    }
+    return false;
+}
+
+fn itemBoolValue(ctx: *EvalContext, it: item.Item) bool {
+    if (it.data_kind == .value and it.value != null and it.value.? == .boolean) return it.value.?.boolean;
+    if (it.data_kind == .json_span and it.node != null) {
+        const node = ctx.doc.node(@intCast(it.node.?)).*;
+        return node.data.bool;
+    }
+    return false;
+}
+
+fn itemToValue(ctx: *EvalContext, it: item.Item) item.Value {
+    if (it.data_kind == .value and it.value != null) return it.value.?;
+    if (it.data_kind == .json_span and it.node != null) {
+        const node = ctx.doc.node(@intCast(it.node.?)).*;
+        return switch (node.kind) {
+            .null => .{ .empty = {} },
+            .bool => .{ .boolean = node.data.bool },
+            .number => .{ .decimal = node.data.number },
+            .string => .{ .string = node.data.string },
+            else => .{ .empty = {} },
+        };
+    }
+    return .{ .empty = {} };
+}
+
+fn typeIdForNode(ctx: *EvalContext, node_idx: jsondoc.NodeIndex) !u32 {
+    const node = ctx.doc.node(node_idx).*;
+    return switch (node.kind) {
+        .null => ctx.types.getOrAdd("System.Any"),
+        .bool => ctx.types.getOrAdd("System.Boolean"),
+        .number => if (isInteger(node.data.number)) ctx.types.getOrAdd("System.Integer") else ctx.types.getOrAdd("System.Decimal"),
+        .string => {
+            if (isDateTime(node.data.string)) return ctx.types.getOrAdd("System.DateTime");
+            if (isDate(node.data.string)) return ctx.types.getOrAdd("System.Date");
+            if (isTime(node.data.string)) return ctx.types.getOrAdd("System.Time");
+            return ctx.types.getOrAdd("System.String");
+        },
+        .object => {
+            if (resourceTypeName(ctx, node)) |rt| {
+                if (ctx.schema) |s| {
+                    if (s.typeIdByLocalName(rt)) |tid| return tid;
+                }
+            }
+            return ctx.types.getOrAdd("System.Any");
+        },
+        .array => ctx.types.getOrAdd("System.Any"),
+    };
+}
+
+fn resourceTypeName(ctx: *EvalContext, node: jsondoc.Node) ?[]const u8 {
+    if (node.kind != .object) return null;
+    for (node.data.object) |field| {
+        if (!std.mem.eql(u8, field.key, "resourceType")) continue;
+        const value_node = ctx.doc.node(field.value).*;
+        if (value_node.kind == .string) return value_node.data.string;
+    }
+    return null;
+}
+
+fn isInteger(raw: []const u8) bool {
+    return std.mem.indexOfScalar(u8, raw, '.') == null and std.mem.indexOfAny(u8, raw, "eE") == null;
+}
+
+fn isDateTime(s: []const u8) bool {
+    return std.mem.indexOfScalar(u8, s, 'T') != null;
+}
+
+fn isDate(s: []const u8) bool {
+    if (std.mem.indexOfScalar(u8, s, 'T') != null) return false;
+    return std.mem.indexOfScalar(u8, s, '-') != null;
+}
+
+fn isTime(s: []const u8) bool {
+    return std.mem.indexOfScalar(u8, s, ':') != null and std.mem.indexOfScalar(u8, s, 'T') == null;
 }

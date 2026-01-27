@@ -2,6 +2,9 @@ const std = @import("std");
 const lib = @import("lib.zig");
 const eval = @import("eval.zig");
 const ast = @import("ast.zig");
+const jsondoc = @import("jsondoc.zig");
+const item = @import("item.zig");
+const convert = @import("convert.zig");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -28,6 +31,9 @@ pub fn main() !void {
     if (cases_val != .array) return error.InvalidFormat;
 
     var failures: usize = 0;
+    var types = try item.TypeTable.init(allocator);
+    defer types.deinit();
+
     for (cases_val.array.items, 0..) |case_val, idx| {
         if (case_val != .object) continue;
         const obj = case_val.object;
@@ -55,20 +61,60 @@ pub fn main() !void {
         };
         defer ast.deinitExpr(allocator, expr);
 
-        var env_map: ?eval.Env = null;
-        if (env_val) |e| {
-            if (e == .object) {
-                var env = eval.Env.init(allocator);
-                var it = e.object.iterator();
-                while (it.next()) |entry| {
-                    try env.put(entry.key_ptr.*, entry.value_ptr.*);
-                }
-                env_map = env;
-            }
-        }
-        defer if (env_map) |*env| env.deinit();
+        const input_json = try std.json.Stringify.valueAlloc(allocator, input_val, .{});
+        defer allocator.free(input_json);
 
-        var result = eval.evalExpression(allocator, expr, input_val, if (env_map) |*env| env else null) catch {
+        var env_map = eval.Env.init(allocator);
+        defer env_map.deinit();
+        var env_storage = std.ArrayList([]item.Item).empty;
+        defer {
+            for (env_storage.items) |slice| allocator.free(slice);
+            env_storage.deinit(allocator);
+        }
+        var env_ptr: ?*eval.Env = null;
+
+        var doc: jsondoc.JsonDoc = undefined;
+        var doc_inited = false;
+        defer if (doc_inited) doc.deinit();
+
+        var root_idx: jsondoc.NodeIndex = 0;
+
+        if (env_val) |ev| {
+            const env_json = try std.json.Stringify.valueAlloc(allocator, ev, .{});
+            defer allocator.free(env_json);
+            const combined = try std.fmt.allocPrint(allocator, "{{\"__input\":{s},\"__env\":{s}}}", .{ input_json, env_json });
+            defer allocator.free(combined);
+            doc = jsondoc.JsonDoc.init(allocator, combined) catch {
+                try reportCase(name, expr_val.string, "json parse error", null, null);
+                failures += 1;
+                continue;
+            };
+            doc_inited = true;
+            root_idx = objectField(&doc, doc.root, "__input") orelse doc.root;
+            if (objectField(&doc, doc.root, "__env")) |env_idx| {
+                const env_node = doc.node(env_idx).*;
+                if (env_node.kind == .object) {
+                    for (env_node.data.object) |field| {
+                        var slice = try allocator.alloc(item.Item, 1);
+                        slice[0] = makeNodeItem(&doc, field.value);
+                        try env_storage.append(allocator, slice);
+                        try env_map.put(field.key, slice);
+                        env_ptr = &env_map;
+                    }
+                }
+            }
+        } else {
+            doc = jsondoc.JsonDoc.init(allocator, input_json) catch {
+                try reportCase(name, expr_val.string, "json parse error", null, null);
+                failures += 1;
+                continue;
+            };
+            doc_inited = true;
+            root_idx = doc.root;
+        }
+
+        var ctx = eval.EvalContext{ .allocator = allocator, .doc = &doc, .types = &types, .schema = null };
+        var result = eval.evalExpression(&ctx, expr, root_idx, env_ptr) catch {
             try reportCase(name, expr_val.string, "eval error", null, null);
             failures += 1;
             continue;
@@ -83,18 +129,25 @@ pub fn main() !void {
             expect_items = ev.array.items;
         }
 
-        if (!compareExpected(expect_items, result.items)) {
+        var actual_values = try itemsToJsonArray(allocator, &doc, result.items);
+        defer actual_values.deinit(allocator);
+
+        const matched = compareExpected(expect_items, actual_values.items);
+        if (!matched) {
             const expected_str = if (expect_val) |ev|
                 try std.json.Stringify.valueAlloc(allocator, ev, .{})
             else
                 try std.json.Stringify.valueAlloc(allocator, std.json.Value{ .array = std.json.Array{ .items = empty_items[0..], .capacity = 0, .allocator = allocator } }, .{});
             defer allocator.free(expected_str);
 
-            const actual_array = std.json.Array{ .items = result.items, .capacity = result.capacity, .allocator = allocator };
+            const actual_array = std.json.Array{ .items = actual_values.items, .capacity = actual_values.capacity, .allocator = allocator };
             const actual_str = try std.json.Stringify.valueAlloc(allocator, std.json.Value{ .array = actual_array }, .{});
             defer allocator.free(actual_str);
             try reportCase(name, expr_val.string, "mismatch", expected_str, actual_str);
             failures += 1;
+        }
+        for (actual_values.items) |val| {
+            deinitValue(allocator, val);
         }
 
         _ = idx;
@@ -105,6 +158,19 @@ pub fn main() !void {
         return error.TestFailed;
     }
     std.debug.print("All artisinal tests passed\n", .{});
+}
+
+fn itemsToJsonArray(
+    allocator: std.mem.Allocator,
+    doc: *jsondoc.JsonDoc,
+    items: []const item.Item,
+) !std.ArrayList(std.json.Value) {
+    var out = std.ArrayList(std.json.Value).empty;
+    for (items) |it| {
+        const val = try convert.itemToJsonValue(allocator, doc, it);
+        try out.append(allocator, val);
+    }
+    return out;
 }
 
 fn compareExpected(expected: []const std.json.Value, actual: []const std.json.Value) bool {
@@ -135,8 +201,8 @@ fn jsonEqual(a: std.json.Value, b: std.json.Value) bool {
         .array => |arr| {
             const arr_b = b.array;
             if (arr.items.len != arr_b.items.len) return false;
-            for (arr.items, 0..) |item, idx| {
-                if (!jsonEqual(item, arr_b.items[idx])) return false;
+            for (arr.items, 0..) |item_val, idx| {
+                if (!jsonEqual(item_val, arr_b.items[idx])) return false;
             }
             return true;
         },
@@ -171,4 +237,48 @@ fn reportCase(name_val: std.json.Value, expr: []const u8, msg: []const u8, expec
     std.debug.print("  expr: {s}\n", .{expr});
     if (expected) |e| std.debug.print("  expected: {s}\n", .{e});
     if (actual) |a| std.debug.print("  actual:   {s}\n", .{a});
+}
+
+fn objectField(doc: *jsondoc.JsonDoc, obj_idx: jsondoc.NodeIndex, key: []const u8) ?jsondoc.NodeIndex {
+    const node = doc.node(obj_idx).*;
+    if (node.kind != .object) return null;
+    for (node.data.object) |field| {
+        if (std.mem.eql(u8, field.key, key)) return field.value;
+    }
+    return null;
+}
+
+fn makeNodeItem(doc: *jsondoc.JsonDoc, node_idx: jsondoc.NodeIndex) item.Item {
+    const node = doc.node(node_idx).*;
+    return .{
+        .data_kind = .json_span,
+        .value_kind = .empty,
+        .type_id = 0,
+        .source_pos = 0,
+        .source_end = 0,
+        .data_pos = node.start,
+        .data_end = node.end,
+        .node = node_idx,
+        .value = null,
+    };
+}
+
+fn deinitValue(allocator: std.mem.Allocator, v: std.json.Value) void {
+    switch (v) {
+        .array => |arr| {
+            for (arr.items) |item_val| {
+                deinitValue(allocator, item_val);
+            }
+            allocator.free(arr.items);
+        },
+        .object => |obj| {
+            var obj_mut = obj;
+            var it = obj_mut.iterator();
+            while (it.next()) |entry| {
+                deinitValue(allocator, entry.value_ptr.*);
+            }
+            obj_mut.deinit();
+        },
+        else => {},
+    }
 }

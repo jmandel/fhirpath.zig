@@ -22,7 +22,8 @@ Notes:
   - `tests/r5/tests-fhir-r5.json`
   - example inputs `tests/r5/input/`
   - (original XML, used to generate tests-fhir-r5.json) `tests/r5/tests-fhir-r5.xml`
-- These are produced by `scripts/prepare_tests_json.py` after `scripts/fetch_spec.sh`.
+- Refresh the XML + input JSONs from upstream with `scripts/fetch_tests.sh`.
+- Regenerate JSON tests from XML with `scripts/prepare_tests_json.py` (e.g., `--fhir-version r5`).
 - `build/tmp-spec/` is a scratch checkout used by the fetch script; don’t treat it as the authoritative test location.
 
 ## The work loop
@@ -53,6 +54,10 @@ The chooser derives state from the repository. If any internal state file is use
 ### EXPLORE
 Goal: expand coverage.
 - Pick a capability seen in official tests that has no artisinal file yet.
+- Sampling ideas (pick one):
+  - Skim `tests/r5/tests-fhir-r5.json` and choose a function/operator that is missing in artisinal files.
+  - Run the official test runner and pick a failing case to reverse‑engineer into artisinal tests.
+  - Read a spec section that has little or no artisinal coverage and draft tests from it.
 - Read the spec section(s) that define the correct behavior.
 - Write a new artisinal test file with:
   - A short “what the spec says” note in your own words.
@@ -84,6 +89,12 @@ Each artisinal file should combine:
 - Spec distillation (plain‑language summary of expected behavior).
 - A TODO checklist (future work and open questions).
 - Tests that must pass.
+
+Optional meta fields:
+- `meta.status` informs `scripts/choose_mode.py`:
+  - `drafted` → written only
+  - `reviewed` → written + reviewed
+  - `implemented` → written + reviewed + implemented
 
 Always include a TODO entry for the current pass/fail rate. If the pass rate is not 100%, add or update a TODO item that explicitly says:
 - “Improve passing rate (X/Y passing)” with the current counts.

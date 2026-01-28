@@ -349,6 +349,10 @@ fn runTestFile(
         const expect_error = if (obj.get("expect_error")) |inv| inv == .bool and inv.bool else false;
 
         const expr_val = obj.get(expr_key) orelse {
+            // Skip section header entries in artisinal tests (comment-only or section-only)
+            if (obj.get("_comment") != null or obj.get("_section") != null) {
+                continue;
+            }
             result.failed += 1;
             continue;
         };

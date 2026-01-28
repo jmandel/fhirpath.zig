@@ -17,12 +17,12 @@ bugs:
     updated: "2026-01-27T19:30:00-06:00"
     tags: []
   - slug: artisinal-env-support
-    status: open
+    status: resolved
     severity: medium
     title: Artisinal env not supported
     description: Harness ignores env field. Was fixed in 4466e76 but regressed in ea7d2da during harness refactor. Need to re-add env parsing and pass to eval context.
     created: "2026-01-27T08:00:00-06:00"
-    updated: "2026-01-27T20:00:00-06:00"
+    updated: 2026-01-27
     tags: []
   - slug: harness-memory-leaks
     status: resolved
@@ -41,7 +41,7 @@ bugs:
     updated: "2026-01-27T19:30:00-06:00"
     tags: [memory, eval]
   - slug: harness-comment-only-entries
-    status: open
+    status: resolved
     severity: low
     title: Harness counts comment-only entries as failures
     description: Section header entries in artisinal test files (entries with only _comment field) are counted as failures because they lack an expr field. These should be skipped.

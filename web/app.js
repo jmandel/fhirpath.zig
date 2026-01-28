@@ -210,8 +210,14 @@ async function runExpression() {
 renderChips();
 loadExample(0);
 updateInputMeta();
-init();
+init().then(() => {
+  // Auto-run once initialized so the results panel isn't empty on load.
+  runExpression();
+});
 
 runBtn.addEventListener("click", runExpression);
-loadBtn.addEventListener("click", () => loadExample(0));
+loadBtn.addEventListener("click", () => {
+  loadExample(0);
+  runExpression();
+});
 jsonInput.addEventListener("input", updateInputMeta);

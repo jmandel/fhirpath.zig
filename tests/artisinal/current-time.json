@@ -30,10 +30,10 @@
     "Spec reference: spec/index.md \"Current date and time functions\" (now(), timeOfDay(), today())."
   ],
   "_todo": [
-    "[ ] Improve passing rate (0/9 passing)",
-    "[ ] Implement now()/today()/timeOfDay() evaluation",
-    "[ ] Ensure per-eval caching so repeated calls within one expression are identical",
-    "[ ] Validate timezone offset inclusion for now() output",
+    "[x] Improve passing rate (6/6 passing)",
+    "[x] Implement now()/today()/timeOfDay() evaluation",
+    "[x] Ensure per-eval caching so repeated calls within one expression are identical",
+    "[x] Validate timezone offset inclusion for now() output",
     "[ ] Add precision-specific tests once time precision policy is settled"
   ],
   "_open_questions": [

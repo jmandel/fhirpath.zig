@@ -476,6 +476,7 @@ fn runTestFile(
             .adapter = &adapter,
             .types = &types,
             .schema = schema_ptr,
+            .timestamp = std.time.timestamp(),
         };
         var eval_result = eval.evalExpression(&ctx, expr, root_idx, env_ptr) catch {
             if (expect_error) {

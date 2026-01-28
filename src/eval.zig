@@ -16,6 +16,7 @@ pub fn EvalContext(comptime A: type) type {
         types: *item.TypeTable,
         schema: ?*schema.Schema,
         root_item: item.Item = undefined,
+        timestamp: i64,
     };
 }
 
@@ -62,6 +63,7 @@ pub fn evalWithJson(
         .adapter = &adapter,
         .types = types,
         .schema = schema_ptr,
+        .timestamp = std.time.timestamp(),
     };
     const items = try evalExpression(&ctx, expr, adapter.root(), env);
     return .{ .items = items, .doc = doc };
@@ -2556,6 +2558,30 @@ fn evalFunction(
     input: []const item.Item,
     env: ?*Env,
 ) EvalError!ItemList {
+    if (std.mem.eql(u8, call.name, "now")) {
+        if (call.args.len != 0) return error.InvalidFunction;
+        var out = ItemList.empty;
+        const ts = ctx.timestamp;
+        const formatted = try formatDateTime(ctx.allocator, ts);
+        try out.append(ctx.allocator, makeDateTimeItem(ctx, formatted));
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "today")) {
+        if (call.args.len != 0) return error.InvalidFunction;
+        var out = ItemList.empty;
+        const ts = ctx.timestamp;
+        const formatted = try formatDate(ctx.allocator, ts);
+        try out.append(ctx.allocator, makeDateItem(ctx, formatted));
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "timeOfDay")) {
+        if (call.args.len != 0) return error.InvalidFunction;
+        var out = ItemList.empty;
+        const ts = ctx.timestamp;
+        const formatted = try formatTime(ctx.allocator, ts);
+        try out.append(ctx.allocator, makeTimeItem(ctx, formatted));
+        return out;
+    }
     if (std.mem.eql(u8, call.name, "count")) {
         var out = ItemList.empty;
         try out.append(ctx.allocator, makeIntegerItem(ctx, @intCast(input.len)));
@@ -6695,4 +6721,55 @@ fn evalPower(ctx: anytype, it: item.Item, exponent: f64) EvalError!ItemList {
         try out.append(ctx.allocator, try makeDecimalItem(ctx, result));
     }
     return out;
+}
+
+fn epochDaysToDate(days: i64) struct { year: i32, month: u32, day: u32 } {
+    const z = days + 719468;
+    const era = if (z >= 0) @divFloor(z, 146097) else @divFloor(z - 146096, 146097);
+    const doe: u32 = @intCast(z - era * 146097);
+    const yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    const y = @as(i32, @intCast(yoe)) + @as(i32, @intCast(era)) * 400;
+    const doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    const mp = (5 * doy + 2) / 153;
+    const d = doy - (153 * mp + 2) / 5 + 1;
+    const m = if (mp < 10) mp + 3 else mp - 9;
+    const year = y + (if (m <= 2) @as(i32, 1) else 0);
+    return .{ .year = year, .month = m, .day = d };
+}
+
+fn formatDateTime(allocator: std.mem.Allocator, timestamp: i64) ![]const u8 {
+    const s = timestamp;
+    const epoch_days = @divFloor(s, std.time.s_per_day);
+    const day_seconds_signed = @mod(s, std.time.s_per_day);
+    const day_seconds: u64 = @intCast(if (day_seconds_signed < 0) day_seconds_signed + std.time.s_per_day else day_seconds_signed);
+    
+    const date = epochDaysToDate(epoch_days);
+    
+    const hour = day_seconds / std.time.s_per_hour;
+    const minute = (day_seconds % std.time.s_per_hour) / std.time.s_per_min;
+    const second = day_seconds % std.time.s_per_min;
+    
+    const y: u32 = @intCast(date.year);
+    return std.fmt.allocPrint(allocator, "{d:0>4}-{d:0>2}-{d:0>2}T{d:0>2}:{d:0>2}:{d:0>2}+00:00", .{y, date.month, date.day, hour, minute, second});
+}
+
+fn formatDate(allocator: std.mem.Allocator, timestamp: i64) ![]const u8 {
+    const s = timestamp;
+    const epoch_days = @divFloor(s, std.time.s_per_day);
+    const date = epochDaysToDate(epoch_days);
+    
+    const y: u32 = @intCast(date.year);
+    return std.fmt.allocPrint(allocator, "{d:0>4}-{d:0>2}-{d:0>2}", .{y, date.month, date.day});
+}
+
+fn formatTime(allocator: std.mem.Allocator, timestamp: i64) ![]const u8 {
+    const s = timestamp;
+    const day_seconds_signed = @mod(s, std.time.s_per_day);
+    const day_seconds: u64 = @intCast(if (day_seconds_signed < 0) day_seconds_signed + std.time.s_per_day else day_seconds_signed);
+    
+    const hour = day_seconds / std.time.s_per_hour;
+    const minute = (day_seconds % std.time.s_per_hour) / std.time.s_per_min;
+    const second = day_seconds % std.time.s_per_min;
+    
+    return std.fmt.allocPrint(allocator, "{d:0>2}:{d:0>2}:{d:0>2}", .{hour, minute, second});
 }

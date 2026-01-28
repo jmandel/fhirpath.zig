@@ -122,18 +122,22 @@ Output shows pass/fail counts per file and failure breakdown (parse errors, eval
 
 ## Cross-checking Against Reference Engines
 
-Compare our implementation against fhirpath.js, Firely .NET, and HAPI FHIR:
+Compare against fhirpath.js (js), Firely .NET (net), and HAPI FHIR (hapi):
 
 ```bash
-# Sample disagreements for adjudication (recommended)
-python scripts/adjudicate.py --sample 5
+# Evaluate any expression against reference engines
+python scripts/eval_engines.py '1 + 2'
+python scripts/eval_engines.py 'name.given' '{"name":{"given":["Ann"]}}'
 
-# Full comparison (slow due to HAPI startup)
-python scripts/engine_check.py --summary
+# Select specific engines (hapi is slow ~22s startup)
+python scripts/eval_engines.py -e js,net '(-3.5).round()'
+
+# Sample disagreements for adjudication
+python scripts/adjudicate.py --sample 5
 ```
 
 **Optional dependencies** for cross-checking:
-- Node.js/Bun: `cd vendor/fhirpath.js && bun install`
+- Bun: `cd vendor/fhirpath.js && bun install`
 - .NET 8.0: `cd vendor/fhirpath.net/FhirPathRunner && dotnet build`
 - Java 11+ / Maven: `cd vendor/fhirpath.hapi && mvn package`
 

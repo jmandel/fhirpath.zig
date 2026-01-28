@@ -1,0 +1,289 @@
+{
+  "meta": {
+    "status": "drafted"
+  },
+  "_spec_summary": "UCUM vs Calendar Duration Quantity Handling\n\nFHIRPath distinguishes between calendar duration quantities and definite duration (UCUM) quantities:\n\n## Calendar Durations (keywords, no quotes)\nUsed for date/time arithmetic with calendar semantics:\n- year/years, month/months, week/weeks, day/days\n- hour/hours, minute/minutes, second/seconds, millisecond/milliseconds\n\nExamples: `1 year`, `4 days`, `30 minutes`\n\n## UCUM Definite Durations (quoted strings)\nRepresent fixed time intervals:\n- 'a' (year ~365.25 days), 'mo' (month ~30.4375 days)\n- 'wk' (week =7 days), 'd' (day =24 hours)\n- 'h' (hour =60 min), 'min' (minute =60 s)\n- 's' (second), 'ms' (millisecond)\n\nExamples: `1 'a'`, `4 'd'`, `30 'min'`\n\n## Date/Time Arithmetic with UCUM Units\n\nThe spec says: 'If a definite-quantity duration above seconds appears in a date/time arithmetic calculation, the evaluation will end and signal an error.'\n\nHOWEVER, R5 official tests show that some UCUM units DO work:\n- `@2024-01-01 + 1 'd'` → works (R5 testPlusDate13 expects result)\n- `@2024-01-01 + 1 'wk'` → works (R5 testPlusDate15)\n- `@2024-01-01 + 1 'mo'` → empty/error (R5 testPlusDate14 expects null)\n- `@2024-01-01 + 1 'a'` → empty/error (R5 testPlusDate16/17 expect null)\n\nSo 'd' and 'wk' are treated as convertible to calendar units, but 'mo' and 'a' are not.\n\n## Comparison and Equality of Durations\n\nFrom spec: 'calendar durations and definite quantity durations above days (and weeks) are considered un-comparable'\n\nThis means:\n- `7 days = 1 'wk'` → true (R5 testQuantity6 - they ARE comparable)\n- `1 day = 1 'd'` → true (days are comparable)\n- `1 year = 1 'a'` → {} (empty - years/months are NOT comparable)\n- `1 month = 1 'mo'` → {} (empty - months are NOT comparable)\n\nFor equivalence (~):\n- All calendar/UCUM pairs are equivalent: `1 year ~ 1 'a'` → true\n\n## Summary of Comparability\n- second/millisecond: BOTH equality and equivalence work with UCUM\n- minute/hour/day/week: equality AND equivalence work with UCUM  \n- month/year: ONLY equivalence works, equality returns empty",
+  "_todo": [
+    "[ ] Improve passing rate (17/39 passing)",
+    "[ ] Implement UCUM unit conversion for date/time arithmetic ('d', 'wk', 'h', 'min')",
+    "[ ] Implement UCUM to calendar equivalence/equality for quantities",
+    "[ ] Handle 'mo' and 'a' returning empty for date/time arithmetic",
+    "[ ] Support fractional UCUM seconds (0.1 's')",
+    "[ ] Support calendar duration comparison (7 days = 1 week)"
+  ],
+  "cases": [
+    {
+      "name": "UCUM 'd' in date arithmetic works",
+      "expr": "@2024-01-01 + 1 'd'",
+      "input": {},
+      "expect": [{"type": "date", "value": "2024-01-02"}],
+      "comment": "R5 testPlusDate13: UCUM 'd' is treated like calendar 'day'"
+    },
+    {
+      "name": "UCUM 'wk' in date arithmetic works",
+      "expr": "@2024-01-01 + 1 'wk'",
+      "input": {},
+      "expect": [{"type": "date", "value": "2024-01-08"}],
+      "comment": "R5 testPlusDate15: UCUM 'wk' is treated like calendar 'week'"
+    },
+    {
+      "name": "UCUM 'mo' in date arithmetic returns empty",
+      "expr": "(@2024-01-01 + 1 'mo').empty()",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "R5 testPlusDate14: months are not convertible, returns empty (null)"
+    },
+    {
+      "name": "UCUM 'a' in date arithmetic returns empty",
+      "expr": "(@2024-01-01 + 1 'a').empty()",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "R5 testPlusDate16/17: years are not convertible, returns empty (null)"
+    },
+    {
+      "name": "UCUM 'h' in datetime arithmetic works",
+      "expr": "@2024-01-01T00:00:00 + 1 'h'",
+      "input": {},
+      "expect": [{"type": "dateTime", "value": "2024-01-01T01:00:00"}],
+      "comment": "R5 testPlusDate22: UCUM 'h' is treated like calendar 'hour'"
+    },
+    {
+      "name": "UCUM 'min' in datetime arithmetic works",
+      "expr": "@2024-01-01T00:00:00 + 1 'min'",
+      "input": {},
+      "expect": [{"type": "dateTime", "value": "2024-01-01T00:01:00"}],
+      "comment": "R5 testPlusDate21: UCUM 'min' is treated like calendar 'minute'"
+    },
+    {
+      "name": "UCUM 's' in datetime arithmetic is valid",
+      "expr": "@2024-01-01T00:00:00 + 1 's'",
+      "input": {},
+      "expect": [{"type": "dateTime", "value": "2024-01-01T00:00:01"}],
+      "comment": "Spec: 's' is equivalent to 'second' for date/time arithmetic"
+    },
+    {
+      "name": "UCUM 'ms' in datetime arithmetic is valid",
+      "expr": "@2024-01-01T00:00:00.000 + 100 'ms'",
+      "input": {},
+      "expect": [{"type": "dateTime", "value": "2024-01-01T00:00:00.100"}],
+      "comment": "Spec: 'ms' is equivalent to 'millisecond' for date/time arithmetic"
+    },
+    {
+      "name": "calendar 'day' in date arithmetic works",
+      "expr": "@2024-01-01 + 1 day",
+      "input": {},
+      "expect": [{"type": "date", "value": "2024-01-02"}],
+      "comment": "Calendar duration keywords work with date arithmetic"
+    },
+    {
+      "name": "calendar 'week' in date arithmetic works",
+      "expr": "@2024-01-01 + 1 week",
+      "input": {},
+      "expect": [{"type": "date", "value": "2024-01-08"}],
+      "comment": "Calendar duration keywords work with date arithmetic"
+    },
+    {
+      "name": "calendar 'month' in date arithmetic works",
+      "expr": "@2024-01-15 + 1 month",
+      "input": {},
+      "expect": [{"type": "date", "value": "2024-02-15"}],
+      "comment": "Calendar duration keywords work with date arithmetic"
+    },
+    {
+      "name": "calendar 'year' in date arithmetic works",
+      "expr": "@2024-01-15 + 1 year",
+      "input": {},
+      "expect": [{"type": "date", "value": "2025-01-15"}],
+      "comment": "Calendar duration keywords work with date arithmetic"
+    },
+    {
+      "name": "equivalence: year ~ 'a' is true",
+      "expr": "1 year ~ 1 'a'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Spec table: year/years ~ 1 'a'"
+    },
+    {
+      "name": "equivalence: month ~ 'mo' is true",
+      "expr": "1 month ~ 1 'mo'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Spec table: month/months ~ 1 'mo'"
+    },
+    {
+      "name": "equivalence: week ~ 'wk' is true",
+      "expr": "1 week ~ 1 'wk'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Spec table: week/weeks ~ 1 'wk'"
+    },
+    {
+      "name": "equivalence: day ~ 'd' is true",
+      "expr": "1 day ~ 1 'd'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Spec table: day/days ~ 1 'd'"
+    },
+    {
+      "name": "equivalence: hour ~ 'h' is true",
+      "expr": "1 hour ~ 1 'h'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Spec table: hour/hours ~ 1 'h'"
+    },
+    {
+      "name": "equivalence: minute ~ 'min' is true",
+      "expr": "1 minute ~ 1 'min'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Spec table: minute/minutes ~ 1 'min'"
+    },
+    {
+      "name": "equality: second = 's' is true",
+      "expr": "1 second = 1 's'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Spec table: second/seconds = 1 's' (equal, not just equivalent)"
+    },
+    {
+      "name": "equality: millisecond = 'ms' is true",
+      "expr": "1 millisecond = 1 'ms'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Spec table: millisecond/milliseconds = 1 'ms' (equal, not just equivalent)"
+    },
+    {
+      "name": "equality: year = 'a' returns empty (incomparable)",
+      "expr": "(1 year = 1 'a').empty()",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Calendar and UCUM durations above seconds are not equal-comparable"
+    },
+    {
+      "name": "equality: day = 'd' is true",
+      "expr": "1 day = 1 'd'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Calendar day and UCUM 'd' are equal (days/weeks are comparable)"
+    },
+    {
+      "name": "comparison: year > 'a' returns empty",
+      "expr": "(1 year > 1 'a').empty()",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Spec example: 1 year > 1 'a' returns {} (empty)"
+    },
+    {
+      "name": "comparison: 10 seconds > 1 's' is true",
+      "expr": "10 seconds > 1 's'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Spec example: 10 seconds > 1 's' returns true"
+    },
+    {
+      "name": "fractional UCUM seconds in arithmetic",
+      "expr": "@2024-01-01T00:00:00.000 + 0.1 's'",
+      "input": {},
+      "expect": [{"type": "dateTime", "value": "2024-01-01T00:00:00.100"}],
+      "comment": "R5 testPlusDate19: fractional seconds work with UCUM 's'"
+    },
+    {
+      "name": "UCUM subtraction 'd' works",
+      "expr": "@2024-01-02 - 1 'd'",
+      "input": {},
+      "expect": [{"type": "date", "value": "2024-01-01"}],
+      "comment": "UCUM 'd' subtraction should work like calendar 'day'"
+    },
+    {
+      "name": "UCUM subtraction 's' is valid",
+      "expr": "@2024-01-01T00:00:01 - 1 's'",
+      "input": {},
+      "expect": [{"type": "dateTime", "value": "2024-01-01T00:00:00"}],
+      "comment": "Subtraction with 's' should work"
+    },
+    {
+      "name": "time value + 'h' works",
+      "expr": "@T10:00:00 + 1 'h'",
+      "input": {},
+      "expect": [{"type": "time", "value": "11:00:00"}],
+      "comment": "UCUM 'h' in time arithmetic should work like calendar 'hour'"
+    },
+    {
+      "name": "time value + 's' works",
+      "expr": "@T10:00:00 + 30 's'",
+      "input": {},
+      "expect": [{"type": "time", "value": "10:00:30"}],
+      "comment": "UCUM seconds in time arithmetic should work"
+    },
+    {
+      "name": "time value + 'ms' works",
+      "expr": "@T10:00:00.000 + 500 'ms'",
+      "input": {},
+      "expect": [{"type": "time", "value": "10:00:00.500"}],
+      "comment": "UCUM milliseconds in time arithmetic should work"
+    },
+    {
+      "name": "quantity conversion: toQuantity with calendar duration",
+      "expr": "'1 day'.toQuantity()",
+      "input": {},
+      "expect": [{"type": "Quantity", "value": {"value": 1, "unit": "day"}}],
+      "comment": "String to quantity should parse calendar duration keywords"
+    },
+    {
+      "name": "quantity conversion: toQuantity with UCUM unit",
+      "expr": "'1 \\'d\\''.toQuantity()",
+      "input": {},
+      "expect": [{"type": "Quantity", "value": {"value": 1, "unit": "d"}}],
+      "comment": "String to quantity should parse quoted UCUM units"
+    },
+    {
+      "name": "R5 testQuantity5: 7 days = 1 week",
+      "expr": "7 days = 1 week",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "R5 test: calendar durations convert for comparison"
+    },
+    {
+      "name": "R5 testQuantity6: 7 days = 1 'wk'",
+      "expr": "7 days = 1 'wk'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "R5 test: calendar days and UCUM weeks are comparable (7d = 1wk)"
+    },
+    {
+      "name": "R5 testQuantity7: 6 days < 1 week",
+      "expr": "6 days < 1 week",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "R5 test: calendar durations convert for comparison"
+    },
+    {
+      "name": "R5 testQuantity8: 8 days > 1 week",
+      "expr": "8 days > 1 week",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "R5 test: calendar durations convert for comparison"
+    },
+    {
+      "name": "multiple UCUM seconds add up correctly",
+      "expr": "@2024-01-01T00:00:00 + 61 's'",
+      "input": {},
+      "expect": [{"type": "dateTime", "value": "2024-01-01T00:01:01"}],
+      "comment": "61 seconds should roll over to 1 minute 1 second"
+    },
+    {
+      "name": "multiple UCUM milliseconds add up correctly",
+      "expr": "@2024-01-01T00:00:00.000 + 1500 'ms'",
+      "input": {},
+      "expect": [{"type": "dateTime", "value": "2024-01-01T00:00:01.500"}],
+      "comment": "1500 ms should become 1.5 seconds"
+    },
+    {
+      "name": "negative UCUM seconds work",
+      "expr": "@2024-01-01T00:01:00 - 30 's'",
+      "input": {},
+      "expect": [{"type": "dateTime", "value": "2024-01-01T00:00:30"}],
+      "comment": "Subtracting seconds should work with UCUM 's'"
+    }
+  ]
+}

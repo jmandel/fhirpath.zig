@@ -2,12 +2,14 @@
   "meta": {
     "status": "reviewed"
   },
-  "_spec_summary": "Regex matching functions: matches(), matchesFull(), replaceMatches(). All use regular expressions (PCRE flavor recommended). Case-sensitive by default, use 'single line' mode, allow Unicode.\n\n## matches(regex : String, [flags : String]) : Boolean\n- Returns true if the value contains a match for the given regex\n- Use ^ and $ anchors to match entire string\n- Empty input or regex returns empty\n- Multiple items in input is an error\n- Optional flags: 'i' for case-insensitive, 'm' for multi-line mode\n\n## matchesFull(regex : String, [flags : String]) : Boolean (STU)\n- Returns true if the value COMPLETELY matches the regex\n- Implicitly anchored at start and end (^ and $ surround the pattern)\n- Empty input or regex returns empty\n- Multiple items in input is an error\n- Optional flags: 'i' for case-insensitive, 'm' for multi-line mode\n\n## replaceMatches(regex : String, substitution : String, [flags : String]) : String\n- Replaces each regex match with the substitution string\n- Substitution can use named capture groups: ${groupname}\n- Empty input, regex, or substitution returns empty\n- Multiple items in input is an error\n- Optional flags: 'i' for case-insensitive, 'm' for multi-line mode\n\n## Key behaviors:\n- Regex is interpreted as PCRE (most portable)\n- Case-sensitive unless 'i' flag provided\n- Single-line mode by default (. doesn't match newlines unless multiline)\n- Unicode characters allowed",
+  "_spec_summary": "Regex matching functions: matches(), matchesFull(), replaceMatches(). All use regular expressions (PCRE flavor recommended). Case-sensitive by default, use 'single line' mode, allow Unicode.\n\n## matches(regex : String, [flags : String]) : Boolean\n- Returns true if the value contains a match for the given regex\n- Use ^ and $ anchors to match entire string\n- Empty input or regex returns empty\n- Multiple items in input is an error\n- Optional flags: 'i' for case-insensitive, 'm' for multi-line mode\n\n## matchesFull(regex : String, [flags : String]) : Boolean (STU)\n- Returns true if the value COMPLETELY matches the regex\n- Implicitly anchored at start and end (^ and $ surround the pattern)\n- Empty input or regex returns empty\n- Multiple items in input is an error\n- Optional flags: 'i' for case-insensitive, 'm' for multi-line mode\n\n## replaceMatches(regex : String, substitution : String, [flags : String]) : String\n- Replaces each regex match with the substitution string\n- Substitution can use named capture groups: ${groupname}\n- Empty input, regex, or substitution returns empty\n- Multiple items in input is an error\n- Optional flags: 'i' for case-insensitive, 'm' for multi-line mode\n\n## Key behaviors:\n- Regex is interpreted as PCRE (most portable)\n- Case-sensitive unless 'i' flag provided\n- **SINGLE-LINE MODE BY DEFAULT**: In single-line mode, '.' matches ANY character INCLUDING newlines. This is the default per spec.\n- **Multi-line mode ('m' flag)**: Makes ^ and $ match start/end of lines, not just start/end of string\n- Unicode characters allowed\n\n## IMPORTANT: Single-line mode semantics\nThe spec says regex should 'use single line mode'. In regex terminology, single-line mode means:\n- The '.' metacharacter matches ALL characters including \\n (newlines), \\r (carriage returns), etc.\n- Without single-line mode, '.' matches any character EXCEPT newlines\n- This is CRITICAL for patterns like 'A.*B' to match across line breaks\n\nNote: Some implementations call this 'DOTALL' mode or use the 's' flag.",
   "_todo": [
-    "[x] Improve passing rate (32/32 passing)",
+    "[ ] Improve passing rate (37/43 passing - 6 single-line mode tests failing)",
     "[x] Verify test expectations against spec examples",
     "[x] Review regex escape handling in tests",
-    "[x] Numbered capture groups ($1, $2) are implemented"
+    "[x] Numbered capture groups ($1, $2) are implemented",
+    "[ ] Implement single-line mode (DOTALL) as default per spec",
+    "[ ] Verify multi-line mode ('m' flag) behavior"
   ],
   "cases": [
     {
@@ -210,6 +212,83 @@
       "input": {},
       "expect": [{"type": "string", "value": "cba"}],
       "comment": "Reverses string using numbered capture groups"
+    },
+    {
+      "name": "matches: single-line mode - dot matches newline",
+      "expr": "'A\nB'.matches('A.*B')",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "R5 testMatchesSingleLineMode1: spec says use single-line mode where . matches newlines"
+    },
+    {
+      "name": "matches: single-line mode - dot matches tab and newlines",
+      "expr": "'A\n\t\t\tB'.matches('A.*B')",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "R5 exact test: string with newline and tabs should match with .* pattern"
+    },
+    {
+      "name": "matches: single-line mode - dot matches carriage return",
+      "expr": "'A\rB'.matches('A.B')",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Carriage return should also be matched by . in single-line mode"
+    },
+    {
+      "name": "matches: single-line mode - dot matches across multiple lines",
+      "expr": "'line1\nline2\nline3'.matches('line1.*line3')",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Pattern should match across multiple line breaks"
+    },
+    {
+      "name": "matchesFull: single-line mode - dot matches newline",
+      "expr": "'A\nB'.matchesFull('A.*B')",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "matchesFull should also use single-line mode"
+    },
+    {
+      "name": "matchesFull: single-line mode - dot matches any character",
+      "expr": "'first\nsecond'.matchesFull('first.second')",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Single . should match the newline character"
+    },
+    {
+      "name": "replaceMatches: single-line mode - dot matches newline",
+      "expr": "'A\nB'.replaceMatches('A.B', 'X')",
+      "input": {},
+      "expect": [{"type": "string", "value": "X"}],
+      "comment": "replaceMatches should also use single-line mode"
+    },
+    {
+      "name": "matches: multiline mode - caret matches start of line",
+      "expr": "'line1\nline2'.matches('^line2', 'm')",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "With 'm' flag, ^ matches start of any line, not just start of string"
+    },
+    {
+      "name": "matches: multiline mode - dollar matches end of line",
+      "expr": "'line1\nline2'.matches('line1$', 'm')",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "With 'm' flag, $ matches end of any line, not just end of string"
+    },
+    {
+      "name": "matches: without multiline mode - caret only matches start of string",
+      "expr": "'line1\nline2'.matches('^line2')",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}],
+      "comment": "Without 'm' flag, ^ only matches absolute start of string"
+    },
+    {
+      "name": "matches: without multiline mode - dollar only matches end of string",
+      "expr": "'line1\nline2'.matches('line1$')",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}],
+      "comment": "Without 'm' flag, $ only matches absolute end of string"
     }
   ]
 }

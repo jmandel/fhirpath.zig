@@ -103,11 +103,12 @@
       "6. convertsToX returns empty (not false) when input is empty"
     ],
     "_todo": [
-      "[ ] Improve passing rate (47/119 passing, 16 blocked by parser)",
+      "[ ] Improve passing rate (67/119 passing, 16 blocked by parser)",
       "[x] Implement toBoolean/toInteger conversion functions",
-      "[ ] Implement conversion functions (toDecimal, toString, toQuantity, toDate, toDateTime, toTime)",
+      "[x] Implement toDecimal/convertsToDecimal conversion functions",
+      "[ ] Implement conversion functions (toString, toQuantity, toDate, toDateTime, toTime)",
       "[x] Implement convertsToBoolean/convertsToInteger",
-      "[ ] Implement remaining convertsToX boolean checker functions",
+      "[ ] Implement remaining convertsToX boolean checker functions (quantity/date/dateTime/time)",
       "[ ] Parser: support parenthesized expressions like (-1)",
       "[ ] Parser: support method calls on date/time literals like @2024-01-15.toString()",
       "[ ] Parser: support method calls on quantity literals like (10 'mg').toString()",
@@ -624,7 +625,7 @@
       "input": {},
       "expect": [
         {
-          "type": "integer",
+          "type": "decimal",
           "value": 42
         }
       ]

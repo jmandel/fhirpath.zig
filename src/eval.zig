@@ -1582,6 +1582,16 @@ fn evalFunction(
         }
         return out;
     }
+    if (std.mem.eql(u8, call.name, "toDecimal")) {
+        if (call.args.len != 0) return error.InvalidFunction;
+        var out = ItemList.empty;
+        if (input.len == 0) return out;
+        if (input.len != 1) return error.SingletonRequired;
+        if (convertToDecimalText(ctx, input[0])) |text| {
+            try out.append(ctx.allocator, makeDecimalItemText(ctx, text));
+        }
+        return out;
+    }
     if (std.mem.eql(u8, call.name, "convertsToInteger")) {
         if (call.args.len != 0) return error.InvalidFunction;
         var out = ItemList.empty;
@@ -1597,6 +1607,15 @@ fn evalFunction(
         if (input.len == 0) return out;
         if (input.len != 1) return error.SingletonRequired;
         const convertible = convertToBoolean(ctx, input[0]) != null;
+        try out.append(ctx.allocator, makeBoolItem(ctx, convertible));
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "convertsToDecimal")) {
+        if (call.args.len != 0) return error.InvalidFunction;
+        var out = ItemList.empty;
+        if (input.len == 0) return out;
+        if (input.len != 1) return error.SingletonRequired;
+        const convertible = canConvertToDecimal(ctx, input[0]);
         try out.append(ctx.allocator, makeBoolItem(ctx, convertible));
         return out;
     }
@@ -2912,6 +2931,26 @@ fn convertToBoolean(ctx: anytype, it: item.Item) ?bool {
     }
 }
 
+fn convertToDecimalText(ctx: anytype, it: item.Item) ?[]const u8 {
+    const val = itemToValue(ctx, it);
+    return switch (val) {
+        .integer => |v| std.fmt.allocPrint(ctx.allocator, "{d}.0", .{v}) catch null,
+        .decimal => |s| s,
+        .boolean => |v| if (v) "1.0" else "0.0",
+        .string => |s| if (isDecimalString(s)) s else null,
+        else => null,
+    };
+}
+
+fn canConvertToDecimal(ctx: anytype, it: item.Item) bool {
+    const val = itemToValue(ctx, it);
+    return switch (val) {
+        .integer, .decimal, .boolean => true,
+        .string => |s| isDecimalString(s),
+        else => false,
+    };
+}
+
 fn canConvertToString(ctx: anytype, it: item.Item) bool {
     const val = itemToValue(ctx, it);
     switch (val) {
@@ -2938,6 +2977,38 @@ fn parseIntegerString(s: []const u8) ?i64 {
     }
     const magnitude = std.fmt.parseInt(i64, s[start..], 10) catch return null;
     return magnitude * sign;
+}
+
+fn isDecimalString(s: []const u8) bool {
+    if (s.len == 0) return false;
+    var idx: usize = 0;
+    if (s[0] == '+' or s[0] == '-') {
+        idx = 1;
+        if (idx == s.len) return false;
+    }
+    var saw_dot = false;
+    var digits_before: u32 = 0;
+    var digits_after: u32 = 0;
+    while (idx < s.len) : (idx += 1) {
+        const c = s[idx];
+        if (c >= '0' and c <= '9') {
+            if (saw_dot) {
+                digits_after += 1;
+            } else {
+                digits_before += 1;
+            }
+            continue;
+        }
+        if (c == '.') {
+            if (saw_dot) return false;
+            saw_dot = true;
+            continue;
+        }
+        return false;
+    }
+    if (digits_before == 0) return false;
+    if (saw_dot and digits_after == 0) return false;
+    return true;
 }
 
 fn parseBooleanString(s: []const u8) ?bool {

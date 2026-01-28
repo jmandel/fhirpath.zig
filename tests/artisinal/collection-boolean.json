@@ -17,8 +17,8 @@
     "",
     "=== TYPE HANDLING ===",
     "- Spec says the input is a collection of Boolean values; it does not describe coercion.",
-    "- Official tests include (true | 'foo').allTrue() => false, implying non-boolean items are treated as false.",
-    "- Behavior for other functions with non-boolean inputs is not explicitly specified.",
+    "- The type-safety section treats mismatched input types as unsafe and allows implementations to signal errors at runtime.",
+    "- Official tests include (true | 'foo').allTrue() and expect an error, so mixed-type inputs should raise an evaluation error.",
     "",
     "=== RELATIONSHIPS ===",
     "- allTrue() is equivalent to not(anyFalse()) for pure boolean inputs.",
@@ -27,12 +27,12 @@
     "Spec refs: spec/index.md sections allTrue(), anyTrue(), allFalse(), anyFalse()."
   ],
   "_todo": [
-    "[ ] Improve passing rate (0/13 passing)",
-    "[ ] Confirm spec intent for non-boolean inputs beyond allTrue()",
-    "[ ] Add mixed-type tests for anyTrue()/allFalse()/anyFalse() once behavior is clarified"
+    "[ ] Improve passing rate (1/13 passing)",
+    "[x] Confirm spec intent for non-boolean inputs (treat as error)",
+    "[ ] Add non-boolean error tests for anyTrue()/allFalse()/anyFalse()"
   ],
   "meta": {
-    "status": "drafted",
+    "status": "reviewed",
     "feature": "collection-boolean",
     "source": "spec/index.md#allTrue"
   },
@@ -84,7 +84,7 @@
       ]
     },
     {
-      "name": "allTrue: non-boolean treated as false",
+      "name": "allTrue: non-boolean input errors",
       "expr": "items.allTrue()",
       "input": {
         "items": [
@@ -92,12 +92,7 @@
           "foo"
         ]
       },
-      "expect": [
-        {
-          "type": "boolean",
-          "value": false
-        }
-      ]
+      "expect_error": true
     },
     {
       "name": "anyTrue: at least one true",

@@ -1013,7 +1013,13 @@ fn valueEquivalent(ctx: anytype, a_val: item.Value, a_type: u32, b_val: item.Val
     }
 
     if (a_val == .boolean and b_val == .boolean) return a_val.boolean == b_val.boolean;
-    if (a_val == .quantity and b_val == .quantity) return std.mem.eql(u8, a_val.quantity.value, b_val.quantity.value) and std.mem.eql(u8, a_val.quantity.unit, b_val.quantity.unit);
+    if (a_val == .quantity and b_val == .quantity) {
+        if (!quantityUnitsCompatible(a_val.quantity.unit, b_val.quantity.unit)) return false;
+        // Use numeric comparison for quantity values (not string comparison)
+        const fa = std.fmt.parseFloat(f64, a_val.quantity.value) catch return false;
+        const fb = std.fmt.parseFloat(f64, b_val.quantity.value) catch return false;
+        return fa == fb;
+    }
 
     return false;
 }
@@ -1160,7 +1166,7 @@ fn compareItems(ctx: anytype, a: item.Item, b: item.Item) EvalError!?i32 {
 
     // Compare quantities (same unit only)
     if (va == .quantity and vb == .quantity) {
-        if (!std.mem.eql(u8, va.quantity.unit, vb.quantity.unit)) return null;
+        if (!quantityUnitsCompatible(va.quantity.unit, vb.quantity.unit)) return null;
         const qa = std.fmt.parseFloat(f64, va.quantity.value) catch return null;
         const qb = std.fmt.parseFloat(f64, vb.quantity.value) catch return null;
         if (qa < qb) return -1;
@@ -1561,6 +1567,15 @@ fn evalArithmetic(
         }
     }
 
+    // Quantity arithmetic
+    if (va == .quantity or vb == .quantity) {
+        const result_item = try evalQuantityArithmetic(ctx, va, vb, op);
+        if (result_item) |r| {
+            try out.append(ctx.allocator, r);
+            return out;
+        }
+    }
+
     // Date/DateTime/Time arithmetic with Quantity
     if ((op == .add or op == .sub) and vb == .quantity) {
         const result_item = try evalDateTimeArithmetic(ctx, va, vb.quantity, op == .add);
@@ -1570,6 +1585,174 @@ fn evalArithmetic(
     }
 
     return out;
+}
+
+// Normalize a calendar duration keyword to singular form for comparison
+fn normalizeCalendarUnit(unit: []const u8) []const u8 {
+    // Map plural to singular for calendar durations
+    const mappings = [_]struct { plural: []const u8, singular: []const u8 }{
+        .{ .plural = "years", .singular = "year" },
+        .{ .plural = "months", .singular = "month" },
+        .{ .plural = "weeks", .singular = "week" },
+        .{ .plural = "days", .singular = "day" },
+        .{ .plural = "hours", .singular = "hour" },
+        .{ .plural = "minutes", .singular = "minute" },
+        .{ .plural = "seconds", .singular = "second" },
+        .{ .plural = "milliseconds", .singular = "millisecond" },
+    };
+    for (mappings) |m| {
+        if (std.mem.eql(u8, unit, m.plural)) return m.singular;
+    }
+    return unit;
+}
+
+// Check if two quantity units are compatible (same unit, accounting for singular/plural)
+fn quantityUnitsCompatible(unit_a: []const u8, unit_b: []const u8) bool {
+    if (std.mem.eql(u8, unit_a, unit_b)) return true;
+    // Normalize calendar duration units to singular for comparison
+    const na = normalizeCalendarUnit(unit_a);
+    const nb = normalizeCalendarUnit(unit_b);
+    return std.mem.eql(u8, na, nb);
+}
+
+// Quantity arithmetic: quantity+quantity, quantity*number, quantity/number, etc.
+fn evalQuantityArithmetic(
+    ctx: anytype,
+    va: item.Value,
+    vb: item.Value,
+    op: ArithOp,
+) EvalError!?item.Item {
+    // Helper to extract numeric value from integer, decimal, or quantity
+    const qa: ?item.Quantity = if (va == .quantity) va.quantity else null;
+    const qb: ?item.Quantity = if (vb == .quantity) vb.quantity else null;
+
+    // Extract numeric values
+    const na: ?f64 = if (qa) |q| std.fmt.parseFloat(f64, q.value) catch null
+        else switch (va) {
+            .integer => |i| @floatFromInt(i),
+            .decimal => |d| std.fmt.parseFloat(f64, d) catch null,
+            else => null,
+        };
+    const nb: ?f64 = if (qb) |q| std.fmt.parseFloat(f64, q.value) catch null
+        else switch (vb) {
+            .integer => |i| @floatFromInt(i),
+            .decimal => |d| std.fmt.parseFloat(f64, d) catch null,
+            else => null,
+        };
+
+    if (na == null or nb == null) return null;
+
+    const a = na.?;
+    const b = nb.?;
+
+    switch (op) {
+        .add, .sub => {
+            // Both must be quantities with same unit
+            if (qa == null or qb == null) return null;
+            if (!quantityUnitsCompatible(qa.?.unit, qb.?.unit)) return null;
+            const result = if (op == .add) a + b else a - b;
+            var buf: [64]u8 = undefined;
+            const result_str = formatDecimal(&buf, result);
+            const owned = try ctx.allocator.dupe(u8, result_str);
+            return makeQuantityItem(ctx, owned, qa.?.unit);
+        },
+        .mul => {
+            if (qa != null and qb != null) {
+                // quantity * quantity => derived unit (e.g., cm * cm = cm2)
+                const result = a * b;
+                var buf: [64]u8 = undefined;
+                const result_str = formatDecimal(&buf, result);
+                const owned_val = try ctx.allocator.dupe(u8, result_str);
+                const derived_unit = try deriveMultiplyUnit(ctx.allocator, qa.?.unit, qb.?.unit);
+                return makeQuantityItem(ctx, owned_val, derived_unit);
+            } else {
+                // quantity * number or number * quantity
+                const q = qa orelse qb orelse return null;
+                const result = a * b;
+                var buf: [64]u8 = undefined;
+                const result_str = formatDecimal(&buf, result);
+                const owned_val = try ctx.allocator.dupe(u8, result_str);
+                return makeQuantityItem(ctx, owned_val, q.unit);
+            }
+        },
+        .div => {
+            if (b == 0) return null; // division by zero => empty
+            if (qa != null and qb != null) {
+                // quantity / quantity
+                if (quantityUnitsCompatible(qa.?.unit, qb.?.unit)) {
+                    // Same unit => dimensionless decimal
+                    return try makeDecimalItem(ctx, a / b);
+                }
+                // Different units => try to derive unit (e.g., cm2 / cm = cm)
+                const result = a / b;
+                var buf: [64]u8 = undefined;
+                const result_str = formatDecimal(&buf, result);
+                const owned_val = try ctx.allocator.dupe(u8, result_str);
+                const derived_unit = try deriveDivideUnit(ctx.allocator, qa.?.unit, qb.?.unit);
+                return makeQuantityItem(ctx, owned_val, derived_unit);
+            } else if (qa != null) {
+                // quantity / number
+                const result = a / b;
+                var buf: [64]u8 = undefined;
+                const result_str = formatDecimal(&buf, result);
+                const owned_val = try ctx.allocator.dupe(u8, result_str);
+                return makeQuantityItem(ctx, owned_val, qa.?.unit);
+            }
+            return null;
+        },
+        .int_div, .mod => {
+            // Not commonly used with quantities, but handle quantity / quantity same unit
+            if (qa != null and qb != null and quantityUnitsCompatible(qa.?.unit, qb.?.unit)) {
+                if (b == 0) return null;
+                const result = if (op == .int_div) @trunc(a / b) else @mod(a, b);
+                return try makeDecimalItem(ctx, result);
+            }
+            return null;
+        },
+    }
+}
+
+// Derive unit for quantity multiplication (e.g., cm * cm = cm2)
+fn deriveMultiplyUnit(allocator: std.mem.Allocator, unit_a: []const u8, unit_b: []const u8) ![]const u8 {
+    if (std.mem.eql(u8, unit_a, unit_b)) {
+        // Same unit: e.g., cm * cm = cm2
+        return try std.fmt.allocPrint(allocator, "{s}2", .{unit_a});
+    }
+    // For different units, try simple derived unit notation
+    // e.g., cm * cm2 = cm3 (check if unit_b is unit_a + digit)
+    if (unit_b.len > unit_a.len and std.mem.startsWith(u8, unit_b, unit_a)) {
+        const suffix = unit_b[unit_a.len..];
+        if (suffix.len == 1 and suffix[0] >= '2' and suffix[0] <= '8') {
+            const new_exp = suffix[0] - '0' + 1;
+            return try std.fmt.allocPrint(allocator, "{s}{d}", .{ unit_a, new_exp });
+        }
+    }
+    if (unit_a.len > unit_b.len and std.mem.startsWith(u8, unit_a, unit_b)) {
+        const suffix = unit_a[unit_b.len..];
+        if (suffix.len == 1 and suffix[0] >= '2' and suffix[0] <= '8') {
+            const new_exp = suffix[0] - '0' + 1;
+            return try std.fmt.allocPrint(allocator, "{s}{d}", .{ unit_b, new_exp });
+        }
+    }
+    // Fallback: concatenate with dot
+    return try std.fmt.allocPrint(allocator, "{s}.{s}", .{ unit_a, unit_b });
+}
+
+// Derive unit for quantity division (e.g., cm2 / cm = cm)
+fn deriveDivideUnit(allocator: std.mem.Allocator, unit_a: []const u8, unit_b: []const u8) ![]const u8 {
+    // Check if unit_a is unit_b + exponent (e.g., cm2 / cm = cm)
+    if (unit_a.len > unit_b.len and std.mem.startsWith(u8, unit_a, unit_b)) {
+        const suffix = unit_a[unit_b.len..];
+        if (suffix.len == 1 and suffix[0] >= '2' and suffix[0] <= '9') {
+            const exp = suffix[0] - '0';
+            if (exp == 2) {
+                return try allocator.dupe(u8, unit_b);
+            }
+            return try std.fmt.allocPrint(allocator, "{s}{d}", .{ unit_b, exp - 1 });
+        }
+    }
+    // Fallback: use / notation
+    return try std.fmt.allocPrint(allocator, "{s}/{s}", .{ unit_a, unit_b });
 }
 
 // Date/Time arithmetic with calendar durations (year, month, week, day, hour, minute, second, millisecond)
@@ -2235,6 +2418,13 @@ fn evalUnary(
                     .decimal => |val| {
                         const f = std.fmt.parseFloat(f64, val) catch return error.InvalidOperand;
                         try out.append(ctx.allocator, try makeDecimalItem(ctx, -f));
+                    },
+                    .quantity => |q| {
+                        const f = std.fmt.parseFloat(f64, q.value) catch return error.InvalidOperand;
+                        var buf: [64]u8 = undefined;
+                        const neg_str = formatDecimal(&buf, -f);
+                        const owned = try ctx.allocator.dupe(u8, neg_str);
+                        try out.append(ctx.allocator, makeQuantityItem(ctx, owned, q.unit));
                     },
                     else => return error.InvalidOperand,
                 }
@@ -5050,7 +5240,10 @@ fn valueEqualTriState(a: item.Value, b: item.Value) ?bool {
             if (a_prec != b_prec) return null;
             return compareDateTimeStrings(v, b.dateTime) == 0;
         },
-        .quantity => |v| return std.mem.eql(u8, v.value, b.quantity.value) and std.mem.eql(u8, v.unit, b.quantity.unit),
+        .quantity => |v| {
+            if (!quantityUnitsCompatible(v.unit, b.quantity.unit)) return false;
+            return compareDecimalStrings(v.value, b.quantity.value) == 0;
+        },
     }
 }
 

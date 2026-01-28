@@ -66,11 +66,11 @@
     "  - -0 'mg' = 0 'mg' (quantity)"
   ],
   "_todo": [
-    "[ ] Improve passing rate (29/33 passing)",
-    "[ ] Implement unary negation on Quantity (4 tests failing with eval error)",
+    "[x] Improve passing rate (33/33 passing)",
+    "[x] Implement unary negation on Quantity",
     "[x] Test unary negation on integers",
     "[x] Test unary negation on decimals",
-    "[ ] Test unary negation on quantities - tests present but eval not implemented",
+    "[x] Test unary negation on quantities",
     "[x] Test unary identity (+) operator",
     "[x] Test precedence with method invocation (.)",
     "[x] Test double negation",

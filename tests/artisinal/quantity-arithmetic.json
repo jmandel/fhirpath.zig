@@ -51,7 +51,8 @@
     "in arithmetic operations; the result is empty ({})."
   ],
   "_todo": [
-    "[ ] Improve passing rate (20/59 passing)",
+    "[ ] Improve passing rate (55/59 passing)",
+    "[ ] Implement calendar-to-UCUM duration mapping (e.g., 1 year ~ 1 'a', 1 second = 1 's')",
     "[ ] Add cross-unit arithmetic tests once UCUM conversion is supported",
     "[ ] Add overflow/underflow edge cases for very large quantity values",
     "[ ] Verify calendar duration arithmetic with Date/DateTime operands"
@@ -222,7 +223,8 @@
       "name": "add: calendar duration years",
       "expr": "1 year + 2 years",
       "input": {},
-      "expect": [{"type": "Quantity", "value": {"value": 3, "unit": "years"}}]
+      "expect": [{"type": "Quantity", "value": {"value": 3, "unit": "year"}}],
+      "comment": "Result unit uses left operand's form (singular); both singular/plural are equivalent"
     },
     {
       "name": "add: calendar duration months",

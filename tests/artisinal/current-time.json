@@ -17,10 +17,11 @@
     "This applies even if the expression evaluates the function multiple times or inside iteration (e.g., within select/where).",
     "",
     "=== TYPE AND FORMAT ===",
-    "- now() returns a DateTime including a timezone offset (spec requirement).",
+    "- now() returns a DateTime including a timezone offset (spec requirement). Offsets may be given as +/-hh:mm or Z.",
     "- today() returns a Date (no time component).",
-    "- timeOfDay() returns a Time (no date component).",
+    "- timeOfDay() returns a Time (no date component, no timezone/offset).",
     "- String conversion follows the Date/DateTime/Time toString() rules: Date -> YYYY-MM-DD; DateTime/Time use ISO-8601 with preserved precision.",
+    "- Time values may be partial; toString() only includes components present in the value.",
     "",
     "=== EDGE CASES ===",
     "- These functions should not error and do not depend on input type or emptiness.",
@@ -40,7 +41,7 @@
     "Should now() always include fractional seconds, or only when available from the host clock?"
   ],
   "meta": {
-    "status": "drafted"
+    "status": "reviewed"
   },
   "cases": [
     {
@@ -108,8 +109,8 @@
       ]
     },
     {
-      "name": "timeOfDay: toString length indicates non-empty time",
-      "expr": "timeOfDay().toString().length() >= 2",
+      "name": "timeOfDay: toString length indicates hh:mm minimum",
+      "expr": "timeOfDay().toString().length() >= 5",
       "input": {},
       "expect": [
         {

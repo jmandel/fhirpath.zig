@@ -1,0 +1,355 @@
+{
+  "_spec_summary": [
+    "Long Type - 64-bit integer values (STU)",
+    "",
+    "=== LITERAL SYNTAX ===",
+    "Long literals are integers suffixed with 'L' (case-sensitive):",
+    "  - 0L, 45L, -5L",
+    "  - Range: -2^63 to 2^63-1 (-9223372036854775808 to 9223372036854775807)",
+    "  - The minus sign is the unary negation operator, not part of the literal",
+    "",
+    "=== TYPE IDENTITY ===",
+    "  - A Long literal (e.g., 45L) is of type Long, NOT Integer",
+    "  - 45L.is(Long) = true",
+    "  - 45L.is(Integer) = false",
+    "  - Long and Integer are distinct types for is/as/ofType operations",
+    "",
+    "=== ARITHMETIC ===",
+    "  - Long supports all arithmetic operations: +, -, *, /, div, mod",
+    "  - Mixed Long/Integer arithmetic may promote to Long (implementation-specific)",
+    "  - Long with Decimal operations may promote to Decimal",
+    "",
+    "=== toLong() : Long ===",
+    "Converts input to Long if possible, empty otherwise:",
+    "  - Integer or Long: passthrough/convert",
+    "  - String: must match regex (\\+|-)?\\d+ and fit in 64 bits",
+    "  - Boolean: true -> 1L, false -> 0L",
+    "  - Other types: empty",
+    "",
+    "=== convertsToLong() : Boolean ===",
+    "Returns true if input can be converted to Long:",
+    "  - Integer or Long: always true",
+    "  - String matching (\\+|-)?\\d+ and fitting in 64 bits: true",
+    "  - Boolean: always true",
+    "  - Other types: false",
+    "  - Empty input: empty (not false!)",
+    "",
+    "=== COMPARISON ===",
+    "  - Long values compare with = and ~ using numeric equality",
+    "  - Long can be compared with Integer: 45L = 45 is true",
+    "  - Ordering comparisons (<, >, <=, >=) work normally",
+    "",
+    "Spec refs: spec/index.md Long literal section, toLong(), convertsToLong()."
+  ],
+  "_todo": [
+    "[ ] Improve passing rate (0/32 passing) - Long literals and functions not implemented",
+    "[ ] Implement Long literal parsing (0L, 45L syntax)",
+    "[ ] Implement toLong() and convertsToLong() functions",
+    "[ ] Implement Long type identity checks (is/as Long)",
+    "[ ] Test large Long values near 64-bit boundaries"
+  ],
+  "meta": {
+    "status": "written",
+    "feature": "long-type",
+    "source": "spec/index.md#Long"
+  },
+  "cases": [
+    {
+      "_section": "=== LONG LITERALS ==="
+    },
+    {
+      "name": "Long: zero literal",
+      "expr": "0L",
+      "input": {},
+      "expect": [{"type": "Long", "value": 0}]
+    },
+    {
+      "name": "Long: positive literal",
+      "expr": "45L",
+      "input": {},
+      "expect": [{"type": "Long", "value": 45}]
+    },
+    {
+      "name": "Long: larger value",
+      "expr": "123456789L",
+      "input": {},
+      "expect": [{"type": "Long", "value": 123456789}]
+    },
+    {
+      "_section": "=== TYPE IDENTITY ==="
+    },
+    {
+      "name": "Long: is Long returns true",
+      "expr": "45L.is(Long)",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "Long: is System.Long returns true",
+      "expr": "45L.is(System.Long)",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "Long: is Integer returns false",
+      "expr": "45L.is(Integer)",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}],
+      "comment": "Long and Integer are distinct types"
+    },
+    {
+      "name": "Long: as Long returns value",
+      "expr": "45L.as(Long)",
+      "input": {},
+      "expect": [{"type": "Long", "value": 45}]
+    },
+    {
+      "name": "Long: as Integer returns empty",
+      "expr": "45L.as(Integer)",
+      "input": {},
+      "expect": [],
+      "comment": "Long is not Integer type, as() returns empty"
+    },
+    {
+      "_section": "=== toLong() CONVERSION ==="
+    },
+    {
+      "name": "toLong: Integer converts",
+      "expr": "42.toLong()",
+      "input": {},
+      "expect": [{"type": "Long", "value": 42}]
+    },
+    {
+      "name": "toLong: Long passthrough",
+      "expr": "42L.toLong()",
+      "input": {},
+      "expect": [{"type": "Long", "value": 42}]
+    },
+    {
+      "name": "toLong: string '12345'",
+      "expr": "'12345'.toLong()",
+      "input": {},
+      "expect": [{"type": "Long", "value": 12345}]
+    },
+    {
+      "name": "toLong: string with plus sign",
+      "expr": "'+999'.toLong()",
+      "input": {},
+      "expect": [{"type": "Long", "value": 999}]
+    },
+    {
+      "name": "toLong: string with minus sign",
+      "expr": "'-456'.toLong()",
+      "input": {},
+      "expect": [{"type": "Long", "value": -456}]
+    },
+    {
+      "name": "toLong: boolean true",
+      "expr": "true.toLong()",
+      "input": {},
+      "expect": [{"type": "Long", "value": 1}]
+    },
+    {
+      "name": "toLong: boolean false",
+      "expr": "false.toLong()",
+      "input": {},
+      "expect": [{"type": "Long", "value": 0}]
+    },
+    {
+      "name": "toLong: string '1.5' returns empty (decimal not allowed)",
+      "expr": "'1.5'.toLong()",
+      "input": {},
+      "expect": [],
+      "comment": "String must be integer format, not decimal"
+    },
+    {
+      "name": "toLong: string 'abc' returns empty",
+      "expr": "'abc'.toLong()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "toLong: Decimal returns empty",
+      "expr": "3.14.toLong()",
+      "input": {},
+      "expect": [],
+      "comment": "Decimal is not convertible to Long"
+    },
+    {
+      "name": "toLong: empty returns empty",
+      "expr": "{}.toLong()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "_section": "=== convertsToLong() ==="
+    },
+    {
+      "name": "convertsToLong: Integer always true",
+      "expr": "42.convertsToLong()",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "convertsToLong: Long always true",
+      "expr": "42L.convertsToLong()",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "convertsToLong: string '12345'",
+      "expr": "'12345'.convertsToLong()",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "convertsToLong: boolean true",
+      "expr": "true.convertsToLong()",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "convertsToLong: string '1.5' (not convertible)",
+      "expr": "'1.5'.convertsToLong()",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}]
+    },
+    {
+      "name": "convertsToLong: string 'abc' (not convertible)",
+      "expr": "'abc'.convertsToLong()",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}]
+    },
+    {
+      "name": "convertsToLong: Decimal (not convertible)",
+      "expr": "3.14.convertsToLong()",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}]
+    },
+    {
+      "name": "convertsToLong: empty returns empty",
+      "expr": "{}.convertsToLong()",
+      "input": {},
+      "expect": [],
+      "comment": "Empty input returns empty, not false"
+    },
+    {
+      "_section": "=== COMPARISON ==="
+    },
+    {
+      "name": "Long: equality with same Long",
+      "expr": "45L = 45L",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "Long: equality with different Long",
+      "expr": "45L = 46L",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}]
+    },
+    {
+      "name": "Long: equality with Integer (numeric)",
+      "expr": "45L = 45",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Numeric equality: 45L and 45 are equal values"
+    },
+    {
+      "name": "Long: equivalence with Integer",
+      "expr": "45L ~ 45",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "Long: less than comparison",
+      "expr": "10L < 20L",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "Long: greater than comparison",
+      "expr": "100L > 50L",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "_section": "=== ARITHMETIC ==="
+    },
+    {
+      "name": "Long: addition",
+      "expr": "10L + 5L",
+      "input": {},
+      "expect": [{"type": "Long", "value": 15}]
+    },
+    {
+      "name": "Long: subtraction",
+      "expr": "10L - 3L",
+      "input": {},
+      "expect": [{"type": "Long", "value": 7}]
+    },
+    {
+      "name": "Long: multiplication",
+      "expr": "6L * 7L",
+      "input": {},
+      "expect": [{"type": "Long", "value": 42}]
+    },
+    {
+      "name": "Long: integer division (div)",
+      "expr": "17L div 5L",
+      "input": {},
+      "expect": [{"type": "Long", "value": 3}]
+    },
+    {
+      "name": "Long: modulo",
+      "expr": "17L mod 5L",
+      "input": {},
+      "expect": [{"type": "Long", "value": 2}]
+    },
+    {
+      "_section": "=== OFTYPE FILTERING ==="
+    },
+    {
+      "name": "ofType: filter Long from mixed collection",
+      "expr": "(1 | 2L | 'a' | 3L).ofType(Long).count()",
+      "input": {},
+      "expect": [{"type": "integer", "value": 2}],
+      "comment": "Only 2L and 3L are Long type"
+    },
+    {
+      "name": "ofType: Integer does not include Long",
+      "expr": "(1 | 2L | 3).ofType(Integer).count()",
+      "input": {},
+      "expect": [{"type": "integer", "value": 2}],
+      "comment": "Only 1 and 3 are Integer type; 2L is Long"
+    },
+    {
+      "_section": "=== AGGREGATE FUNCTIONS ==="
+    },
+    {
+      "name": "sum: Long values",
+      "expr": "(1L | 2L | 3L).sum()",
+      "input": {},
+      "expect": [{"type": "Long", "value": 6}]
+    },
+    {
+      "name": "min: Long values",
+      "expr": "(5L | 2L | 8L).min()",
+      "input": {},
+      "expect": [{"type": "Long", "value": 2}]
+    },
+    {
+      "name": "max: Long values",
+      "expr": "(5L | 2L | 8L).max()",
+      "input": {},
+      "expect": [{"type": "Long", "value": 8}]
+    },
+    {
+      "name": "avg: Long values returns Decimal",
+      "expr": "(2L | 4L | 6L).avg()",
+      "input": {},
+      "expect": [{"type": "decimal", "value": 4.0}],
+      "comment": "avg() always returns Decimal, even for Long input"
+    }
+  ]
+}

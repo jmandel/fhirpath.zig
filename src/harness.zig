@@ -37,6 +37,11 @@ const TestFailure = struct {
     actual: ?[]const u8,
 };
 
+const OwnedStr = struct {
+    buf: []const u8,
+    owned: bool,
+};
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
@@ -468,14 +473,16 @@ fn runTestFile(
             result.mismatch_errors += 1;
 
             const expected_str = if (expect_val) |ev|
-                std.json.Stringify.valueAlloc(allocator, ev, .{}) catch "?"
+                jsonStringifyOwned(allocator, ev)
             else
-                allocator.dupe(u8, "[]") catch "?";
+                dupOwned(allocator, "[]");
+            defer if (expected_str.owned) allocator.free(expected_str.buf);
 
             const actual_array = std.json.Array{ .items = actual_values.items, .capacity = actual_values.capacity, .allocator = allocator };
-            const actual_str = std.json.Stringify.valueAlloc(allocator, std.json.Value{ .array = actual_array }, .{}) catch "?";
+            const actual_str = jsonStringifyOwned(allocator, std.json.Value{ .array = actual_array });
+            defer if (actual_str.owned) allocator.free(actual_str.buf);
 
-            try addFailure(allocator, failures, result.name, name_str, expr_str, "mismatch", expected_str, actual_str);
+            try addFailure(allocator, failures, result.name, name_str, expr_str, "mismatch", expected_str.buf, actual_str.buf);
         } else {
             result.passed += 1;
             if (opts.verbose) {
@@ -489,6 +496,22 @@ fn runTestFile(
     }
 
     return result;
+}
+
+fn jsonStringifyOwned(allocator: std.mem.Allocator, value: std.json.Value) OwnedStr {
+    const buf = std.json.Stringify.valueAlloc(allocator, value, .{}) catch return .{
+        .buf = "?",
+        .owned = false,
+    };
+    return .{ .buf = buf, .owned = true };
+}
+
+fn dupOwned(allocator: std.mem.Allocator, text: []const u8) OwnedStr {
+    const buf = allocator.dupe(u8, text) catch return .{
+        .buf = "?",
+        .owned = false,
+    };
+    return .{ .buf = buf, .owned = true };
 }
 
 fn addFailure(

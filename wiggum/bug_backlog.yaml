@@ -25,10 +25,18 @@ bugs:
     updated: 2026-01-27
     tags: []
   - slug: harness-memory-leaks
-    status: open
+    status: resolved
     severity: medium
     title: Fix memory leaks in test harness
     description: Harness leaks memory when formatting failure output (valueAlloc not freed). Shows gpa errors on test failures.
     created: 2026-01-27
     updated: 2026-01-27
     tags: [harness, memory]
+  - slug: eval-leaks-intermediate-arraylists-during-harness-runs
+    status: open
+    severity: medium
+    title: Eval leaks intermediate ArrayLists during harness runs
+    description: Running zig build harness with GPA reports leaks from eval.zig (distinctItems/applySegment) even though eval_result.deinit is called; see stack traces in harness output after failures.
+    created: 2026-01-27
+    updated: 2026-01-27
+    tags: [memory, eval]

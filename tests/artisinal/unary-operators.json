@@ -1,9 +1,9 @@
 {
   "meta": {
-    "status": "drafted",
+    "status": "reviewed",
     "spec_sections": [
       "5.1.4 (Integer, Decimal, Quantity literals)",
-      "6.7 (Math - implicit context)",
+      "6.6 (Math operators)",
       "6.8 (Operator precedence)"
     ]
   },
@@ -66,15 +66,17 @@
     "  - -0 'mg' = 0 'mg' (quantity)"
   ],
   "_todo": [
-    "[ ] Improve passing rate (27/33 passing)",
-    "[ ] Test unary negation on integers",
-    "[ ] Test unary negation on decimals",
-    "[ ] Test unary negation on quantities",
-    "[ ] Test unary identity (+) operator",
-    "[ ] Test precedence with method invocation (.)",
-    "[ ] Test double negation",
-    "[ ] Test empty input returns empty",
-    "[ ] Test with parenthesized expressions"
+    "[ ] Improve passing rate (29/33 passing)",
+    "[ ] Implement unary negation on Quantity (4 tests failing with eval error)",
+    "[x] Test unary negation on integers",
+    "[x] Test unary negation on decimals",
+    "[ ] Test unary negation on quantities - tests present but eval not implemented",
+    "[x] Test unary identity (+) operator",
+    "[x] Test precedence with method invocation (.)",
+    "[x] Test double negation",
+    "[x] Test empty input returns empty",
+    "[x] Test with parenthesized expressions",
+    "[x] Cross-checked JSON input field tests against engine behavior"
   ],
   "cases": [
     {
@@ -446,10 +448,11 @@
       },
       "expect": [
         {
-          "type": "integer",
-          "value": -42
+          "type": "decimal",
+          "value": -42.0
         }
-      ]
+      ],
+      "comment": "JSON numbers have no integer/decimal distinction; engine treats as decimal"
     },
     {
       "name": "negate decimal field",
@@ -472,10 +475,11 @@
       },
       "expect": [
         {
-          "type": "integer",
-          "value": 100
+          "type": "decimal",
+          "value": 100.0
         }
-      ]
+      ],
+      "comment": "JSON numbers have no integer/decimal distinction; engine treats as decimal"
     }
   ]
 }

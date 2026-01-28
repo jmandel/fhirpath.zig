@@ -8,6 +8,7 @@ const resultsEl = document.querySelector("#results");
 const statusEl = document.querySelector("#status");
 const inputMetaEl = document.querySelector("#input-meta");
 const chipRow = document.querySelector("#chip-row");
+const schemaSelect = document.querySelector("#schema-select");
 
 const examples = [
   {
@@ -119,12 +120,36 @@ async function init() {
     engine = await FhirPathEngine.instantiate(new URL("./fhirpath.wasm", import.meta.url));
 
     statusEl.textContent = "Loading schema…";
-    await engine.registerSchemaFromUrl({
-      name: "r5",
-      prefix: "FHIR",
-      url: new URL("./model-r5.bin", import.meta.url),
-      isDefault: true,
-    });
+    const availableSchemas = [];
+    try {
+      await engine.registerSchemaFromUrl({
+        name: "r5",
+        prefix: "FHIR",
+        url: new URL("./model-r5.bin", import.meta.url),
+        isDefault: true,
+      });
+      availableSchemas.push("r5");
+    } catch (err) {
+      console.error("Failed to load R5 model", err);
+    }
+    try {
+      await engine.registerSchemaFromUrl({
+        name: "r4",
+        prefix: "FHIR",
+        url: new URL("./model-r4.bin", import.meta.url),
+        isDefault: availableSchemas.length === 0,
+      });
+      availableSchemas.push("r4");
+    } catch (err) {
+      console.warn("R4 model not available", err);
+    }
+
+    if (availableSchemas.length === 0) {
+      throw new Error("No schema models available");
+    }
+    if (!availableSchemas.includes(schemaSelect.value)) {
+      schemaSelect.value = availableSchemas[0];
+    }
 
     statusEl.textContent = "Ready";
   } catch (err) {
@@ -159,7 +184,8 @@ async function runExpression() {
   }
 
   try {
-    const results = engine.eval({ expr, json: jsonText, schema: "r5", now: new Date() });
+    const selectedSchema = schemaSelect.value || "r5";
+    const results = engine.eval({ expr, json: jsonText, schema: selectedSchema, now: new Date() });
     let count = 0;
     for (const node of results) {
       count += 1;

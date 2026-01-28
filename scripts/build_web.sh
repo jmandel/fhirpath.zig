@@ -24,5 +24,10 @@ cp web/app.js "$OUT_DIR/app.js"
 cp js/fhirpath.js "$OUT_DIR/fhirpath.js"
 cp zig-out/bin/fhirpath.wasm "$OUT_DIR/fhirpath.wasm"
 cp models/r5/model.bin "$OUT_DIR/model-r5.bin"
+if [[ -f "models/r4/model.bin" ]]; then
+  cp models/r4/model.bin "$OUT_DIR/model-r4.bin"
+else
+  echo "Warning: models/r4/model.bin not found; skipping" >&2
+fi
 
 echo "Web demo assembled in $OUT_DIR"

@@ -40,8 +40,8 @@
         </ol>
         <p class="note">
           The demo expects <span class="mono">fhirpath.wasm</span>,
-          <span class="mono">model-r5.bin</span>, and
-          <span class="mono">fhirpath.js</span> in the same folder as this page.
+          <span class="mono">model-r5.bin</span>, <span class="mono">model-r4.bin</span>,
+          and <span class="mono">fhirpath.js</span> in the same folder as this page.
         </p>
       </div>
     </header>
@@ -49,8 +49,17 @@
     <section class="panel-grid">
       <div class="panel">
         <div class="panel-header">
-          <h2>Expression</h2>
-          <div class="chips" id="chip-row"></div>
+          <div>
+            <h2>Expression</h2>
+            <p class="meta-inline">Schema</p>
+          </div>
+          <div class="panel-actions">
+            <select id="schema-select" class="schema-select">
+              <option value="r5" selected>FHIR R5</option>
+              <option value="r4">FHIR R4</option>
+            </select>
+            <div class="chips" id="chip-row"></div>
+          </div>
         </div>
         <input id="expr" class="expr-input" spellcheck="false" />
         <p class="hint">Use %env syntax for environment variables (not wired yet in this build).</p>

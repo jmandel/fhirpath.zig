@@ -1,13 +1,17 @@
-name: CI
+name: Pages
 
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
 
 jobs:
-  build-and-test:
+  build:
     runs-on: ubuntu-latest
 
     steps:
@@ -27,21 +31,6 @@ jobs:
       - name: Fetch FHIR models
         run: ./scripts/fetch_models.sh
 
-      - name: Build
-        run: zig build
-
-      - name: Run library tests
-        run: zig build test
-
-      - name: Run artisinal test harness
-        continue-on-error: true
-        run: zig build harness
-
-      - name: Smoke test CLI
-        run: |
-          zig build run -- 'name.given' '{"name":{"given":["Ann","Bob"]}}'
-          zig build run -- 'items.count()' '{"items":[1,2,3,4,5]}'
-
       - name: Build schema (R4 + R5)
         run: ./scripts/build_models.sh
 
@@ -51,8 +40,18 @@ jobs:
       - name: Build web demo bundle
         run: ./scripts/build_web.sh dist
 
-      - name: Upload web demo artifact
-        uses: actions/upload-artifact@v4
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          name: web-dist
           path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

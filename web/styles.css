@@ -191,6 +191,32 @@ h1 {
   font-size: 1.1rem;
 }
 
+.panel-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.schema-select {
+  background: var(--panel-2);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: var(--text);
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-family: var(--mono);
+  font-size: 0.85rem;
+}
+
+.meta-inline {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .meta {
   color: var(--muted);
   font-size: 0.85rem;

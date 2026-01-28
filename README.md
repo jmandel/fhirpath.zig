@@ -81,7 +81,7 @@ engine.eval({ expr: "now()", json: "{}", schema: "r5", now: new Date() });
 
 ### Web demo (landing page)
 
-Assemble a static demo bundle (expects `zig build wasm` + `zig build build-model -- --fhir-version r5` to have been run):
+Assemble a static demo bundle (expects `zig build wasm` + `./scripts/build_models.sh` to have been run):
 
 ```bash
 ./scripts/build_web.sh dist
@@ -90,8 +90,8 @@ python -m http.server --directory dist
 
 Open `http://localhost:8000` in a browser.
 
-CI uploads a `web-dist` artifact with the same layout so anyone can download and run
-the demo without local builds.
+CI uploads a `web-dist` artifact (R4 + R5 models) and deploys GitHub Pages with the
+same files so anyone can run the demo without local builds.
 
 ### Ad-hoc CLI
 

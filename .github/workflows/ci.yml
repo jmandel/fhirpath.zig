@@ -13,10 +13,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Zig
-        uses: mlugg/setup-zig@v1
-        with:
-          version: master
+      - name: Install Zig (manual)
+        run: |
+          ZIG_VERSION=0.15.2
+          ZIG_URL="https://ziglang.org/download/${ZIG_VERSION}/zig-x86_64-linux-${ZIG_VERSION}.tar.xz"
+          curl -fsSL "$ZIG_URL" -o zig.tar.xz
+          tar -xf zig.tar.xz
+          ZIG_DIR="$PWD/zig-x86_64-linux-${ZIG_VERSION}"
+          echo "$ZIG_DIR" >> "$GITHUB_PATH"
+          export PATH="$ZIG_DIR:$PATH"
+          "$ZIG_DIR/zig" version
 
       - name: Fetch FHIR models
         run: ./scripts/fetch_models.sh

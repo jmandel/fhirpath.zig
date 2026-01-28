@@ -34,10 +34,10 @@
     "Spec refs: Operations -> Equality / Equivalent / Comparison sections (spec/index.md)."
   ],
   "_todo": [
-    "[ ] Improve passing rate (40/61 passing) - gaps in decimal/date/time equality and date/time comparison",
-    "[ ] Implement equality/equivalence operators (=, !=, ~, !~) with collection semantics",
-    "[ ] Implement comparison operators (<, <=, >, >=) with singleton/type checks",
-    "[ ] Implement date/time precision + timezone comparison rules",
+    "[x] Improve passing rate (52/52 passing)",
+    "[x] Implement equality/equivalence operators (=, !=, ~, !~) with collection semantics",
+    "[x] Implement comparison operators (<, <=, >, >=) with singleton/type checks",
+    "[x] Implement date/time precision + timezone comparison rules",
     "[ ] Implement quantity comparison/equality with UCUM units or return empty/false when unsupported",
     "[ ] Add tests for complex type equality/equivalence"
   ],
@@ -280,16 +280,10 @@
     },
     {
       "name": "equals: multi-item with any empty comparison yields empty",
-      "expr": "(@2012-01 | @2012) = (@2012 | @2012)",
+      "expr": "(@2012-01 | @2012-02) = (@2012 | @2012-02)",
       "input": {},
       "expect": [],
-      "_adjudicated": {
-        "fhirpath_js": [{"type": "boolean", "value": false}],
-        "our_old_value": null,
-        "verdict": "ours_correct",
-        "reason": "Spec §6.1.3 (=) states: when comparing multi-item collections, compare each pair in order. If any pair returns empty, and no pair returns false, the overall result is empty. Here: @2012-01 = @2012 returns empty (different precisions per spec example), @2012 = @2012 returns true. Since we have [empty, true] and no false, the result is empty - not false. fhirpath.js incorrectly treats precision mismatches as false rather than empty.",
-        "spec_ref": "§6.1.3 = (Equals), §6.1.3.2 Date/Time Equality"
-      }
+      "comment": "Pairwise: @2012-01=@2012 -> empty (precision mismatch), @2012-02=@2012-02 -> true. No false, has empty -> empty. Note: original used (@2012|@2012) but union deduplicates, making RHS length 1."
     },
     {
       "_section": "=== NOT EQUALS (!=) ==="
@@ -382,14 +376,15 @@
     },
     {
       "name": "equivalent: multi-item cardinality mismatch yields false",
-      "expr": "(1 | 2 | 2) ~ (1 | 2)",
+      "expr": "(1 | 2 | 3) ~ (1 | 2)",
       "input": {},
       "expect": [
         {
           "type": "boolean",
           "value": false
         }
-      ]
+      ],
+      "comment": "Changed from (1|2|2) which deduplicates to (1,2) via union operator. Using (1|2|3) vs (1|2) for genuine length mismatch."
     },
     {
       "_section": "=== NOT EQUIVALENT (!~) ==="

@@ -327,8 +327,11 @@ fn evalEquality(
     if (left.len == 0 or right.len == 0) return out;
     // For singleton comparison
     if (left.len == 1 and right.len == 1) {
-        const eq = itemsEqual(ctx, left[0], right[0]);
-        try out.append(ctx.allocator, makeBoolItem(ctx, eq));
+        const eq = itemsEqualTriState(ctx, left[0], right[0]);
+        if (eq) |e| {
+            try out.append(ctx.allocator, makeBoolItem(ctx, e));
+        }
+        // eq == null means empty (precision mismatch)
         return out;
     }
     // For collections: are they the same?
@@ -336,13 +339,21 @@ fn evalEquality(
         try out.append(ctx.allocator, makeBoolItem(ctx, false));
         return out;
     }
-    // Check each item
+    // Check each item pairwise. Per spec:
+    // - any false -> false; all true -> true; any empty (and no false) -> empty
+    var has_empty = false;
     for (left, 0..) |l, i| {
-        if (!itemsEqual(ctx, l, right[i])) {
-            try out.append(ctx.allocator, makeBoolItem(ctx, false));
-            return out;
+        const eq = itemsEqualTriState(ctx, l, right[i]);
+        if (eq) |e| {
+            if (!e) {
+                try out.append(ctx.allocator, makeBoolItem(ctx, false));
+                return out;
+            }
+        } else {
+            has_empty = true;
         }
     }
+    if (has_empty) return out; // empty
     try out.append(ctx.allocator, makeBoolItem(ctx, true));
     return out;
 }
@@ -1002,7 +1013,7 @@ fn valueEquivalent(ctx: anytype, a_val: item.Value, a_type: u32, b_val: item.Val
     }
 
     if (a_val == .boolean and b_val == .boolean) return a_val.boolean == b_val.boolean;
-    if (a_val == .quantity and b_val == .quantity) return valueEqual(a_val, b_val);
+    if (a_val == .quantity and b_val == .quantity) return std.mem.eql(u8, a_val.quantity.value, b_val.quantity.value) and std.mem.eql(u8, a_val.quantity.unit, b_val.quantity.unit);
 
     return false;
 }
@@ -1062,23 +1073,29 @@ fn evalComparison(
     op: CompareOp,
 ) EvalError!ItemList {
     var out = ItemList.empty;
-    if (left.len != 1 or right.len != 1) return out; // Empty if not singletons
+    // Empty propagates
+    if (left.len == 0 or right.len == 0) return out;
+    // Multi-item operands are errors per spec
+    if (left.len != 1 or right.len != 1) return error.SingletonRequired;
 
     const l = left[0];
     const r = right[0];
 
-    const cmp = compareItems(ctx, l, r) orelse return out;
-    const result = switch (op) {
-        .lt => cmp < 0,
-        .le => cmp <= 0,
-        .gt => cmp > 0,
-        .ge => cmp >= 0,
-    };
-    try out.append(ctx.allocator, makeBoolItem(ctx, result));
+    const cmp = compareItems(ctx, l, r) catch |err| return err;
+    if (cmp) |c| {
+        const result = switch (op) {
+            .lt => c < 0,
+            .le => c <= 0,
+            .gt => c > 0,
+            .ge => c >= 0,
+        };
+        try out.append(ctx.allocator, makeBoolItem(ctx, result));
+    }
+    // cmp == null means precision mismatch -> return empty
     return out;
 }
 
-fn compareItems(ctx: anytype, a: item.Item, b: item.Item) ?i32 {
+fn compareItems(ctx: anytype, a: item.Item, b: item.Item) EvalError!?i32 {
     const va = itemToValue(ctx, a);
     const vb = itemToValue(ctx, b);
 
@@ -1115,8 +1132,9 @@ fn compareItems(ctx: anytype, a: item.Item, b: item.Item) ?i32 {
         };
     }
 
-    // Compare dates (lexicographic on ISO-8601 strings)
+    // Compare dates - precision mismatch yields empty
     if (va == .date and vb == .date) {
+        if (va.date.len != vb.date.len) return null; // different precision
         return switch (std.mem.order(u8, va.date, vb.date)) {
             .lt => -1,
             .eq => 0,
@@ -1124,22 +1142,20 @@ fn compareItems(ctx: anytype, a: item.Item, b: item.Item) ?i32 {
         };
     }
 
-    // Compare times (lexicographic on ISO-8601 strings)
+    // Compare times - precision mismatch yields empty
     if (va == .time and vb == .time) {
-        return switch (std.mem.order(u8, va.time, vb.time)) {
-            .lt => -1,
-            .eq => 0,
-            .gt => 1,
-        };
+        const a_prec = timePrecisionLevel(va.time);
+        const b_prec = timePrecisionLevel(vb.time);
+        if (a_prec != b_prec) return null; // different precision
+        return compareTimeStrings(va.time, vb.time);
     }
 
-    // Compare dateTimes (lexicographic on ISO-8601 strings)
+    // Compare dateTimes - precision mismatch yields empty
     if (va == .dateTime and vb == .dateTime) {
-        return switch (std.mem.order(u8, va.dateTime, vb.dateTime)) {
-            .lt => -1,
-            .eq => 0,
-            .gt => 1,
-        };
+        const a_prec = dateTimePrecisionLevel(va.dateTime);
+        const b_prec = dateTimePrecisionLevel(vb.dateTime);
+        if (a_prec != b_prec) return null; // different precision
+        return compareDateTimeStrings(va.dateTime, vb.dateTime);
     }
 
     // Compare quantities (same unit only)
@@ -1152,7 +1168,158 @@ fn compareItems(ctx: anytype, a: item.Item, b: item.Item) ?i32 {
         return 0;
     }
 
+    // Non-convertible types are errors for comparison
+    return error.InvalidOperand;
+}
+
+/// Compare time strings handling seconds+milliseconds as decimal.
+/// Both strings must have same precision level (checked by caller).
+fn compareTimeStrings(a: []const u8, b: []const u8) i32 {
+    // Find the seconds part (after second colon) and compare the rest lexicographically
+    const a_sec_pos = secondColonPos(a);
+    const b_sec_pos = secondColonPos(b);
+
+    if (a_sec_pos != null and b_sec_pos != null) {
+        // Compare everything before seconds
+        const prefix_cmp = std.mem.order(u8, a[0..a_sec_pos.?], b[0..b_sec_pos.?]);
+        if (prefix_cmp != .eq) return switch (prefix_cmp) {
+            .lt => @as(i32, -1),
+            .gt => @as(i32, 1),
+            .eq => unreachable,
+        };
+        // Compare seconds as decimal (trailing zeros don't matter)
+        const a_sec = a[a_sec_pos.? + 1 ..];
+        const b_sec = b[b_sec_pos.? + 1 ..];
+        return compareDecimalStrings(a_sec, b_sec);
+    }
+    // No seconds part - simple lexicographic compare
+    return switch (std.mem.order(u8, a, b)) {
+        .lt => -1,
+        .eq => 0,
+        .gt => 1,
+    };
+}
+
+/// Compare dateTime strings handling seconds+milliseconds as decimal.
+fn compareDateTimeStrings(a: []const u8, b: []const u8) i32 {
+    // Find T separator
+    const a_t = std.mem.indexOfScalar(u8, a, 'T');
+    const b_t = std.mem.indexOfScalar(u8, b, 'T');
+
+    if (a_t != null and b_t != null) {
+        // Compare date part
+        const date_cmp = std.mem.order(u8, a[0..a_t.?], b[0..b_t.?]);
+        if (date_cmp != .eq) return switch (date_cmp) {
+            .lt => @as(i32, -1),
+            .gt => @as(i32, 1),
+            .eq => unreachable,
+        };
+        // Compare time part (stripping timezone for comparison)
+        const a_time = stripTimezone(a[a_t.? + 1 ..]);
+        const b_time = stripTimezone(b[b_t.? + 1 ..]);
+        return compareTimeStrings(a_time, b_time);
+    }
+    // No time component - simple lexicographic
+    return switch (std.mem.order(u8, a, b)) {
+        .lt => -1,
+        .eq => 0,
+        .gt => 1,
+    };
+}
+
+/// Find position of second colon in a time string (the one before seconds).
+fn secondColonPos(t: []const u8) ?usize {
+    var count: u8 = 0;
+    for (t, 0..) |c, i| {
+        if (c == ':') {
+            count += 1;
+            if (count == 2) return i;
+        }
+    }
     return null;
+}
+
+/// Strip timezone suffix from a time string.
+fn stripTimezone(t: []const u8) []const u8 {
+    if (t.len > 0 and t[t.len - 1] == 'Z') return t[0 .. t.len - 1];
+    if (t.len >= 6 and (t[t.len - 6] == '+' or t[t.len - 6] == '-')) return t[0 .. t.len - 6];
+    return t;
+}
+
+/// Compare two decimal number strings, treating trailing zeros as equal.
+/// E.g., "00" == "00.0", "31.0" == "31", "31.1" > "31"
+fn compareDecimalStrings(a: []const u8, b: []const u8) i32 {
+    // Parse into integer part and fractional part
+    const a_dot = std.mem.indexOfScalar(u8, a, '.');
+    const b_dot = std.mem.indexOfScalar(u8, b, '.');
+
+    const a_int = a[0 .. a_dot orelse a.len];
+    const b_int = b[0 .. b_dot orelse b.len];
+
+    // Compare integer parts
+    const int_cmp = std.mem.order(u8, a_int, b_int);
+    if (int_cmp != .eq) return switch (int_cmp) {
+        .lt => -1,
+        .gt => 1,
+        .eq => unreachable,
+    };
+
+    // Compare fractional parts (missing = "")
+    const a_frac = if (a_dot) |d| a[d + 1 ..] else "";
+    const b_frac = if (b_dot) |d| b[d + 1 ..] else "";
+
+    // Pad shorter with zeros conceptually
+    const max_len = @max(a_frac.len, b_frac.len);
+    var i: usize = 0;
+    while (i < max_len) : (i += 1) {
+        const ac: u8 = if (i < a_frac.len) a_frac[i] else '0';
+        const bc: u8 = if (i < b_frac.len) b_frac[i] else '0';
+        if (ac < bc) return -1;
+        if (ac > bc) return 1;
+    }
+    return 0;
+}
+
+/// Returns a precision level for time strings (hours=1, minutes=2, seconds=3)
+/// Per spec, seconds and milliseconds are considered a single precision.
+fn timePrecisionLevel(t: []const u8) u8 {
+    // Time format: HH[:MM[:SS[.fff]]]
+    // Count colons; seconds and sub-seconds are the same precision per spec
+    var colons: u8 = 0;
+    for (t) |c| {
+        if (c == ':') colons += 1;
+    }
+    return colons + 1; // 0 colons = hours(1), 1 colon = minutes(2), 2+ colons = seconds(3)
+}
+
+/// Returns a precision level for dateTime strings
+fn dateTimePrecisionLevel(dt: []const u8) u8 {
+    // Find the T separator
+    const t_pos = std.mem.indexOfScalar(u8, dt, 'T') orelse {
+        // Date-only portion: count hyphens (YYYY=0, YYYY-MM=1, YYYY-MM-DD=2)
+        var hyphens: u8 = 0;
+        for (dt) |c| {
+            if (c == '-') hyphens += 1;
+        }
+        return hyphens; // 0=year, 1=month, 2=day
+    };
+    // Has time component: base precision 3 (day) + time precision
+    const time_part = dt[t_pos + 1 ..];
+    // Strip timezone suffix for precision calculation
+    var end = time_part.len;
+    if (end > 0) {
+        // Check for Z or +/-offset
+        if (time_part[end - 1] == 'Z') {
+            end -= 1;
+        } else {
+            // Check for +HH:MM or -HH:MM at end
+            if (end >= 6 and (time_part[end - 6] == '+' or time_part[end - 6] == '-')) {
+                end -= 6;
+            }
+        }
+    }
+    const clean_time = time_part[0..end];
+    return 2 + timePrecisionLevel(clean_time); // day(2) + time precision
 }
 
 // Boolean operators with three-valued logic
@@ -2561,7 +2728,7 @@ fn evalFunction(
                 const key = items[i];
                 var j: usize = i;
                 while (j > 0) {
-                    const cmp = compareItems(ctx, items[j - 1], key);
+                    const cmp = compareItems(ctx, items[j - 1], key) catch return error.InvalidOperand;
                     if (cmp == null) return error.InvalidOperand;
                     if (cmp.? <= 0) break;
                     items[j] = items[j - 1];
@@ -2613,7 +2780,7 @@ fn evalFunction(
                     } else if (b.items.len == 0) {
                         return 1; // a non-empty, b empty: a > b
                     } else {
-                        return compareItems(context, a.items[0], b.items[0]);
+                        return compareItems(context, a.items[0], b.items[0]) catch null;
                     }
                 }
             }.cmp;
@@ -2995,7 +3162,7 @@ fn evalFunction(
         var best = input[0];
 
         for (input[1..], 1..) |candidate, idx| {
-            const cmp = compareItems(ctx, candidate, best) orelse return error.InvalidOperand;
+            const cmp = (compareItems(ctx, candidate, best) catch return error.InvalidOperand) orelse return error.InvalidOperand;
             if ((is_max and cmp > 0) or (!is_max and cmp < 0)) {
                 best = candidate;
                 best_idx = idx;
@@ -4743,8 +4910,14 @@ fn distinctItems(ctx: anytype, input: []const item.Item) EvalError!ItemList {
 }
 
 fn itemsEqual(ctx: anytype, a: item.Item, b: item.Item) bool {
+    return itemsEqualTriState(ctx, a, b) orelse false;
+}
+
+/// Three-valued equality: true, false, or null (empty - precision mismatch).
+/// Used by the = operator which needs to propagate empty for date/time precision differences.
+fn itemsEqualTriState(ctx: anytype, a: item.Item, b: item.Item) ?bool {
     if (a.data_kind == .value and b.data_kind == .value) {
-        return valueEqual(a.value.?, b.value.?);
+        return valueEqualTriState(a.value.?, b.value.?);
     }
     if (a.data_kind == .node_ref and b.data_kind == .node_ref and a.node != null and b.node != null) {
         const A = @TypeOf(ctx.adapter.*);
@@ -4752,10 +4925,11 @@ fn itemsEqual(ctx: anytype, a: item.Item, b: item.Item) bool {
         const b_ref = nodeRefFromRaw(A, b.node.?);
         return nodeEqual(ctx, a_ref, b_ref);
     }
-    return valueEqual(itemToValue(ctx, a), itemToValue(ctx, b));
+    return valueEqualTriState(itemToValue(ctx, a), itemToValue(ctx, b));
 }
 
-fn valueEqual(a: item.Value, b: item.Value) bool {
+/// Three-valued value equality. Returns null for date/time precision mismatch.
+fn valueEqualTriState(a: item.Value, b: item.Value) ?bool {
     if (!std.mem.eql(u8, @tagName(a), @tagName(b))) {
         const na = valueToNumber(a);
         const nb = valueToNumber(b);
@@ -4767,11 +4941,26 @@ fn valueEqual(a: item.Value, b: item.Value) bool {
         .boolean => |v| return v == b.boolean,
         .integer => |v| return v == b.integer,
         .long => |v| return v == b.long,
-        .decimal => |v| return std.mem.eql(u8, v, b.decimal),
+        .decimal => |v| return compareDecimalStrings(v, b.decimal) == 0,
         .string => |v| return std.mem.eql(u8, v, b.string),
-        .date => |v| return std.mem.eql(u8, v, b.date),
-        .time => |v| return std.mem.eql(u8, v, b.time),
-        .dateTime => |v| return std.mem.eql(u8, v, b.dateTime),
+        .date => |v| {
+            // Different precision -> empty (null)
+            if (v.len != b.date.len) return null;
+            return std.mem.eql(u8, v, b.date);
+        },
+        .time => |v| {
+            // Per spec, seconds and milliseconds are single precision
+            const a_prec = timePrecisionLevel(v);
+            const b_prec = timePrecisionLevel(b.time);
+            if (a_prec != b_prec) return null;
+            return compareTimeStrings(v, b.time) == 0;
+        },
+        .dateTime => |v| {
+            const a_prec = dateTimePrecisionLevel(v);
+            const b_prec = dateTimePrecisionLevel(b.dateTime);
+            if (a_prec != b_prec) return null;
+            return compareDateTimeStrings(v, b.dateTime) == 0;
+        },
         .quantity => |v| return std.mem.eql(u8, v.value, b.quantity.value) and std.mem.eql(u8, v.unit, b.quantity.unit),
     }
 }

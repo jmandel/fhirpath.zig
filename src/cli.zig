@@ -79,7 +79,7 @@ pub fn main() !void {
 
     var adapter = JsonDocAdapter.init(&doc);
     var ctx = eval.EvalContext(JsonDocAdapter){
-        .allocator = allocator,
+        .allocator = doc.arena.allocator(),
         .adapter = &adapter,
         .types = &types,
         .schema = if (schema_obj) |*s| s else null,
@@ -88,7 +88,7 @@ pub fn main() !void {
         std.debug.print("Eval error: {}\n", .{err});
         return;
     };
-    defer result.deinit(allocator);
+    defer result.deinit(doc.arena.allocator());
 
     var out_arr = std.ArrayList(std.json.Value).empty;
     defer out_arr.deinit(allocator);

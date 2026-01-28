@@ -33,7 +33,7 @@ bugs:
     updated: 2026-01-27
     tags: [harness, memory]
   - slug: eval-leaks-intermediate-arraylists-during-harness-runs
-    status: open
+    status: resolved
     severity: medium
     title: Eval leaks intermediate ArrayLists during harness runs
     description: Running zig build harness with GPA reports leaks from eval.zig (distinctItems/applySegment) even though eval_result.deinit is called; see stack traces in harness output after failures.

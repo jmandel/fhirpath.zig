@@ -168,7 +168,7 @@ pub fn main() !void {
 
         var adapter = JsonDocAdapter.init(&doc);
         var ctx = eval.EvalContext(JsonDocAdapter){
-            .allocator = allocator,
+            .allocator = doc.arena.allocator(),
             .adapter = &adapter,
             .types = &types,
             .schema = if (schema_obj) |*s| s else null,
@@ -183,7 +183,7 @@ pub fn main() !void {
             }
             continue;
         };
-        defer items.deinit(allocator);
+        defer items.deinit(doc.arena.allocator());
 
         if (invalid) {
             failCase(name_val, "expected invalid, but succeeded");

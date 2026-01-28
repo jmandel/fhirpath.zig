@@ -41,7 +41,7 @@ pub const EvalResult = struct {
     doc: jsondoc.JsonDoc,
 
     pub fn deinit(self: *EvalResult) void {
-        self.items.deinit(self.doc.allocator);
+        self.items.deinit(self.doc.arena.allocator());
         self.doc.deinit();
     }
 };
@@ -56,7 +56,12 @@ pub fn evalWithJson(
 ) !EvalResult {
     var doc = try jsondoc.JsonDoc.init(allocator, json_text);
     var adapter = JsonDocAdapter.init(&doc);
-    var ctx = EvalContext(JsonDocAdapter){ .allocator = allocator, .adapter = &adapter, .types = types, .schema = schema_ptr };
+    var ctx = EvalContext(JsonDocAdapter){
+        .allocator = doc.arena.allocator(),
+        .adapter = &adapter,
+        .types = types,
+        .schema = schema_ptr,
+    };
     const items = try evalExpression(&ctx, expr, adapter.root(), env);
     return .{ .items = items, .doc = doc };
 }
@@ -117,6 +122,7 @@ fn evalPath(
     index: ?usize,
 ) EvalError!ItemList {
     var current = ItemList.empty;
+    errdefer current.deinit(ctx.allocator);
 
     switch (path.root) {
         .This => try current.append(ctx.allocator, root_item),
@@ -152,19 +158,23 @@ fn evalPath(
         switch (step) {
             .Property => |name| {
                 var next = ItemList.empty;
+                errdefer next.deinit(ctx.allocator);
                 for (current.items) |it| {
                     try applySegment(ctx, it, name, &next);
                 }
                 current.deinit(ctx.allocator);
                 current = next;
+                next = ItemList.empty;
             },
             .Index => |idx| {
                 var next = ItemList.empty;
+                errdefer next.deinit(ctx.allocator);
                 if (idx < current.items.len) {
                     try next.append(ctx.allocator, current.items[idx]);
                 }
                 current.deinit(ctx.allocator);
                 current = next;
+                next = ItemList.empty;
             },
             .Function => |call| {
                 const next = try evalFunction(ctx, call, current.items, env);
@@ -856,25 +866,30 @@ fn evalInvoke(
 ) EvalError!ItemList {
     // First evaluate the operand
     var current = try evalExpressionCtx(ctx, inv.operand.*, root_item, env, index);
+    errdefer current.deinit(ctx.allocator);
 
     // Then apply each step
     for (inv.steps) |step| {
         switch (step) {
             .Property => |name| {
                 var next = ItemList.empty;
+                errdefer next.deinit(ctx.allocator);
                 for (current.items) |it| {
                     try applySegment(ctx, it, name, &next);
                 }
                 current.deinit(ctx.allocator);
                 current = next;
+                next = ItemList.empty;
             },
             .Index => |idx| {
                 var next = ItemList.empty;
+                errdefer next.deinit(ctx.allocator);
                 if (idx < current.items.len) {
                     try next.append(ctx.allocator, current.items[idx]);
                 }
                 current.deinit(ctx.allocator);
                 current = next;
+                next = ItemList.empty;
             },
             .Function => |call| {
                 const result = try evalFunction(ctx, call, current.items, env);
@@ -990,6 +1005,7 @@ fn evalFunction(
     if (std.mem.eql(u8, call.name, "select")) {
         if (call.args.len != 1) return error.InvalidFunction;
         var out = ItemList.empty;
+        errdefer out.deinit(ctx.allocator);
         for (input, 0..) |it, idx| {
             var projection = try evalExpressionCtx(ctx, call.args[0], it, env, idx);
             defer projection.deinit(ctx.allocator);
@@ -1001,6 +1017,7 @@ fn evalFunction(
     if (std.mem.eql(u8, call.name, "where")) {
         if (call.args.len != 1) return error.InvalidFunction;
         var out = ItemList.empty;
+        errdefer out.deinit(ctx.allocator);
         for (input, 0..) |it, idx| {
             var criteria = try evalExpressionCtx(ctx, call.args[0], it, env, idx);
             defer criteria.deinit(ctx.allocator);
@@ -1623,6 +1640,7 @@ fn replaceAll(allocator: std.mem.Allocator, str: []const u8, pattern: []const u8
 
 fn distinctItems(ctx: anytype, input: []const item.Item) EvalError!ItemList {
     var out = ItemList.empty;
+    errdefer out.deinit(ctx.allocator);
     for (input) |it| {
         var seen = false;
         for (out.items) |existing| {

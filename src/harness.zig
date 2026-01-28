@@ -425,7 +425,7 @@ fn runTestFile(
 
         var adapter = JsonDocAdapter.init(&doc);
         var ctx = eval.EvalContext(JsonDocAdapter){
-            .allocator = allocator,
+            .allocator = doc.arena.allocator(),
             .adapter = &adapter,
             .types = &types,
             .schema = schema_ptr,
@@ -448,10 +448,10 @@ fn runTestFile(
         if (expect_error) {
             result.failed += 1;
             try addFailure(allocator, failures, result.name, name_str, expr_str, "expected error but succeeded", null, null);
-            eval_result.deinit(allocator);
+            eval_result.deinit(doc.arena.allocator());
             continue;
         }
-        defer eval_result.deinit(allocator);
+        defer eval_result.deinit(doc.arena.allocator());
 
         const expect_val = obj.get(expect_key);
         const empty_items: []const std.json.Value = &[_]std.json.Value{};

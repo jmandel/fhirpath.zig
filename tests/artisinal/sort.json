@@ -1,0 +1,488 @@
+{
+  "_spec_summary": [
+    "sort() Function - Ordering Collections (FHIRPath Spec Section 5.2, STU)",
+    "",
+    "=== SIGNATURE ===",
+    "sort([keySelector: expression [asc | desc] [, keySelector: expression [asc | desc], ...]]) : collection",
+    "",
+    "=== CORE BEHAVIOR ===",
+    "Returns items from input collection sorted by key selector expressions.",
+    "- Takes variable number of key selector parameters",
+    "- Each key selector can be qualified with 'asc' (ascending) or 'desc' (descending)",
+    "- Default qualifier is 'asc' if not specified",
+    "- If no key selectors are provided, sorts using default ordering for the type",
+    "",
+    "=== DEFAULT ORDERING (no key selector) ===",
+    "Uses comparison semantics from equals (=) and comparison operators (>, <, >=, <=):",
+    "- Integers: numeric ordering",
+    "- Decimals: numeric ordering (integers implicitly convert to decimal for comparison)",
+    "- Strings: strict lexical ordering based on Unicode character values",
+    "- Dates/DateTimes/Times: chronological ordering (same precision required)",
+    "- Quantities: dimensional comparison (same dimensions required, converts units)",
+    "",
+    "=== KEY SELECTOR EVALUATION ===",
+    "- Each key selector is evaluated for each item using singleton evaluation semantics",
+    "- $this refers to the current item being evaluated",
+    "- If key selector returns more than one item, evaluation ends with an error",
+    "",
+    "=== EMPTY VALUE HANDLING (CRITICAL!) ===",
+    "Empty values are considered LOWER than all other values:",
+    "- Ascending: empty values appear FIRST",
+    "- Descending: empty values appear LAST",
+    "",
+    "=== MULTI-KEY SORTING ===",
+    "When comparing two items with multiple key selectors:",
+    "1. Compare using first key selector",
+    "2. If values are equal, proceed to next key selector",
+    "3. Continue until difference found or all selectors exhausted",
+    "",
+    "=== TYPE SAFETY ===",
+    "- Comparing items with incompatible types results in an error",
+    "- Values that would cause comparison errors must be filtered before sorting",
+    "- Mixing integers and decimals is allowed (implicit conversion)",
+    "",
+    "=== EDGE CASES ===",
+    "- Empty input collection: returns empty",
+    "- Single item collection: returns that item",
+    "- All equal values: maintains original order (stable sort assumed)",
+    "",
+    "=== SPEC EXAMPLES ===",
+    "(3 | 1 | 2).sort() -> (1 | 2 | 3)",
+    "(3 | 1 | 2).sort($this) -> (1 | 2 | 3)",
+    "(3 | 1 | 2).sort($this desc) -> (3 | 2 | 1)",
+    "('c' | 'a' | 'b').sort() -> ('a' | 'b' | 'c')",
+    "('c' | 'a' | 'b').sort($this desc) -> ('c' | 'b' | 'a')",
+    "Patient.name.sort(family desc, given.first())",
+    "Patient.telecom.sort(system, use desc)"
+  ],
+  "_todo": [
+    "[ ] Improve passing rate (0/29 passing) - sort() not implemented, asc/desc parsing not supported",
+    "[ ] Test multi-key sorting with asc/desc qualifiers",
+    "[ ] Test error cases: mixed types, multi-valued key selector",
+    "[ ] Test empty value positioning in ascending vs descending",
+    "[ ] Add tests for Date/DateTime/Time sorting",
+    "[ ] Add tests for Quantity sorting"
+  ],
+  "_open_questions": [
+    "Is the sort stable? (Do equal items maintain original order?)",
+    "How do timezone differences affect DateTime sorting?"
+  ],
+  "meta": {
+    "status": "drafted"
+  },
+  "cases": [
+    {
+      "_section": "=== DEFAULT ORDERING (NO KEY SELECTOR) ==="
+    },
+    {
+      "name": "sort: integers default ascending",
+      "expr": "(3 | 1 | 2).sort()",
+      "input": {},
+      "expect": [
+        {"type": "integer", "value": 1},
+        {"type": "integer", "value": 2},
+        {"type": "integer", "value": 3}
+      ],
+      "comment": "Spec example: natural numeric ordering"
+    },
+    {
+      "name": "sort: strings default ascending",
+      "expr": "('c' | 'a' | 'b').sort()",
+      "input": {},
+      "expect": [
+        {"type": "string", "value": "a"},
+        {"type": "string", "value": "b"},
+        {"type": "string", "value": "c"}
+      ],
+      "comment": "Spec example: default string ordering"
+    },
+    {
+      "name": "sort: decimals default ascending",
+      "expr": "(3.5 | 1.2 | 2.8).sort()",
+      "input": {},
+      "expect": [
+        {"type": "decimal", "value": 1.2},
+        {"type": "decimal", "value": 2.8},
+        {"type": "decimal", "value": 3.5}
+      ]
+    },
+    {
+      "name": "sort: string lexical ordering (case-sensitive)",
+      "expr": "('abc' | 'ABC' | 'aBC').sort()",
+      "input": {},
+      "expect": [
+        {"type": "string", "value": "ABC"},
+        {"type": "string", "value": "aBC"},
+        {"type": "string", "value": "abc"}
+      ],
+      "comment": "Unicode ordering: uppercase letters come before lowercase (A=65, a=97)"
+    },
+    {
+      "name": "sort: empty input returns empty",
+      "expr": "{}.sort().empty()",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "sort: single item returns itself",
+      "expr": "42.sort()",
+      "input": {},
+      "expect": [{"type": "integer", "value": 42}]
+    },
+    {
+      "name": "sort: already sorted collection",
+      "expr": "(1 | 2 | 3).sort()",
+      "input": {},
+      "expect": [
+        {"type": "integer", "value": 1},
+        {"type": "integer", "value": 2},
+        {"type": "integer", "value": 3}
+      ]
+    },
+    {
+      "name": "sort: reverse sorted collection",
+      "expr": "(5 | 4 | 3 | 2 | 1).sort()",
+      "input": {},
+      "expect": [
+        {"type": "integer", "value": 1},
+        {"type": "integer", "value": 2},
+        {"type": "integer", "value": 3},
+        {"type": "integer", "value": 4},
+        {"type": "integer", "value": 5}
+      ]
+    },
+    {
+      "_section": "=== EXPLICIT KEY SELECTOR ==="
+    },
+    {
+      "name": "sort: explicit $this ascending",
+      "expr": "(3 | 1 | 2).sort($this)",
+      "input": {},
+      "expect": [
+        {"type": "integer", "value": 1},
+        {"type": "integer", "value": 2},
+        {"type": "integer", "value": 3}
+      ],
+      "comment": "Spec example: explicit ascending"
+    },
+    {
+      "name": "sort: explicit $this desc",
+      "expr": "(3 | 1 | 2).sort($this desc)",
+      "input": {},
+      "expect": [
+        {"type": "integer", "value": 3},
+        {"type": "integer", "value": 2},
+        {"type": "integer", "value": 1}
+      ],
+      "comment": "Spec example: descending"
+    },
+    {
+      "name": "sort: strings descending",
+      "expr": "('c' | 'a' | 'b').sort($this desc)",
+      "input": {},
+      "expect": [
+        {"type": "string", "value": "c"},
+        {"type": "string", "value": "b"},
+        {"type": "string", "value": "a"}
+      ],
+      "comment": "Spec example: descending"
+    },
+    {
+      "name": "sort: explicit asc qualifier",
+      "expr": "(3 | 1 | 2).sort($this asc)",
+      "input": {},
+      "expect": [
+        {"type": "integer", "value": 1},
+        {"type": "integer", "value": 2},
+        {"type": "integer", "value": 3}
+      ],
+      "comment": "Explicit asc should behave same as default"
+    },
+    {
+      "_section": "=== SORTING WITH FIELD ACCESS ==="
+    },
+    {
+      "name": "sort: by object field ascending",
+      "expr": "items.sort(value)",
+      "input": {
+        "items": [
+          {"value": 3, "name": "third"},
+          {"value": 1, "name": "first"},
+          {"value": 2, "name": "second"}
+        ]
+      },
+      "expect": [
+        {"type": "integer", "value": 1},
+        {"type": "integer", "value": 2},
+        {"type": "integer", "value": 3}
+      ],
+      "comment": "Sort items by value field, return the sorted values"
+    },
+    {
+      "name": "sort: by object field descending",
+      "expr": "items.sort(value desc).select(name)",
+      "input": {
+        "items": [
+          {"value": 3, "name": "third"},
+          {"value": 1, "name": "first"},
+          {"value": 2, "name": "second"}
+        ]
+      },
+      "expect": [
+        {"type": "string", "value": "third"},
+        {"type": "string", "value": "second"},
+        {"type": "string", "value": "first"}
+      ],
+      "comment": "Sort by value descending, return names in that order"
+    },
+    {
+      "name": "sort: by string field",
+      "expr": "items.sort(name).select(value)",
+      "input": {
+        "items": [
+          {"value": 3, "name": "charlie"},
+          {"value": 1, "name": "alice"},
+          {"value": 2, "name": "bob"}
+        ]
+      },
+      "expect": [
+        {"type": "integer", "value": 1},
+        {"type": "integer", "value": 2},
+        {"type": "integer", "value": 3}
+      ],
+      "comment": "Sort by name field alphabetically"
+    },
+    {
+      "_section": "=== MULTI-KEY SORTING ==="
+    },
+    {
+      "name": "sort: two keys, first key determines order",
+      "expr": "items.sort(primary, secondary).select(id)",
+      "input": {
+        "items": [
+          {"id": "B2", "primary": 2, "secondary": 1},
+          {"id": "A1", "primary": 1, "secondary": 1},
+          {"id": "C3", "primary": 3, "secondary": 1}
+        ]
+      },
+      "expect": [
+        {"type": "string", "value": "A1"},
+        {"type": "string", "value": "B2"},
+        {"type": "string", "value": "C3"}
+      ],
+      "comment": "When primary keys are all different, secondary key is not used"
+    },
+    {
+      "name": "sort: two keys, tiebreaker on second key",
+      "expr": "items.sort(primary, secondary).select(id)",
+      "input": {
+        "items": [
+          {"id": "A2", "primary": 1, "secondary": 2},
+          {"id": "A1", "primary": 1, "secondary": 1},
+          {"id": "B1", "primary": 2, "secondary": 1}
+        ]
+      },
+      "expect": [
+        {"type": "string", "value": "A1"},
+        {"type": "string", "value": "A2"},
+        {"type": "string", "value": "B1"}
+      ],
+      "comment": "Items with same primary are sorted by secondary"
+    },
+    {
+      "name": "sort: two keys, mixed directions",
+      "expr": "items.sort(primary desc, secondary asc).select(id)",
+      "input": {
+        "items": [
+          {"id": "A1", "primary": 1, "secondary": 1},
+          {"id": "B2", "primary": 2, "secondary": 2},
+          {"id": "B1", "primary": 2, "secondary": 1}
+        ]
+      },
+      "expect": [
+        {"type": "string", "value": "B1"},
+        {"type": "string", "value": "B2"},
+        {"type": "string", "value": "A1"}
+      ],
+      "comment": "Primary descending (2 before 1), secondary ascending (1 before 2)"
+    },
+    {
+      "_section": "=== EMPTY VALUE HANDLING ==="
+    },
+    {
+      "name": "sort: empty values first in ascending",
+      "expr": "items.sort(value).select(id)",
+      "input": {
+        "items": [
+          {"id": "B", "value": 2},
+          {"id": "empty"},
+          {"id": "A", "value": 1}
+        ]
+      },
+      "expect": [
+        {"type": "string", "value": "empty"},
+        {"type": "string", "value": "A"},
+        {"type": "string", "value": "B"}
+      ],
+      "comment": "Empty values are considered lower than all others - appear first when ascending"
+    },
+    {
+      "name": "sort: empty values last in descending",
+      "expr": "items.sort(value desc).select(id)",
+      "input": {
+        "items": [
+          {"id": "B", "value": 2},
+          {"id": "empty"},
+          {"id": "A", "value": 1}
+        ]
+      },
+      "expect": [
+        {"type": "string", "value": "B"},
+        {"type": "string", "value": "A"},
+        {"type": "string", "value": "empty"}
+      ],
+      "comment": "Empty values are lowest - appear last when descending"
+    },
+    {
+      "name": "sort: multiple empty values in ascending",
+      "expr": "items.sort(value).select(id)",
+      "input": {
+        "items": [
+          {"id": "B", "value": 2},
+          {"id": "empty1"},
+          {"id": "A", "value": 1},
+          {"id": "empty2"}
+        ]
+      },
+      "expect": [
+        {"type": "string", "value": "empty1"},
+        {"type": "string", "value": "empty2"},
+        {"type": "string", "value": "A"},
+        {"type": "string", "value": "B"}
+      ],
+      "comment": "Multiple empty values grouped at beginning in ascending"
+    },
+    {
+      "_section": "=== DUPLICATE VALUES ==="
+    },
+    {
+      "name": "sort: handles duplicate values",
+      "expr": "(2 | 1 | 2 | 3 | 1).sort()",
+      "input": {},
+      "expect": [
+        {"type": "integer", "value": 1},
+        {"type": "integer", "value": 1},
+        {"type": "integer", "value": 2},
+        {"type": "integer", "value": 2},
+        {"type": "integer", "value": 3}
+      ],
+      "comment": "Duplicates should be preserved and grouped together"
+    },
+    {
+      "_section": "=== DATE/TIME SORTING ==="
+    },
+    {
+      "name": "sort: dates ascending",
+      "expr": "(@2024-03-01 | @2024-01-15 | @2024-02-20).sort()",
+      "input": {},
+      "expect": [
+        {"type": "date", "value": "2024-01-15"},
+        {"type": "date", "value": "2024-02-20"},
+        {"type": "date", "value": "2024-03-01"}
+      ]
+    },
+    {
+      "name": "sort: dates descending",
+      "expr": "(@2024-03-01 | @2024-01-15 | @2024-02-20).sort($this desc)",
+      "input": {},
+      "expect": [
+        {"type": "date", "value": "2024-03-01"},
+        {"type": "date", "value": "2024-02-20"},
+        {"type": "date", "value": "2024-01-15"}
+      ]
+    },
+    {
+      "name": "sort: times ascending",
+      "expr": "(@T14:30:00 | @T09:15:00 | @T12:00:00).sort()",
+      "input": {},
+      "expect": [
+        {"type": "time", "value": "09:15:00"},
+        {"type": "time", "value": "12:00:00"},
+        {"type": "time", "value": "14:30:00"}
+      ]
+    },
+    {
+      "name": "sort: dateTimes ascending",
+      "expr": "(@2024-01-01T14:30:00 | @2024-01-01T09:15:00 | @2024-01-01T12:00:00).sort()",
+      "input": {},
+      "expect": [
+        {"type": "dateTime", "value": "2024-01-01T09:15:00"},
+        {"type": "dateTime", "value": "2024-01-01T12:00:00"},
+        {"type": "dateTime", "value": "2024-01-01T14:30:00"}
+      ]
+    },
+    {
+      "_section": "=== NEGATIVE NUMBERS ==="
+    },
+    {
+      "name": "sort: negative integers",
+      "expr": "(1 | -3 | 2 | -1 | 0).sort()",
+      "input": {},
+      "expect": [
+        {"type": "integer", "value": -3},
+        {"type": "integer", "value": -1},
+        {"type": "integer", "value": 0},
+        {"type": "integer", "value": 1},
+        {"type": "integer", "value": 2}
+      ]
+    },
+    {
+      "name": "sort: negative decimals",
+      "expr": "(1.5 | -2.5 | 0.0 | -1.0).sort()",
+      "input": {},
+      "expect": [
+        {"type": "decimal", "value": -2.5},
+        {"type": "decimal", "value": -1.0},
+        {"type": "decimal", "value": 0.0},
+        {"type": "decimal", "value": 1.5}
+      ]
+    },
+    {
+      "_section": "=== INTEGER/DECIMAL MIXING ==="
+    },
+    {
+      "name": "sort: mixed integers and decimals",
+      "expr": "(3 | 1.5 | 2 | 2.5).sort()",
+      "input": {},
+      "expect": [
+        {"type": "decimal", "value": 1.5},
+        {"type": "integer", "value": 2},
+        {"type": "decimal", "value": 2.5},
+        {"type": "integer", "value": 3}
+      ],
+      "comment": "Integers implicitly convert to decimal for comparison"
+    },
+    {
+      "_section": "=== ERROR CASES ==="
+    },
+    {
+      "name": "sort: incompatible types cause error",
+      "expr": "(1 | 'a' | 2).sort()",
+      "input": {},
+      "expect_error": true,
+      "comment": "Cannot compare integers and strings"
+    },
+    {
+      "name": "sort: key selector with multiple items causes error",
+      "expr": "items.sort(values)",
+      "input": {
+        "items": [
+          {"values": [1, 2]},
+          {"values": [3]}
+        ]
+      },
+      "expect_error": true,
+      "comment": "Key selector must return singleton"
+    }
+  ]
+}

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Sample disagreements between our expected values and reference engines.
+"""Find disagreements between our expected values and reference engines.
 
 Strategy:
 1. Run fast engines (js, net) to find disagreements with our expected values
-2. Sample N disagreements (where at least one engine returns a different result)
+2. Sample N disagreements (or show all with --all)
 3. For sampled items only, also run slow engines (hapi) to get full picture
 4. Output detailed report for adjudication
 
@@ -12,13 +12,17 @@ Usage:
 
 Options:
   --sample N       Number of disagreements to sample (default: 5)
+  --all            Show all disagreements (no sampling, skip slow engines)
   --skip-slow      Don't run slow engines (hapi) on samples
   -v, --verbose    Show more detail
+  --summary        Just show counts, no details
   
 Examples:
   adjudicate.py                    # Sample 5 disagreements, all engines
   adjudicate.py --sample 3         # Sample 3 disagreements
-  adjudicate.py --skip-slow        # Only use fast engines
+  adjudicate.py --all              # List all disagreements (fast engines only)
+  adjudicate.py --all --summary    # Just count disagreements
+  adjudicate.py --skip-slow        # Only use fast engines on samples
   adjudicate.py comparison         # Filter to comparison tests
 """
 
@@ -179,7 +183,9 @@ def main():
     parser = argparse.ArgumentParser(description="Sample disagreements for adjudication")
     parser.add_argument("pattern", nargs="?", help="Filter test files by pattern")
     parser.add_argument("--sample", type=int, default=5, help="Number of disagreements to sample")
+    parser.add_argument("--all", action="store_true", help="Show all disagreements (no sampling)")
     parser.add_argument("--skip-slow", action="store_true", help="Skip slow engines (hapi)")
+    parser.add_argument("--summary", action="store_true", help="Just show counts, no details")
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
     args = parser.parse_args()
     

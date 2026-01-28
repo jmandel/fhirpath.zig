@@ -48,3 +48,11 @@ bugs:
     created: 2026-01-27
     updated: 2026-01-27
     tags: [harness]
+  - slug: memory-leaks-in-parser-harness
+    status: open
+    severity: medium
+    title: Memory leaks in parser/harness
+    description: GPA reports memory leaks in parsePrimary (dupe lexeme) and harness (allocPrint)
+    created: 2026-01-28
+    updated: 2026-01-28
+    tags: [parser, harness, memory]

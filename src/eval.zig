@@ -2582,6 +2582,36 @@ fn evalFunction(
         try out.append(ctx.allocator, makeTimeItem(ctx, formatted));
         return out;
     }
+    if (std.mem.eql(u8, call.name, "duration")) {
+        if (call.args.len != 2) return error.InvalidFunction;
+        if (input.len == 0) return ItemList.empty;
+        if (input.len != 1) return error.SingletonRequired;
+        
+        var other = try evalExpressionCtx(ctx, call.args[0], ctx.root_item, env, null);
+        defer other.deinit(ctx.allocator);
+        if (other.items.len == 0) return ItemList.empty;
+        if (other.items.len != 1) return error.SingletonRequired;
+        
+        const precision = try evalStringArg(ctx, call.args[1], env);
+        if (precision == null) return ItemList.empty;
+        
+        return evalDuration(ctx, input[0], other.items[0], precision.?);
+    }
+    if (std.mem.eql(u8, call.name, "difference")) {
+        if (call.args.len != 2) return error.InvalidFunction;
+        if (input.len == 0) return ItemList.empty;
+        if (input.len != 1) return error.SingletonRequired;
+        
+        var other = try evalExpressionCtx(ctx, call.args[0], ctx.root_item, env, null);
+        defer other.deinit(ctx.allocator);
+        if (other.items.len == 0) return ItemList.empty;
+        if (other.items.len != 1) return error.SingletonRequired;
+        
+        const precision = try evalStringArg(ctx, call.args[1], env);
+        if (precision == null) return ItemList.empty;
+        
+        return evalDifference(ctx, input[0], other.items[0], precision.?);
+    }
     if (std.mem.eql(u8, call.name, "count")) {
         var out = ItemList.empty;
         try out.append(ctx.allocator, makeIntegerItem(ctx, @intCast(input.len)));
@@ -6772,4 +6802,474 @@ fn formatTime(allocator: std.mem.Allocator, timestamp: i64) ![]const u8 {
     const second = day_seconds % std.time.s_per_min;
     
     return std.fmt.allocPrint(allocator, "{d:0>2}:{d:0>2}:{d:0>2}", .{hour, minute, second});
+}
+
+fn evalDuration(ctx: anytype, input: item.Item, other: item.Item, precision: []const u8) EvalError!ItemList {
+    return calculateDurationDifference(ctx, input, other, precision, false);
+}
+
+fn evalDifference(ctx: anytype, input: item.Item, other: item.Item, precision: []const u8) EvalError!ItemList {
+    return calculateDurationDifference(ctx, input, other, precision, true);
+}
+
+fn calculateDurationDifference(ctx: anytype, input: item.Item, other: item.Item, precision: []const u8, is_difference: bool) EvalError!ItemList {
+    var out = ItemList.empty;
+    const val_input = itemToValue(ctx, input);
+    const val_other = itemToValue(ctx, other);
+
+    // Normalize precision
+    const unit = parseTimeUnit(precision) orelse return out;
+
+    // Extract values based on type
+    const date_id = ctx.types.getOrAdd("System.Date") catch 0;
+    const datetime_id = ctx.types.getOrAdd("System.DateTime") catch 0;
+    const time_id = ctx.types.getOrAdd("System.Time") catch 0;
+
+    var date_a: ?DateParts = null;
+    var date_b: ?DateParts = null;
+    var time_a: ?TimePartsPartial = null;
+    var time_b: ?TimePartsPartial = null;
+    var is_date = false;
+    var is_time = false;
+
+    // Input A
+    if (val_input == .date or input.type_id == date_id) {
+        const s = if (val_input == .date) val_input.date else val_input.string;
+        date_a = parseDateParts(stripAtPrefix(s));
+        is_date = true;
+    } else if (val_input == .dateTime or input.type_id == datetime_id) {
+        const s = if (val_input == .dateTime) val_input.dateTime else val_input.string;
+        const dt = parseDateTimeParts(stripAtPrefix(s));
+        if (dt) |d| {
+            date_a = d.date;
+            time_a = parseTimePartsPartial(stripTimePrefix(s[s.len - d.time.hour.len - (if (d.time.zone) |z| z.len else 0) - (if (d.time.second) |sec| sec.len + 1 else 0) - (if (d.time.minute.len > 0) d.time.minute.len + 1 else 0) ..]));
+            // Re-parse time properly
+            if (std.mem.indexOfScalar(u8, s, 'T')) |t_idx| {
+                time_a = parseTimePartsPartial(s[t_idx + 1 ..]);
+            }
+        }
+    } else if (val_input == .time or input.type_id == time_id) {
+        const s = if (val_input == .time) val_input.time else val_input.string;
+        time_a = parseTimePartsPartial(stripTimePrefix(stripAtPrefix(s)));
+        is_time = true;
+    }
+
+    // Input B
+    if (val_other == .date or other.type_id == date_id) {
+        const s = if (val_other == .date) val_other.date else val_other.string;
+        date_b = parseDateParts(stripAtPrefix(s));
+        if (!is_date) return out; // Mismatched types (Date vs non-Date)
+    } else if (val_other == .dateTime or other.type_id == datetime_id) {
+        const s = if (val_other == .dateTime) val_other.dateTime else val_other.string;
+        const dt = parseDateTimeParts(stripAtPrefix(s));
+        if (dt) |d| {
+            date_b = d.date;
+            if (std.mem.indexOfScalar(u8, s, 'T')) |t_idx| {
+                time_b = parseTimePartsPartial(s[t_idx + 1 ..]);
+            }
+        }
+        if (is_date or is_time) return out; // Mismatched
+    } else if (val_other == .time or other.type_id == time_id) {
+        const s = if (val_other == .time) val_other.time else val_other.string;
+        time_b = parseTimePartsPartial(stripTimePrefix(stripAtPrefix(s)));
+        if (!is_time) return out; // Mismatched
+    }
+
+    if (is_date) {
+        // Date comparison
+        if (date_a == null or date_b == null) return out;
+        // Precision check: Date can calculate year, month, week, day
+        // For day/week, we need full YMD. For month, YM. For year, Y.
+        // Actually, spec says: if input precision < requested precision, return empty.
+        // Date strings are YYYY, YYYY-MM, YYYY-MM-DD.
+        // year requires Y
+        // month requires Y-M
+        // day/week requires Y-M-D
+        
+        const prec_a: i32 = if (date_a.?.day != null) 3 else if (date_a.?.month != null) 2 else 1;
+        const prec_b: i32 = if (date_b.?.day != null) 3 else if (date_b.?.month != null) 2 else 1;
+        const req_prec: i32 = switch (unit) {
+            .year => 1,
+            .month => 2,
+            .week, .day => 3,
+            else => return out, // Date doesn't support time units
+        };
+        if (prec_a < req_prec or prec_b < req_prec) return out;
+
+        const y_a = std.fmt.parseInt(i32, date_a.?.year, 10) catch return out;
+        const m_a = if (date_a.?.month) |m| std.fmt.parseInt(i32, m, 10) catch return out else 1;
+        const d_a = if (date_a.?.day) |d| std.fmt.parseInt(i32, d, 10) catch return out else 1;
+
+        const y_b = std.fmt.parseInt(i32, date_b.?.year, 10) catch return out;
+        const m_b = if (date_b.?.month) |m| std.fmt.parseInt(i32, m, 10) catch return out else 1;
+        const d_b = if (date_b.?.day) |d| std.fmt.parseInt(i32, d, 10) catch return out else 1;
+
+        // Determine sign
+        // duration/difference(a, b) -> if a > b, result is negative
+        // So we calculate b - a
+        const cmp = compareDate(y_a, m_a, d_a, y_b, m_b, d_b);
+        if (cmp == 0) {
+            try out.append(ctx.allocator, makeIntegerItem(ctx, 0));
+            return out;
+        }
+        
+        // Ensure A is the earlier date for calculation, flip sign at end if needed
+        const a_first = cmp < 0;
+        const start_y = if (a_first) y_a else y_b;
+        const start_m = if (a_first) m_a else m_b;
+        const start_d = if (a_first) d_a else d_b;
+        const end_y = if (a_first) y_b else y_a;
+        const end_m = if (a_first) m_b else m_a;
+        const end_d = if (a_first) d_b else d_a;
+
+        var result: i64 = 0;
+
+        switch (unit) {
+            .year => {
+                if (is_difference) {
+                    result = end_y - start_y;
+                } else {
+                    // Whole years
+                    var diff = end_y - start_y;
+                    // If end month/day is before start month/day, subtract one year
+                    if (end_m < start_m or (end_m == start_m and end_d < start_d)) {
+                        diff -= 1;
+                    }
+                    result = diff;
+                }
+            },
+            .month => {
+                const months_diff = (end_y - start_y) * 12 + (end_m - start_m);
+                if (is_difference) {
+                    result = months_diff;
+                } else {
+                    // Whole months
+                    var diff = months_diff;
+                    // If end day is before start day, subtract one month
+                    // Exception: if start day is 31 and end day is 28/29 (Feb), it might be a full month?
+                    // Spec example: Jan 31 to Feb 28 is NOT a full month.
+                    // Jan 15 to Feb 15 IS a full month.
+                    if (end_d < start_d) {
+                        diff -= 1;
+                    }
+                    result = diff;
+                }
+            },
+            .week => {
+                if (is_difference) {
+                    // Count Sunday boundaries crossed
+                    // Find first Sunday on or after start
+                    // Day of week: 0=Sunday, 1=Monday...
+                    // epochDaysToDate gives us absolute days.
+                    // We need dateToEpochDays.
+                    const start_epoch = dateToEpochDays(start_y, @intCast(start_m), @intCast(start_d));
+                    const end_epoch = dateToEpochDays(end_y, @intCast(end_m), @intCast(end_d));
+                    
+                    // Known Sunday: 2000-01-05 (start_epoch + offset)
+                    // Let's implement dayOfWeek
+                    // 1970-01-01 was Thursday (4).
+                    // (days + 4) % 7. 0=Sunday.
+                    
+                    var current = start_epoch;
+                    var boundaries: i64 = 0;
+                    while (current < end_epoch) {
+                        current += 1;
+                        if (@mod(current + 4, 7) == 0) boundaries += 1;
+                    }
+                    result = boundaries;
+                } else {
+                    // Whole weeks = days / 7
+                    const start_epoch = dateToEpochDays(start_y, @intCast(start_m), @intCast(start_d));
+                    const end_epoch = dateToEpochDays(end_y, @intCast(end_m), @intCast(end_d));
+                    result = @divTrunc(end_epoch - start_epoch, 7);
+                }
+            },
+            .day => {
+                const start_epoch = dateToEpochDays(start_y, @intCast(start_m), @intCast(start_d));
+                const end_epoch = dateToEpochDays(end_y, @intCast(end_m), @intCast(end_d));
+                result = end_epoch - start_epoch;
+            },
+            else => unreachable,
+        }
+
+        if (!a_first) result = -result;
+        try out.append(ctx.allocator, makeIntegerItem(ctx, result));
+        return out;
+    } else if (is_time) {
+        if (time_a == null or time_b == null) return out;
+        
+        // Time arithmetic
+        const ms_a = timeToMillis(time_a.?);
+        const ms_b = timeToMillis(time_b.?);
+        
+        // Calculate difference in requested unit
+        var result: i64 = 0;
+        const a_first = ms_a <= ms_b;
+        const start_ms = if (a_first) ms_a else ms_b;
+        const end_ms = if (a_first) ms_b else ms_a;
+        
+        switch (unit) {
+            .hour => {
+                if (is_difference) {
+                    result = @divTrunc(end_ms, 3600000) - @divTrunc(start_ms, 3600000);
+                } else {
+                    result = @divTrunc(end_ms - start_ms, 3600000);
+                }
+            },
+            .minute => {
+                if (is_difference) {
+                    result = @divTrunc(end_ms, 60000) - @divTrunc(start_ms, 60000);
+                } else {
+                    result = @divTrunc(end_ms - start_ms, 60000);
+                }
+            },
+            .second => {
+                if (is_difference) {
+                    result = @divTrunc(end_ms, 1000) - @divTrunc(start_ms, 1000);
+                } else {
+                    result = @divTrunc(end_ms - start_ms, 1000);
+                }
+            },
+            .millisecond => {
+                result = end_ms - start_ms;
+            },
+            else => return out, // Time doesn't support year/month/week/day
+        }
+        
+        if (!a_first) result = -result;
+        try out.append(ctx.allocator, makeIntegerItem(ctx, result));
+        return out;
+
+    } else {
+        // DateTime comparison
+        if (date_a == null or date_b == null) return out;
+        
+        // Check precision compatibility
+        var prec_a: i32 = 1;
+        if (time_a != null) {
+            prec_a = 3 + (if (time_a.?.second != null) @as(i32, 2) else @as(i32, 1));
+        } else {
+            if (date_a.?.day != null) prec_a = 3
+            else if (date_a.?.month != null) prec_a = 2
+            else prec_a = 1;
+        }
+
+        var prec_b: i32 = 1;
+        if (time_b != null) {
+            prec_b = 3 + (if (time_b.?.second != null) @as(i32, 2) else @as(i32, 1));
+        } else {
+            if (date_b.?.day != null) prec_b = 3
+            else if (date_b.?.month != null) prec_b = 2
+            else prec_b = 1;
+        }
+        
+        // Approximate precision check (not perfect but covers basic cases)
+        const req_prec: i32 = switch (unit) {
+            .year => 1,
+            .month => 2,
+            .week, .day => 3,
+            .hour => 4,
+            .minute => 5,
+            .second, .millisecond => 6,
+        };
+        if (prec_a < req_prec or prec_b < req_prec) return out;
+
+        // Parse date components
+        const y_a = std.fmt.parseInt(i32, date_a.?.year, 10) catch return out;
+        const m_a = if (date_a.?.month) |m| std.fmt.parseInt(i32, m, 10) catch return out else 1;
+        const d_a = if (date_a.?.day) |d| std.fmt.parseInt(i32, d, 10) catch return out else 1;
+
+        const y_b = std.fmt.parseInt(i32, date_b.?.year, 10) catch return out;
+        const m_b = if (date_b.?.month) |m| std.fmt.parseInt(i32, m, 10) catch return out else 1;
+        const d_b = if (date_b.?.day) |d| std.fmt.parseInt(i32, d, 10) catch return out else 1;
+
+        // For year/month, we don't need time, just calendar math
+        if (unit == .year or unit == .month) {
+            // Determine sign based on full datetime comparison
+            const epoch_a = dateTimeToEpochMillis(y_a, @intCast(m_a), @intCast(d_a), time_a);
+            const epoch_b = dateTimeToEpochMillis(y_b, @intCast(m_b), @intCast(d_b), time_b);
+            
+            const cmp: i32 = if (epoch_a < epoch_b) -1 else if (epoch_a > epoch_b) 1 else 0;
+            if (cmp == 0) {
+                try out.append(ctx.allocator, makeIntegerItem(ctx, 0));
+                return out;
+            }
+            
+            const a_first = cmp < 0;
+            const start_y = if (a_first) y_a else y_b;
+            const start_m = if (a_first) m_a else m_b;
+            const start_d = if (a_first) d_a else d_b;
+            const end_y = if (a_first) y_b else y_a;
+            const end_m = if (a_first) m_b else m_a;
+            const end_d = if (a_first) d_b else d_a;
+            
+            var result: i64 = 0;
+            if (unit == .year) {
+                if (is_difference) {
+                    result = end_y - start_y;
+                } else {
+                    var diff = end_y - start_y;
+                    // Check if end is before start in the year (ignoring year part)
+                    // Construct dummy dates in same year to compare remaining components
+                    // Or simpler: compare epoch of start + diff years with end
+                    // But adding years is tricky with leap years.
+                    // Simple check: if end < start + diff years, decrement.
+                    // Logic: if (end_month < start_month) or (end_month == start_month and end_day < start_day) ...
+                    // We need to account for time too.
+                    // compare (m_a, d_a, time_a) vs (m_b, d_b, time_b)
+                    const sub_a = dateTimeToEpochMillis(2000, @intCast(start_m), @intCast(start_d), if (a_first) time_a else time_b);
+                    const sub_b = dateTimeToEpochMillis(2000, @intCast(end_m), @intCast(end_d), if (a_first) time_b else time_a);
+                    if (sub_b < sub_a) diff -= 1;
+                    result = diff;
+                }
+            } else { // month
+                const months_diff = (end_y - start_y) * 12 + (end_m - start_m);
+                if (is_difference) {
+                    result = months_diff;
+                }
+                else {
+                    var diff = months_diff;
+                    // Compare day+time
+                    // Check if end day+time is before start day+time
+                    const sub_a = dateTimeToEpochMillis(2000, 1, @intCast(start_d), if (a_first) time_a else time_b);
+                    const sub_b = dateTimeToEpochMillis(2000, 1, @intCast(end_d), if (a_first) time_b else time_a);
+                    if (sub_b < sub_a) diff -= 1;
+                    result = diff;
+                }
+            }
+            
+            if (!a_first) result = -result;
+            try out.append(ctx.allocator, makeIntegerItem(ctx, result));
+            return out;
+        }
+
+        // For other units, convert to epoch milliseconds
+        const ms_a = dateTimeToEpochMillis(y_a, @intCast(m_a), @intCast(d_a), time_a);
+        const ms_b = dateTimeToEpochMillis(y_b, @intCast(m_b), @intCast(d_b), time_b);
+        
+        var result: i64 = 0;
+        const a_first = ms_a <= ms_b;
+        const start_ms = if (a_first) ms_a else ms_b;
+        const end_ms = if (a_first) ms_b else ms_a;
+        
+        switch (unit) {
+            .week => {
+                if (is_difference) {
+                    // Count Sunday boundaries
+                    // Epoch 1970-01-01 was Thursday.
+                    // ms / 86400000 -> days. (days + 4) % 7 == 0 is Sunday.
+                    // We need to account for timezone offset if we want "local" boundaries?
+                    // Spec says: "When comparison based on precision... implementations should normalize timezones".
+                    // This implies UTC.
+                    // Let's use UTC days.
+                    const start_day = @divFloor(start_ms, 86400000);
+                    const end_day = @divFloor(end_ms, 86400000);
+                    var current = start_day;
+                    var boundaries: i64 = 0;
+                    while (current < end_day) {
+                        current += 1;
+                        if (@mod(current + 4, 7) == 0) boundaries += 1;
+                    }
+                    result = boundaries;
+                } else {
+                    // duration in weeks = duration in days / 7
+                    const diff_ms = end_ms - start_ms;
+                    result = @divTrunc(diff_ms, 604800000);
+                }
+            },
+            .day => {
+                if (is_difference) {
+                    result = @divFloor(end_ms, 86400000) - @divFloor(start_ms, 86400000);
+                } else {
+                    result = @divTrunc(end_ms - start_ms, 86400000);
+                }
+            },
+            .hour => {
+                if (is_difference) {
+                    result = @divFloor(end_ms, 3600000) - @divFloor(start_ms, 3600000);
+                } else {
+                    result = @divTrunc(end_ms - start_ms, 3600000);
+                }
+            },
+            .minute => {
+                if (is_difference) {
+                    result = @divFloor(end_ms, 60000) - @divFloor(start_ms, 60000);
+                } else {
+                    result = @divTrunc(end_ms - start_ms, 60000);
+                }
+            },
+            .second => {
+                if (is_difference) {
+                    result = @divFloor(end_ms, 1000) - @divFloor(start_ms, 1000);
+                } else {
+                    result = @divTrunc(end_ms - start_ms, 1000);
+                }
+            },
+            .millisecond => {
+                result = end_ms - start_ms;
+            },
+            else => unreachable,
+        }
+        
+        if (!a_first) result = -result;
+        try out.append(ctx.allocator, makeIntegerItem(ctx, result));
+        return out;
+    }
+}
+
+fn timeToMillis(t: TimePartsPartial) i64 {
+    const h = std.fmt.parseInt(i64, t.hour, 10) catch 0;
+    const m = if (t.minute) |min| std.fmt.parseInt(i64, min, 10) catch 0 else 0;
+    const s_part = if (t.second) |sec| splitSecond(sec) else SecondParts{ .whole = "0", .frac = null };
+    const s = std.fmt.parseInt(i64, s_part.whole, 10) catch 0;
+    const ms = if (s_part.frac) |f| parseMillis(f) else 0;
+    return h * 3600000 + m * 60000 + s * 1000 + ms;
+}
+
+fn parseMillis(f: []const u8) i64 {
+    var buf: [3]u8 = .{'0', '0', '0'};
+    const len = @min(f.len, 3);
+    @memcpy(buf[0..len], f[0..len]);
+    return std.fmt.parseInt(i64, &buf, 10) catch 0;
+}
+
+fn compareDate(y1: i32, m1: i32, d1: i32, y2: i32, m2: i32, d2: i32) i32 {
+    if (y1 != y2) return if (y1 < y2) -1 else 1;
+    if (m1 != m2) return if (m1 < m2) -1 else 1;
+    if (d1 != d2) return if (d1 < d2) -1 else 1;
+    return 0;
+}
+
+fn dateToEpochDays(year: i32, month: u32, day: u32) i64 {
+    var y: i64 = year;
+    const m: i64 = month;
+    const d: i64 = day;
+    if (m <= 2) y -= 1;
+    const era = if (y >= 0) @divFloor(y, 400) else @divFloor(y - 399, 400);
+    const yoe: u64 = @intCast(y - era * 400);
+    const doy: u64 = @as(u64, @intCast(153 * (if (m > 2) m - 3 else m + 9) + 2)) / 5 + @as(u64, @intCast(d)) - 1;
+    const doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    return era * 146097 + @as(i64, @intCast(doe)) - 719468;
+}
+
+fn dateTimeToEpochMillis(year: i32, month: u32, day: u32, time: ?TimePartsPartial) i64 {
+    const days = dateToEpochDays(year, month, day);
+    var ms = days * 86400000;
+    if (time) |t| {
+        ms += timeToMillis(t);
+        // Handle timezone
+        if (t.zone) |z| {
+            if (z.len >= 1 and z[0] != 'Z') {
+                const sign: i64 = if (z[0] == '+') 1 else -1;
+                // Parse +HH:MM
+                if (z.len >= 6) {
+                    const zh = std.fmt.parseInt(i64, z[1..3], 10) catch 0;
+                    const zm = std.fmt.parseInt(i64, z[4..6], 10) catch 0;
+                    const offset_ms = (zh * 3600000 + zm * 60000) * sign;
+                    ms -= offset_ms; // Subtract offset to get UTC
+                }
+            }
+        }
+    }
+    return ms;
 }

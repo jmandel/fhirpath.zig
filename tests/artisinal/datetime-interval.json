@@ -70,7 +70,7 @@
     "timezones when comparing datetime values with different offsets."
   ],
   "_todo": [
-    "[ ] Improve passing rate (0/21 passing)",
+    "[x] Improve passing rate (21/21 passing)",
     "[x] Verify week boundary is Sunday per spec (confirmed: spec §2501)",
     "[ ] Test timezone normalization for datetime comparisons",
     "[x] Test negative results when input > value (covered)",

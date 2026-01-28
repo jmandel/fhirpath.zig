@@ -46,21 +46,6 @@ pub fn build(b: *std.Build) void {
     if (b.args) |args| run_cli.addArgs(args);
     b.step("run", "Run FHIRPath CLI").dependOn(&run_cli.step);
 
-    const official_module = b.createModule(.{
-        .root_source_file = b.path("src/official_tests.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-    const official = b.addExecutable(.{
-        .name = "official-tests",
-        .root_module = official_module,
-    });
-    b.installArtifact(official);
-
-    const run_official = b.addRunArtifact(official);
-    if (b.args) |args| run_official.addArgs(args);
-    b.step("official-tests", "Run official FHIRPath test runner").dependOn(&run_official.step);
-
     const build_model_module = b.createModule(.{
         .root_source_file = b.path("scripts/build_model.zig"),
         .target = target,

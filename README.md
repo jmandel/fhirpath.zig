@@ -112,23 +112,6 @@ The harness auto-detects the test format:
 
 Output shows pass/fail counts per file and failure breakdown (parse errors, eval errors, mismatches).
 
-### Tests (Official FHIRPath Suite - Legacy Runner)
-
-The legacy `official-tests` runner is still available:
-
-```bash
-zig build official-tests
-
-# Limit to N tests
-zig build official-tests -- --limit 50
-
-# Use a specific model + prefix
-zig build official-tests -- --model models/r4/model.bin --prefix FHIR
-
-# Skip schema/model loading (value-only comparison)
-zig build official-tests -- --no-model
-```
-
 ## Supported Functions
 
 - `count()`, `empty()`, `exists()`

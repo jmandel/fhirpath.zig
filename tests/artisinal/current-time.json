@@ -1,0 +1,122 @@
+{
+  "_spec_summary": [
+    "Current date and time functions: now(), today(), timeOfDay()",
+    "",
+    "=== CORE BEHAVIOR ===",
+    "- These functions return the current date/time of the evaluation environment.",
+    "- The timestamp source is an implementation decision; the spec suggests local server time as the simplest default.",
+    "- All three are zero-argument functions invoked as standalone calls (e.g., now()). They do not depend on the input collection.",
+    "- Each returns a single-item collection (never empty on success).",
+    "",
+    "=== DETERMINISM WITHIN AN EXPRESSION ===",
+    "The spec requires deterministic evaluation within a single expression:",
+    "- now() must return the same DateTime value every time it is evaluated in the same expression.",
+    "- timeOfDay() must return the same Time value every time it is evaluated in the same expression.",
+    "- today() must return the same Date value every time it is evaluated in the same expression.",
+    "Spec quote: \"now() should always return the same DateTime in a given expression\" (Current date and time functions).",
+    "This applies even if the expression evaluates the function multiple times or inside iteration (e.g., within select/where).",
+    "",
+    "=== TYPE AND FORMAT ===",
+    "- now() returns a DateTime including a timezone offset (spec requirement).",
+    "- today() returns a Date (no time component).",
+    "- timeOfDay() returns a Time (no date component).",
+    "- String conversion follows the Date/DateTime/Time toString() rules: Date -> YYYY-MM-DD; DateTime/Time use ISO-8601 with preserved precision.",
+    "",
+    "=== EDGE CASES ===",
+    "- These functions should not error and do not depend on input type or emptiness.",
+    "- The exact precision (seconds vs fractional seconds) is implementation-specific; only the required components must be present.",
+    "",
+    "Spec reference: spec/index.md \"Current date and time functions\" (now(), timeOfDay(), today())."
+  ],
+  "_todo": [
+    "[ ] Improve passing rate (0/9 passing)",
+    "[ ] Implement now()/today()/timeOfDay() evaluation",
+    "[ ] Ensure per-eval caching so repeated calls within one expression are identical",
+    "[ ] Validate timezone offset inclusion for now() output",
+    "[ ] Add precision-specific tests once time precision policy is settled"
+  ],
+  "_open_questions": [
+    "Should timeOfDay() always include seconds, or is minute precision acceptable?",
+    "Should now() always include fractional seconds, or only when available from the host clock?"
+  ],
+  "meta": {
+    "status": "drafted"
+  },
+  "cases": [
+    {
+      "_section": "=== NOW() ==="
+    },
+    {
+      "name": "now: toString length indicates date+time",
+      "expr": "now().toString().length() > 10",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "now: deterministic within expression",
+      "expr": "now() = now()",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "_section": "=== TODAY() ==="
+    },
+    {
+      "name": "today: toString length is 10 (YYYY-MM-DD)",
+      "expr": "today().toString().length() = 10",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "today: deterministic within expression",
+      "expr": "today() = today()",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "_section": "=== TIMEOFDAY() ==="
+    },
+    {
+      "name": "timeOfDay: deterministic within expression",
+      "expr": "timeOfDay() = timeOfDay()",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "timeOfDay: toString length indicates non-empty time",
+      "expr": "timeOfDay().toString().length() >= 2",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    }
+  ]
+}

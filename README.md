@@ -39,6 +39,60 @@ Refresh-only scripts and what they produce:
 
 ## Usage
 
+### WebAssembly + JS (wrapper)
+
+Build the wasm module:
+
+```bash
+zig build wasm
+```
+
+Node example (uses the JS wrapper):
+
+```bash
+node examples/wasm_node.mjs
+```
+
+Minimal usage from JS:
+
+```js
+import { FhirPathEngine } from "./js/fhirpath.js";
+
+const engine = await FhirPathEngine.instantiate("./fhirpath.wasm");
+await engine.registerSchemaFromUrl({
+  name: "r5",
+  prefix: "FHIR",
+  url: "./model-r5.bin",
+  isDefault: true,
+});
+
+for (const node of engine.eval({ expr: "name.given", json: patientJson, schema: "r5" })) {
+  console.log(node.meta.typeName, node.data);
+}
+```
+
+If you need `now()`, `today()`, or `timeOfDay()` to reflect a specific time, set it:
+
+```js
+engine.setNowDate(new Date()); // uses Unix epoch seconds internally
+// or per-eval:
+engine.eval({ expr: "now()", json: "{}", schema: "r5", now: new Date() });
+```
+
+### Web demo (landing page)
+
+Assemble a static demo bundle (expects `zig build wasm` + `zig build build-model -- --fhir-version r5` to have been run):
+
+```bash
+./scripts/build_web.sh dist
+python -m http.server --directory dist
+```
+
+Open `http://localhost:8000` in a browser.
+
+CI uploads a `web-dist` artifact with the same layout so anyone can download and run
+the demo without local builds.
+
 ### Ad-hoc CLI
 
 Evaluate a FHIRPath expression against JSON input:

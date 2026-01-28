@@ -34,3 +34,18 @@ jobs:
         run: |
           zig build run -- 'name.given' '{"name":{"given":["Ann","Bob"]}}'
           zig build run -- 'items.count()' '{"items":[1,2,3,4,5]}'
+
+      - name: Build schema (R5)
+        run: zig build build-model -- --fhir-version r5
+
+      - name: Build wasm
+        run: zig build wasm
+
+      - name: Build web demo bundle
+        run: ./scripts/build_web.sh dist
+
+      - name: Upload web demo artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: dist

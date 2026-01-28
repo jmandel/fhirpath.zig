@@ -104,6 +104,9 @@ export fn fhirpath_ctx_register_schema(
     model_len: u32,
     is_default: u32, // 0 or 1
 ) Status;
+
+// Set current time (Unix epoch seconds) used by now(), today(), timeOfDay().
+export fn fhirpath_ctx_set_time(ctx: u32, epoch_seconds: i64) Status;
 ```
 
 Behavior:
@@ -385,6 +388,8 @@ Minimal public JS API:
 ```js
 const engine = await FhirPathEngine.instantiate(wasm, { functions });
 engine.registerSchema({ name: "r5", prefix: "FHIR", model, isDefault: true });
+// Or fetch the model bytes directly:
+await engine.registerSchemaFromUrl({ name: "r5", prefix: "FHIR", url: "./model-r5.bin", isDefault: true });
 
 const res = engine.eval({ expr, json, schema: "r5", env });
 for (const node of res) {
@@ -392,6 +397,11 @@ for (const node of res) {
   // data is lazy, only decoded if accessed
   if (needValue) console.log(node.data);
 }
+
+// If you need deterministic now()/today()/timeOfDay(), set the time explicitly:
+engine.setNowEpochSeconds(0);
+// or per-eval:
+engine.eval({ expr: "now()", json, schema: "r5", now: new Date() });
 ```
 
 Node wrapper (lazy getters):

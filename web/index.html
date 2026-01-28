@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FHIRPath Zig — WASM Demo</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <div class="background">
+    <div class="orb orb-a"></div>
+    <div class="orb orb-b"></div>
+    <div class="grid"></div>
+  </div>
+
+  <main class="page">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">FHIRPath · Zig · WebAssembly</p>
+        <h1>Evaluate FHIRPath in the browser with native speed.</h1>
+        <p class="subhead">
+          A greenfield Zig engine compiled to WASM, with schema-aware typing and
+          zero-copy JSON slices. This demo loads the build artifacts straight from
+          the GitHub Actions bundle.
+        </p>
+        <div class="hero-actions">
+          <button id="run" class="btn primary">Run expression</button>
+          <button id="load-example" class="btn ghost">Load example</button>
+        </div>
+      </div>
+      <div class="hero-card">
+        <h3>Quick start</h3>
+        <ol>
+          <li>Download the <span class="mono">dist</span> artifact from Actions.</li>
+          <li>Serve the folder locally: <span class="mono">python -m http.server</span></li>
+          <li>Open <span class="mono">http://localhost:8000</span>.</li>
+        </ol>
+        <p class="note">
+          The demo expects <span class="mono">fhirpath.wasm</span>,
+          <span class="mono">model-r5.bin</span>, and
+          <span class="mono">fhirpath.js</span> in the same folder as this page.
+        </p>
+      </div>
+    </header>
+
+    <section class="panel-grid">
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Expression</h2>
+          <div class="chips" id="chip-row"></div>
+        </div>
+        <input id="expr" class="expr-input" spellcheck="false" />
+        <p class="hint">Use %env syntax for environment variables (not wired yet in this build).</p>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Input JSON</h2>
+          <span class="meta" id="input-meta"></span>
+        </div>
+        <textarea id="json" class="json-input" spellcheck="false"></textarea>
+      </div>
+
+      <div class="panel results">
+        <div class="panel-header">
+          <h2>Results</h2>
+          <span class="meta" id="status">Loading WASM…</span>
+        </div>
+        <div class="results-body" id="results"></div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

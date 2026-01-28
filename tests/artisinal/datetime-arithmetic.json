@@ -87,15 +87,16 @@
     "[ ] Improve passing rate (0/53 passing) - all tests fail with parse errors",
     "[ ] Parser needs to support date/time + quantity expressions",
     "[ ] Evaluator needs to implement calendar arithmetic for Date/DateTime/Time",
-    "[ ] Verify leap year handling for Feb 29",
-    "[ ] Test month-end overflow (Jan 31 + 1 month)",
-    "[ ] Test Time cyclic overflow behavior",
-    "[ ] Test partial date/time precision handling",
-    "[ ] Test decimal fraction ignoring",
-    "[ ] Test invalid unit combinations (e.g., Date + hours)"
+    "[x] Verify leap year handling for Feb 29 - tests cover leap year edge cases",
+    "[x] Test month-end overflow (Jan 31 + 1 month) - covered by tests",
+    "[x] Test Time cyclic overflow behavior - covered with spec examples",
+    "[x] Test partial date/time precision handling - spec examples included",
+    "[x] Test decimal fraction ignoring - two tests with .9 and .5 values",
+    "[ ] Test invalid unit combinations (e.g., Date + hours) - need error tests",
+    "[ ] Test definite-duration UCUM units error (e.g., @2025-01-01 + 1 'a')"
   ],
   "meta": {
-    "status": "drafted"
+    "status": "reviewed"
   },
   "cases": [
     {"_section": "=== ADDITION: DATE + YEARS ==="},

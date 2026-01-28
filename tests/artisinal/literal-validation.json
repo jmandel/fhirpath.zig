@@ -1,0 +1,222 @@
+{
+  "_spec_summary": [
+    "Literal Validation Errors - Parse-time rejection of invalid literals.",
+    "",
+    "=== TIME LITERALS: NO TIMEZONE (§4.1.4) ===",
+    "Time literals represent time-of-day values WITHOUT timezone information.",
+    "Spec (line 321): 'Time values in FHIRPath do not have a timezone or timezone offset.'",
+    "Spec (line 208): '@T14:34:28 (@ followed by ISO8601 compliant time beginning with T, no timezone offset)'",
+    "",
+    "Invalid Time literals (must error):",
+    "  @T14:34:28Z           - Z suffix not allowed on Time",
+    "  @T14:34:28+10:00      - positive timezone offset not allowed",
+    "  @T14:34:28-05:00      - negative timezone offset not allowed",
+    "  @T14:34:28.123Z       - Z suffix not allowed even with milliseconds",
+    "  @T00:00:00+00:00      - even +00:00 (equivalent to Z) not allowed",
+    "",
+    "Valid Time literals:",
+    "  @T14:34:28            - full time without timezone",
+    "  @T14:34               - partial time (hours and minutes)",
+    "  @T14                  - partial time (hours only)",
+    "  @T14:34:28.123        - time with milliseconds",
+    "",
+    "=== DATETIME LITERALS: TIMEZONE ALLOWED (§4.1.5) ===",
+    "DateTime literals MAY include timezone offsets.",
+    "Valid: @2015-02-04T14:34:28+09:00, @2015-02-04T14:34:28Z, @2015-02-04T14:34:28",
+    "",
+    "=== DATE LITERALS: NO TIME COMPONENT (§4.1.3) ===",
+    "Date literals are dates without time components.",
+    "Invalid: @2015-02-04T (trailing T creates partial DateTime, not invalid Date)",
+    "Valid partial DateTime: @2015-02-04T, @2015T",
+    "",
+    "=== NOT() REQUIRES SINGLETON (§5.5.2) ===",
+    "The not() function requires a singleton input (or empty).",
+    "Multi-item collections must signal an error.",
+    "Spec: 'The functions in this section operate on collections with a single item.'",
+    "",
+    "=== SINGLE NON-BOOLEAN ITEM COERCION ===",
+    "When a single non-boolean item is evaluated as boolean, it becomes true.",
+    "  (0).not() = false    -- 0 is truthy (single item), not(true) = false",
+    "  (1|2).not() = ERROR  -- multiple items, cannot coerce",
+    "",
+    "Spec refs: §4.1 (Literals), §5.5.2 (not), Singleton Evaluation of Collections"
+  ],
+  "_todo": [
+    "[ ] Improve passing rate (12/24 passing)",
+    "[ ] Implement Time literal timezone validation in parser (7 tests)",
+    "[ ] Implement not() singleton check for multi-item collections (5 tests)"
+  ],
+  "meta": {
+    "status": "drafted"
+  },
+  "cases": [
+    {
+      "_section": "=== TIME LITERAL TIMEZONE ERRORS ==="
+    },
+    {
+      "name": "time literal: Z suffix not allowed",
+      "expr": "@T14:34:28Z",
+      "input": {},
+      "expect_error": true,
+      "comment": "R5 test: testLiteralTimeUTC - Time literals cannot have timezone"
+    },
+    {
+      "name": "time literal: positive timezone offset not allowed",
+      "expr": "@T14:34:28+10:00",
+      "input": {},
+      "expect_error": true,
+      "comment": "R5 test: testLiteralTimeTimezoneOffset"
+    },
+    {
+      "name": "time literal: negative timezone offset not allowed",
+      "expr": "@T14:34:28-05:00",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "name": "time literal: Z suffix not allowed even with milliseconds",
+      "expr": "@T14:34:28.123Z",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "name": "time literal: +00:00 offset not allowed (same as Z)",
+      "expr": "@T00:00:00+00:00",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "name": "time literal: partial time with Z not allowed",
+      "expr": "@T14:30Z",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "name": "time literal: hour-only with Z not allowed",
+      "expr": "@T14Z",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "_section": "=== VALID TIME LITERALS (control tests) ==="
+    },
+    {
+      "name": "time literal: valid full time without timezone",
+      "expr": "@T14:34:28 = @T14:34:28",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "time literal: valid partial time (hh:mm)",
+      "expr": "@T14:34 = @T14:34",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "time literal: valid partial time (hh only)",
+      "expr": "@T14 = @T14",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "time literal: valid time with milliseconds",
+      "expr": "@T14:34:28.123 = @T14:34:28.123",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "_section": "=== DATETIME WITH TIMEZONE (valid control tests) ==="
+    },
+    {
+      "name": "datetime literal: Z suffix is valid",
+      "expr": "@2015-02-04T14:34:28Z = @2015-02-04T14:34:28Z",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "datetime literal: positive offset is valid",
+      "expr": "@2015-02-04T14:34:28+09:00 = @2015-02-04T14:34:28+09:00",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "datetime literal: negative offset is valid",
+      "expr": "@2015-02-04T14:34:28-05:00 = @2015-02-04T14:34:28-05:00",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "_section": "=== NOT() SINGLETON ERRORS ==="
+    },
+    {
+      "name": "not: multi-item integer collection must error",
+      "expr": "(1 | 2).not()",
+      "input": {},
+      "expect_error": true,
+      "comment": "R5 test: testNotInvalid - not() requires singleton input"
+    },
+    {
+      "name": "not: multi-item string collection must error",
+      "expr": "('a' | 'b').not()",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "name": "not: multi-item boolean collection must error",
+      "expr": "(true | false).not()",
+      "input": {},
+      "expect_error": true,
+      "comment": "Even multiple booleans should error, not evaluate to any specific value"
+    },
+    {
+      "name": "not: three-item collection must error",
+      "expr": "(1 | 2 | 3).not()",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "_section": "=== VALID NOT() OPERATIONS (control tests) ==="
+    },
+    {
+      "name": "not: single boolean true",
+      "expr": "true.not()",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}]
+    },
+    {
+      "name": "not: single boolean false",
+      "expr": "false.not()",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "not: single non-boolean coerces to true",
+      "expr": "(0).not()",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}],
+      "comment": "Single non-boolean item coerces to true, then not(true) = false"
+    },
+    {
+      "name": "not: single non-boolean string coerces to true",
+      "expr": "('hello').not()",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}]
+    },
+    {
+      "name": "not: empty collection returns empty",
+      "expr": "{}.not()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "_section": "=== COMPARISON WITH NOT() (R5 test pattern) ==="
+    },
+    {
+      "name": "not with comparison: multi-item should error before comparison",
+      "expr": "(1|2).not() = false",
+      "input": {},
+      "expect_error": true,
+      "comment": "R5 test: testNotInvalid - error happens before comparison"
+    }
+  ]
+}

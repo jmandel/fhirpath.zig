@@ -1,0 +1,275 @@
+{
+  "_spec_summary": [
+    "Iteration Variables: $this, $index, and $total in FHIRPath expressions.",
+    "",
+    "=== $this - CURRENT ITEM REFERENCE ===",
+    "Refers to the current item being evaluated in iteration context.",
+    "Available in: where(), select(), all(), exists(), repeat(), aggregate(), sort()",
+    "",
+    "Key behavior:",
+    "- In where(criterion): $this refers to each item being filtered",
+    "- In select(projection): $this refers to each item being projected",
+    "- Can be used in nested expressions and function arguments",
+    "- $this.foo is equivalent to foo when $this is the implicit context",
+    "",
+    "=== $this IN FUNCTION ARGUMENTS ===",
+    "$this can appear inside function argument expressions:",
+    "  items.select(substring($this.length() - 3))  -- uses $this in arg",
+    "  items.where(contains($this.first()))         -- $this in arg",
+    "",
+    "=== $index - CURRENT POSITION (STU) ===",
+    "Available in aggregate(): refers to 0-based index of current item.",
+    "Not available in where(), select(), or other iteration contexts.",
+    "",
+    "=== $total - COLLECTION SIZE (STU) ===",
+    "Available in aggregate(): refers to total number of items.",
+    "Not available in where(), select(), or other iteration contexts.",
+    "",
+    "=== NESTED ITERATION ===",
+    "When iterations are nested, $this refers to the innermost context:",
+    "  items.select(children.where($this.active = true))",
+    "In this case, $this in where() refers to each child, not each item.",
+    "",
+    "Spec refs: §4.3 ($this), §5.4.6 (aggregate $index/$total), §5.2.3 (where), §5.2.4 (select)"
+  ],
+  "_todo": [
+    "[ ] Improve passing rate (15/21 passing)",
+    "[ ] Fix $this resolution in function argument expressions (6 eval errors)",
+    "[ ] Test $index and $total outside aggregate context (should error)"
+  ],
+  "meta": {
+    "status": "drafted"
+  },
+  "cases": [
+    {
+      "_section": "=== BASIC $this REFERENCE ==="
+    },
+    {
+      "name": "$this: explicit reference in select",
+      "expr": "items.select($this)",
+      "input": {"items": [1, 2, 3]},
+      "expect": [
+        {"type": "integer", "value": 1},
+        {"type": "integer", "value": 2},
+        {"type": "integer", "value": 3}
+      ]
+    },
+    {
+      "name": "$this: with method call",
+      "expr": "items.select($this.length())",
+      "input": {"items": ["abc", "de", "f"]},
+      "expect": [
+        {"type": "integer", "value": 3},
+        {"type": "integer", "value": 2},
+        {"type": "integer", "value": 1}
+      ]
+    },
+    {
+      "name": "$this: in where predicate",
+      "expr": "items.where($this > 2)",
+      "input": {"items": [1, 2, 3, 4]},
+      "expect": [
+        {"type": "integer", "value": 3},
+        {"type": "integer", "value": 4}
+      ]
+    },
+    {
+      "_section": "=== $this IN FUNCTION ARGUMENTS ==="
+    },
+    {
+      "name": "$this: in substring start argument",
+      "expr": "items.select(substring($this.length() - 2))",
+      "input": {"items": ["hello", "world"]},
+      "expect": [
+        {"type": "string", "value": "lo"},
+        {"type": "string", "value": "ld"}
+      ],
+      "comment": "R5 test pattern: testDollarThis1/2"
+    },
+    {
+      "name": "$this: in substring with comparison",
+      "expr": "items.where(substring($this.length() - 3) = 'out')",
+      "input": {"items": ["shout", "about", "in", "without"]},
+      "expect": [
+        {"type": "string", "value": "shout"},
+        {"type": "string", "value": "about"},
+        {"type": "string", "value": "without"}
+      ],
+      "comment": "Matches items ending in 'out'"
+    },
+    {
+      "name": "$this: length-based substring extraction",
+      "expr": "items.select(substring(2, length() - 4))",
+      "input": {"items": ["testing", "example"]},
+      "expect": [
+        {"type": "string", "value": "sti"},
+        {"type": "string", "value": "amp"}
+      ],
+      "comment": "R5 test pattern: testSubstring10"
+    },
+    {
+      "name": "$this: in startsWith argument",
+      "expr": "items.select(startsWith($this.length().toString()))",
+      "input": {"items": ["9abcdefgh", "3ab"]},
+      "expect": [
+        {"type": "boolean", "value": true},
+        {"type": "boolean", "value": true}
+      ],
+      "comment": "R5 test pattern: testStartsWith12"
+    },
+    {
+      "name": "$this: in endsWith argument",
+      "expr": "items.select(endsWith($this.length().toString()))",
+      "input": {"items": ["abcdefgh9", "ab3"]},
+      "expect": [
+        {"type": "boolean", "value": true},
+        {"type": "boolean", "value": true}
+      ],
+      "comment": "R5 test pattern: testEndsWith10"
+    },
+    {
+      "name": "$this: in contains argument",
+      "expr": "items.select(contains($this.length().toString()))",
+      "input": {"items": ["a9b", "ab3c"]},
+      "expect": [
+        {"type": "boolean", "value": true},
+        {"type": "boolean", "value": true}
+      ],
+      "comment": "R5 test pattern: testContainsString10"
+    },
+    {
+      "_section": "=== $this IN ARITHMETIC ==="
+    },
+    {
+      "name": "$this: arithmetic expression",
+      "expr": "items.select($this * 2)",
+      "input": {"items": [1, 2, 3]},
+      "expect": [
+        {"type": "decimal", "value": 2.0},
+        {"type": "decimal", "value": 4.0},
+        {"type": "decimal", "value": 6.0}
+      ],
+      "comment": "JSON numbers parsed as decimal, so result is decimal"
+    },
+    {
+      "name": "$this: negation",
+      "expr": "items.select(-$this)",
+      "input": {"items": [1, 2, 3]},
+      "expect": [
+        {"type": "decimal", "value": -1.0},
+        {"type": "decimal", "value": -2.0},
+        {"type": "decimal", "value": -3.0}
+      ],
+      "comment": "JSON numbers parsed as decimal"
+    },
+    {
+      "name": "$this: in sort key expression",
+      "expr": "items.sort(-$this)",
+      "input": {"items": [1, 3, 2]},
+      "expect": [
+        {"type": "integer", "value": 3},
+        {"type": "integer", "value": 2},
+        {"type": "integer", "value": 1}
+      ],
+      "comment": "R5 test pattern: testSort8 (for integers, not strings)"
+    },
+    {
+      "_section": "=== $index IN AGGREGATE ==="
+    },
+    {
+      "name": "$index: basic usage",
+      "expr": "items.aggregate($total + $this * ($index + 1), 0)",
+      "input": {"items": [1, 2, 3]},
+      "expect": [{"type": "decimal", "value": 14.0}],
+      "comment": "1*1 + 2*2 + 3*3 = 1 + 4 + 9 = 14; JSON numbers are decimal"
+    },
+    {
+      "name": "$index: collect indices",
+      "expr": "items.aggregate($total | $index, {})",
+      "input": {"items": ["a", "b", "c"]},
+      "expect": [
+        {"type": "integer", "value": 0},
+        {"type": "integer", "value": 1},
+        {"type": "integer", "value": 2}
+      ]
+    },
+    {
+      "_section": "=== $total IN AGGREGATE ==="
+    },
+    {
+      "name": "$total: basic usage",
+      "expr": "items.aggregate($total + 1, 0)",
+      "input": {"items": ["a", "b", "c"]},
+      "expect": [{"type": "integer", "value": 3}],
+      "comment": "Manually counting items via aggregate"
+    },
+    {
+      "_section": "=== NESTED ITERATION ==="
+    },
+    {
+      "name": "nested: inner $this shadows outer",
+      "expr": "items.select(children.where($this > 5).count())",
+      "input": {
+        "items": [
+          {"children": [1, 6, 3, 7]},
+          {"children": [10, 2]}
+        ]
+      },
+      "expect": [
+        {"type": "integer", "value": 2},
+        {"type": "integer", "value": 1}
+      ],
+      "comment": "$this in where refers to children items, not parent items"
+    },
+    {
+      "name": "nested: multiple select levels",
+      "expr": "items.select(values.select($this + 10))",
+      "input": {
+        "items": [
+          {"values": [1, 2]},
+          {"values": [3]}
+        ]
+      },
+      "expect": [
+        {"type": "decimal", "value": 11.0},
+        {"type": "decimal", "value": 12.0},
+        {"type": "decimal", "value": 13.0}
+      ],
+      "comment": "JSON numbers are decimal"
+    },
+    {
+      "_section": "=== EDGE CASES ==="
+    },
+    {
+      "name": "$this: empty collection",
+      "expr": "items.select($this)",
+      "input": {"items": []},
+      "expect": []
+    },
+    {
+      "name": "$this: implicit vs explicit",
+      "expr": "items.select(length()) = items.select($this.length())",
+      "input": {"items": ["abc", "de"]},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Implicit and explicit $this should be equivalent"
+    },
+    {
+      "name": "$this: in boolean context",
+      "expr": "items.where($this)",
+      "input": {"items": [true, false, true]},
+      "expect": [
+        {"type": "boolean", "value": true},
+        {"type": "boolean", "value": true}
+      ]
+    },
+    {
+      "name": "$this: chained methods",
+      "expr": "items.select($this.upper().length())",
+      "input": {"items": ["hello", "hi"]},
+      "expect": [
+        {"type": "integer", "value": 5},
+        {"type": "integer", "value": 2}
+      ]
+    }
+  ]
+}

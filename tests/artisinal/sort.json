@@ -56,10 +56,10 @@
     "Patient.telecom.sort(system, use desc)"
   ],
   "_todo": [
-    "[ ] Improve passing rate (0/29 passing) - sort() not implemented, asc/desc parsing not supported",
-    "[ ] Test multi-key sorting with asc/desc qualifiers",
-    "[ ] Test error cases: mixed types, multi-valued key selector",
-    "[ ] Test empty value positioning in ascending vs descending",
+    "[x] Improve passing rate (31/31 passing) - sort() implemented with asc/desc parsing",
+    "[x] Test multi-key sorting with asc/desc qualifiers",
+    "[x] Test error cases: mixed types, multi-valued key selector",
+    "[x] Test empty value positioning in ascending vs descending",
     "[ ] Add tests for Date/DateTime/Time sorting",
     "[ ] Add tests for Quantity sorting"
   ],
@@ -367,8 +367,8 @@
     },
     {
       "name": "sort: handles duplicate values",
-      "expr": "(2 | 1 | 2 | 3 | 1).sort()",
-      "input": {},
+      "expr": "values.sort()",
+      "input": {"values": [2, 1, 2, 3, 1]},
       "expect": [
         {"type": "integer", "value": 1},
         {"type": "integer", "value": 1},
@@ -376,7 +376,7 @@
         {"type": "integer", "value": 2},
         {"type": "integer", "value": 3}
       ],
-      "comment": "Duplicates should be preserved and grouped together"
+      "comment": "Duplicates from array input should be preserved and grouped together (note: union operator | removes duplicates)"
     },
     {
       "_section": "=== DATE/TIME SORTING ==="

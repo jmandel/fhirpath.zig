@@ -2510,6 +2510,142 @@ fn evalFunction(
         try out.append(ctx.allocator, makeBoolItem(ctx, false));
         return out;
     }
+    if (std.mem.eql(u8, call.name, "sort")) {
+        // sort([keySelector, ...]) : collection
+        // Sorts the input collection using key selector expressions.
+        // If no key selector is provided, sorts using default ordering.
+        // Multiple keys: first key is primary, subsequent keys are tiebreakers.
+        // Empty values are considered lower than all other values.
+        if (input.len <= 1) {
+            // Empty or single item - return as-is
+            var out = ItemList.empty;
+            for (input) |it| {
+                try out.append(ctx.allocator, it);
+            }
+            return out;
+        }
+
+        // Create mutable copy of input for sorting
+        var items = try ctx.allocator.alloc(item.Item, input.len);
+        defer ctx.allocator.free(items);
+        @memcpy(items, input);
+
+        // Sort using insertion sort for stability and simplicity
+        if (call.args.len == 0) {
+            // No key selector - sort using default comparison
+            var i: usize = 1;
+            while (i < items.len) : (i += 1) {
+                const key = items[i];
+                var j: usize = i;
+                while (j > 0) {
+                    const cmp = compareItems(ctx, items[j - 1], key);
+                    if (cmp == null) return error.InvalidOperand;
+                    if (cmp.? <= 0) break;
+                    items[j] = items[j - 1];
+                    j -= 1;
+                }
+                items[j] = key;
+            }
+        } else {
+            // Key selectors provided - evaluate all keys for each item
+            // key_values[item_idx][key_idx] = evaluated key value
+            const num_keys = call.args.len;
+            var all_key_values = try ctx.allocator.alloc([]ItemList, items.len);
+            defer ctx.allocator.free(all_key_values);
+
+            // Initialize and track what we've allocated
+            var init_item_count: usize = 0;
+            errdefer {
+                for (all_key_values[0..init_item_count]) |key_row| {
+                    for (key_row) |*kv| {
+                        kv.deinit(ctx.allocator);
+                    }
+                    ctx.allocator.free(key_row);
+                }
+            }
+
+            // Evaluate all keys for all items
+            for (items, 0..) |it, item_idx| {
+                var key_row = try ctx.allocator.alloc(ItemList, num_keys);
+                for (key_row) |*kv| {
+                    kv.* = ItemList.empty;
+                }
+                all_key_values[item_idx] = key_row;
+                init_item_count = item_idx + 1;
+
+                for (call.args, 0..) |arg, key_idx| {
+                    key_row[key_idx] = try evalExpressionCtx(ctx, arg, it, env, item_idx);
+                    // Key selector must return singleton or empty
+                    if (key_row[key_idx].items.len > 1) return error.SingletonRequired;
+                }
+            }
+
+            // Helper to compare two key values (handles empty)
+            const compareKeyValues = struct {
+                fn cmp(context: anytype, a: ItemList, b: ItemList) ?i32 {
+                    if (a.items.len == 0 and b.items.len == 0) {
+                        return 0; // Both empty, equal
+                    } else if (a.items.len == 0) {
+                        return -1; // a empty, b non-empty: a < b
+                    } else if (b.items.len == 0) {
+                        return 1; // a non-empty, b empty: a > b
+                    } else {
+                        return compareItems(context, a.items[0], b.items[0]);
+                    }
+                }
+            }.cmp;
+
+            // Get sort directions (null means all ascending)
+            const directions = call.sort_directions;
+
+            // Insertion sort using multi-key comparison
+            var i: usize = 1;
+            while (i < items.len) : (i += 1) {
+                const key_item = items[i];
+                const key_vals = all_key_values[i];
+                var j: usize = i;
+                while (j > 0) {
+                    const prev_vals = all_key_values[j - 1];
+                    // Compare using all keys in order
+                    var cmp_result: i32 = 0;
+                    for (0..num_keys) |k| {
+                        var key_cmp = compareKeyValues(ctx, prev_vals[k], key_vals[k]);
+                        if (key_cmp == null) return error.InvalidOperand;
+                        // Apply direction: for desc, negate the comparison
+                        if (directions != null and k < directions.?.len and directions.?[k] == .desc) {
+                            key_cmp = -key_cmp.?;
+                        }
+                        if (key_cmp.? != 0) {
+                            cmp_result = key_cmp.?;
+                            break;
+                        }
+                    }
+                    if (cmp_result <= 0) break;
+                    items[j] = items[j - 1];
+                    all_key_values[j] = all_key_values[j - 1];
+                    j -= 1;
+                }
+                items[j] = key_item;
+                all_key_values[j] = key_vals;
+            }
+
+            // Clean up all_key_values
+            for (all_key_values) |key_row| {
+                for (key_row) |*kv| {
+                    kv.deinit(ctx.allocator);
+                }
+                ctx.allocator.free(key_row);
+            }
+        }
+
+        // Build result
+        var out = ItemList.empty;
+        errdefer out.deinit(ctx.allocator);
+        for (items) |it| {
+            try out.append(ctx.allocator, it);
+        }
+        return out;
+    }
     if (std.mem.eql(u8, call.name, "select")) {
         if (call.args.len != 1) return error.InvalidFunction;
         var out = ItemList.empty;

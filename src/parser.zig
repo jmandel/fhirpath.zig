@@ -417,10 +417,35 @@ pub const Parser = struct {
         _ = try self.advance();
         var args = std.ArrayList(ast.Expr).empty;
         defer args.deinit(self.allocator);
+
+        // Track sort directions if this is sort()
+        const is_sort = std.mem.eql(u8, name, "sort");
+        var directions = if (is_sort) std.ArrayList(ast.SortDirection).empty else undefined;
+        if (is_sort) {
+            defer {} // Don't auto-deinit, we need to keep it
+        }
+        defer if (is_sort) directions.deinit(self.allocator);
+
         if (self.current.kind != .RParen) {
             while (true) {
                 const expr = try self.parseExprPrec(.none);
                 try args.append(self.allocator, expr);
+
+                // For sort(), check for asc/desc qualifier
+                if (is_sort) {
+                    var dir: ast.SortDirection = .asc; // default
+                    if (self.current.kind == .Identifier) {
+                        if (std.mem.eql(u8, self.current.lexeme, "asc")) {
+                            dir = .asc;
+                            _ = try self.advance();
+                        } else if (std.mem.eql(u8, self.current.lexeme, "desc")) {
+                            dir = .desc;
+                            _ = try self.advance();
+                        }
+                    }
+                    try directions.append(self.allocator, dir);
+                }
+
                 if (self.current.kind == .Comma) {
                     _ = try self.advance();
                     continue;
@@ -431,7 +456,11 @@ pub const Parser = struct {
         if (self.current.kind != .RParen) return error.UnexpectedToken;
         _ = try self.advance();
         const arg_slice = try self.allocator.dupe(ast.Expr, args.items);
-        return .{ .name = name, .args = arg_slice };
+        const dir_slice: ?[]const ast.SortDirection = if (is_sort and directions.items.len > 0)
+            try self.allocator.dupe(ast.SortDirection, directions.items)
+        else
+            null;
+        return .{ .name = name, .args = arg_slice, .sort_directions = dir_slice };
     }
 
     fn parseIdentifierName(self: *Parser) ParseErrorSet![]const u8 {

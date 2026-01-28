@@ -58,6 +58,13 @@ pub const Step = union(enum) {
 pub const FunctionCall = struct {
     name: []const u8,
     args: []const Expr,
+    // For sort() function, stores sort directions (null means ascending)
+    sort_directions: ?[]const SortDirection = null,
+};
+
+pub const SortDirection = enum {
+    asc,
+    desc,
 };
 
 pub const BinaryExpr = struct {
@@ -302,6 +309,9 @@ pub fn deinitExpr(allocator: std.mem.Allocator, expr: Expr) void {
                             deinitExpr(allocator, arg);
                         }
                         allocator.free(call.args);
+                        if (call.sort_directions) |dirs| {
+                            allocator.free(dirs);
+                        }
                     },
                     .Index => {},
                 }
@@ -350,6 +360,9 @@ pub fn deinitExpr(allocator: std.mem.Allocator, expr: Expr) void {
                             deinitExpr(allocator, arg);
                         }
                         allocator.free(call.args);
+                        if (call.sort_directions) |dirs| {
+                            allocator.free(dirs);
+                        }
                     },
                     .Index => {},
                 }

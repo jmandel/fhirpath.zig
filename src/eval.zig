@@ -1898,6 +1898,50 @@ fn evalFunction(
         }
         return distinctItems(ctx, matched.items);
     }
+    if (std.mem.eql(u8, call.name, "subsetOf")) {
+        if (call.args.len != 1) return error.InvalidFunction;
+        var other = try evalCollectionArg(ctx, call.args[0], env);
+        defer other.deinit(ctx.allocator);
+        var is_subset = true;
+        for (input) |it| {
+            var found = false;
+            for (other.items) |other_it| {
+                if (itemsEqual(ctx, it, other_it)) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                is_subset = false;
+                break;
+            }
+        }
+        var out = ItemList.empty;
+        try out.append(ctx.allocator, makeBoolItem(ctx, is_subset));
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "supersetOf")) {
+        if (call.args.len != 1) return error.InvalidFunction;
+        var other = try evalCollectionArg(ctx, call.args[0], env);
+        defer other.deinit(ctx.allocator);
+        var is_superset = true;
+        for (other.items) |other_it| {
+            var found = false;
+            for (input) |it| {
+                if (itemsEqual(ctx, it, other_it)) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                is_superset = false;
+                break;
+            }
+        }
+        var out = ItemList.empty;
+        try out.append(ctx.allocator, makeBoolItem(ctx, is_superset));
+        return out;
+    }
     if (std.mem.eql(u8, call.name, "exclude")) {
         if (call.args.len != 1) return error.InvalidFunction;
         var other = try evalCollectionArg(ctx, call.args[0], env);

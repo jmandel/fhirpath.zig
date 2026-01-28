@@ -31,7 +31,7 @@
     "Direct quote: \"Returns true if all items in the input collection are members of the collection passed as the other argument.\""
   ],
   "_todo": [
-    "[ ] Improve passing rate (0/11 passing)",
+    "[x] Improve passing rate (11/11 passing)",
     "[ ] Add tests for complex object equality (same structure, different order)",
     "[ ] Clarify behavior when equals returns empty (e.g., partial date/time comparisons)"
   ],

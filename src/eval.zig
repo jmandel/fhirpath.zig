@@ -1717,6 +1717,66 @@ fn evalFunction(
         }
         return out;
     }
+    if (std.mem.eql(u8, call.name, "repeat")) {
+        if (call.args.len != 1) return error.InvalidFunction;
+        var out = ItemList.empty;
+        errdefer out.deinit(ctx.allocator);
+        if (input.len == 0) return out;
+
+        var queue = ItemList.empty;
+        errdefer queue.deinit(ctx.allocator);
+        try queue.appendSlice(ctx.allocator, input);
+
+        var idx: usize = 0;
+        while (idx < queue.items.len) : (idx += 1) {
+            const current_item = queue.items[idx];
+            var projection = try evalExpressionCtx(ctx, call.args[0], current_item, env, idx);
+            defer projection.deinit(ctx.allocator);
+            for (projection.items) |proj_item| {
+                var seen = false;
+                for (out.items) |existing| {
+                    if (itemsEqual(ctx, proj_item, existing)) {
+                        seen = true;
+                        break;
+                    }
+                }
+                if (!seen) {
+                    try out.append(ctx.allocator, proj_item);
+                    try queue.append(ctx.allocator, proj_item);
+                }
+            }
+        }
+
+        queue.deinit(ctx.allocator);
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "repeatAll")) {
+        if (call.args.len != 1) return error.InvalidFunction;
+        var out = ItemList.empty;
+        errdefer out.deinit(ctx.allocator);
+        if (input.len == 0) return out;
+
+        var current = ItemList.empty;
+        errdefer current.deinit(ctx.allocator);
+        try current.appendSlice(ctx.allocator, input);
+
+        while (current.items.len > 0) {
+            var next = ItemList.empty;
+            errdefer next.deinit(ctx.allocator);
+            for (current.items, 0..) |it, idx| {
+                var projection = try evalExpressionCtx(ctx, call.args[0], it, env, idx);
+                defer projection.deinit(ctx.allocator);
+                if (projection.items.len == 0) continue;
+                try out.appendSlice(ctx.allocator, projection.items);
+                try next.appendSlice(ctx.allocator, projection.items);
+            }
+            current.deinit(ctx.allocator);
+            current = next;
+        }
+
+        current.deinit(ctx.allocator);
+        return out;
+    }
     if (std.mem.eql(u8, call.name, "sum")) {
         if (call.args.len != 0) return error.InvalidFunction;
         if (input.len == 0) return ItemList.empty;

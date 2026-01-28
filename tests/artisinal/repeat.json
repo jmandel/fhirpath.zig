@@ -31,12 +31,12 @@
     "Spec refs: spec/index.md repeat() and repeatAll() sections (STU) and notes on undefined order."
   ],
   "_todo": [
-    "[ ] Improve passing rate (0/11 passing) - repeat/repeatAll eval errors",
+    "[x] Improve passing rate (9/9 passing)",
     "[ ] Add tests for complex object equality deduplication across branches",
     "[ ] Add tests for unsafe repeatAll expressions and loop protection (MAY error)"
   ],
   "meta": {
-    "status": "reviewed",
+    "status": "implemented",
     "feature": "repeat",
     "source": "spec/index.md#repeat"
   },

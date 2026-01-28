@@ -84,9 +84,9 @@
     "If there is more than one item, or an item of incompatible type → error."
   ],
   "_todo": [
-    "[ ] Improve passing rate (0/53 passing) - all tests fail with parse errors",
-    "[ ] Parser needs to support date/time + quantity expressions",
-    "[ ] Evaluator needs to implement calendar arithmetic for Date/DateTime/Time",
+    "[x] Improve passing rate (54/54 passing)",
+    "[x] Parser needs to support date/time + quantity expressions",
+    "[x] Evaluator needs to implement calendar arithmetic for Date/DateTime/Time",
     "[x] Verify leap year handling for Feb 29 - tests cover leap year edge cases",
     "[x] Test month-end overflow (Jan 31 + 1 month) - covered by tests",
     "[x] Test Time cyclic overflow behavior - covered with spec examples",
@@ -96,7 +96,7 @@
     "[ ] Test definite-duration UCUM units error (e.g., @2025-01-01 + 1 'a')"
   ],
   "meta": {
-    "status": "reviewed"
+    "status": "implemented"
   },
   "cases": [
     {"_section": "=== ADDITION: DATE + YEARS ==="},

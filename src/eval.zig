@@ -1366,7 +1366,533 @@ fn evalArithmetic(
         }
     }
 
+    // Date/DateTime/Time arithmetic with Quantity
+    if ((op == .add or op == .sub) and vb == .quantity) {
+        const result_item = try evalDateTimeArithmetic(ctx, va, vb.quantity, op == .add);
+        if (result_item) |r| {
+            try out.append(ctx.allocator, r);
+        }
+    }
+
     return out;
+}
+
+// Date/Time arithmetic with calendar durations (year, month, week, day, hour, minute, second, millisecond)
+fn evalDateTimeArithmetic(
+    ctx: anytype,
+    temporal: item.Value,
+    qty: item.Quantity,
+    is_add: bool,
+) EvalError!?item.Item {
+    // Parse the quantity value (integer portion only, per spec: decimal is ignored for calendar units)
+    const qty_val = std.fmt.parseFloat(f64, qty.value) catch return null;
+    const amount: i32 = @intFromFloat(if (qty_val < 0) -@trunc(-qty_val) else @trunc(qty_val));
+    const effective_amount: i32 = if (is_add) amount else -amount;
+
+    // Determine the time unit
+    const unit = parseTimeUnit(qty.unit) orelse return null;
+
+    // Handle based on temporal type
+    switch (temporal) {
+        .date => |d| {
+            const result = try addToDate(ctx.allocator, d, effective_amount, unit) orelse return null;
+            return makeDateItem(ctx, result);
+        },
+        .dateTime => |dt| {
+            const result = try addToDateTime(ctx.allocator, dt, effective_amount, unit) orelse return null;
+            return makeDateTimeItem(ctx, result);
+        },
+        .time => |t| {
+            const result = try addToTime(ctx.allocator, t, effective_amount, unit) orelse return null;
+            return makeTimeItem(ctx, result);
+        },
+        else => return null,
+    }
+}
+
+const TimeUnit = enum {
+    year,
+    month,
+    week,
+    day,
+    hour,
+    minute,
+    second,
+    millisecond,
+};
+
+fn parseTimeUnit(unit: []const u8) ?TimeUnit {
+    // Calendar duration keywords
+    if (std.mem.eql(u8, unit, "year") or std.mem.eql(u8, unit, "years")) return .year;
+    if (std.mem.eql(u8, unit, "month") or std.mem.eql(u8, unit, "months")) return .month;
+    if (std.mem.eql(u8, unit, "week") or std.mem.eql(u8, unit, "weeks")) return .week;
+    if (std.mem.eql(u8, unit, "day") or std.mem.eql(u8, unit, "days")) return .day;
+    if (std.mem.eql(u8, unit, "hour") or std.mem.eql(u8, unit, "hours")) return .hour;
+    if (std.mem.eql(u8, unit, "minute") or std.mem.eql(u8, unit, "minutes")) return .minute;
+    if (std.mem.eql(u8, unit, "second") or std.mem.eql(u8, unit, "seconds") or std.mem.eql(u8, unit, "s")) return .second;
+    if (std.mem.eql(u8, unit, "millisecond") or std.mem.eql(u8, unit, "milliseconds") or std.mem.eql(u8, unit, "ms")) return .millisecond;
+    return null;
+}
+
+// Add amount to a date string (format: YYYY, YYYY-MM, or YYYY-MM-DD)
+fn addToDate(allocator: std.mem.Allocator, date_str: []const u8, amount: i32, unit: TimeUnit) !?[]const u8 {
+    // Parse date components
+    var year: i32 = 0;
+    var month: i32 = 1;
+    var day: i32 = 1;
+    var precision: u8 = 1; // 1=year, 2=month, 3=day
+
+    var parts: [3][]const u8 = undefined;
+    var part_count: usize = 0;
+    var iter = std.mem.splitScalar(u8, date_str, '-');
+    while (iter.next()) |part| {
+        if (part_count >= 3) break;
+        parts[part_count] = part;
+        part_count += 1;
+    }
+
+    if (part_count >= 1) year = std.fmt.parseInt(i32, parts[0], 10) catch return null;
+    if (part_count >= 2) {
+        month = std.fmt.parseInt(i32, parts[1], 10) catch return null;
+        precision = 2;
+    }
+    if (part_count >= 3) {
+        day = std.fmt.parseInt(i32, parts[2], 10) catch return null;
+        precision = 3;
+    }
+
+    // Perform the arithmetic
+    // Track whether we need to clamp (year/month ops) or normalize days (day/week ops)
+    var clamp_day = false;
+
+    // For partial dates, convert quantity to the date's precision first
+    var effective_amount = amount;
+    var effective_unit = unit;
+
+    if (precision == 1) {
+        // Year-only precision: convert everything to years
+        switch (unit) {
+            .month => {
+                effective_amount = @divTrunc(amount, 12);
+                effective_unit = .year;
+            },
+            .week => {
+                effective_amount = @divTrunc(amount * 7, 365);
+                effective_unit = .year;
+            },
+            .day => {
+                effective_amount = @divTrunc(amount, 365);
+                effective_unit = .year;
+            },
+            else => {},
+        }
+    } else if (precision == 2) {
+        // Year-month precision: convert days/weeks to months
+        switch (unit) {
+            .week => {
+                effective_amount = @divTrunc(amount * 7, 30);
+                effective_unit = .month;
+            },
+            .day => {
+                effective_amount = @divTrunc(amount, 30);
+                effective_unit = .month;
+            },
+            else => {},
+        }
+    }
+
+    switch (effective_unit) {
+        .year => {
+            year += effective_amount;
+            clamp_day = true; // Year ops require clamping to month end
+        },
+        .month => {
+            // Add months and normalize
+            const total_months = (year * 12) + (month - 1) + effective_amount;
+            year = @divFloor(total_months, 12);
+            month = @mod(total_months, 12) + 1;
+            clamp_day = true; // Month ops require clamping to month end
+        },
+        .week => day += effective_amount * 7,
+        .day => day += effective_amount,
+        else => return null, // Hour/minute/second/millisecond not valid for Date
+    }
+
+    // Normalize the date (handle overflow)
+    return try normalizeDate(allocator, year, month, day, precision, clamp_day);
+}
+
+fn normalizeDate(allocator: std.mem.Allocator, in_year: i32, in_month: i32, in_day: i32, precision: u8, clamp_day: bool) ![]const u8 {
+    var year = in_year;
+    var month = in_month;
+    var day = in_day;
+
+    // Normalize month first
+    while (month < 1) {
+        month += 12;
+        year -= 1;
+    }
+    while (month > 12) {
+        month -= 12;
+        year += 1;
+    }
+
+    // If precision is year-only, output just year
+    if (precision == 1) {
+        const y: u32 = @intCast(year);
+        return try std.fmt.allocPrint(allocator, "{d:0>4}", .{y});
+    }
+
+    // If precision is year-month, output year-month with clamped day
+    if (precision == 2) {
+        // For year-month precision, we don't output day
+        const y: u32 = @intCast(year);
+        const m: u32 = @intCast(month);
+        return try std.fmt.allocPrint(allocator, "{d:0>4}-{d:0>2}", .{ y, m });
+    }
+
+    // For year/month operations, clamp day to the max days in the new month
+    // For day/week operations, normalize (roll over to next month)
+    if (clamp_day) {
+        const max_day = getDaysInMonth(year, month);
+        if (day > max_day) day = max_day;
+    } else {
+        // Normalize day (handle day overflow/underflow)
+        while (day < 1) {
+            month -= 1;
+            if (month < 1) {
+                month = 12;
+                year -= 1;
+            }
+            day += getDaysInMonth(year, month);
+        }
+        while (day > getDaysInMonth(year, month)) {
+            day -= getDaysInMonth(year, month);
+            month += 1;
+            if (month > 12) {
+                month = 1;
+                year += 1;
+            }
+        }
+    }
+
+    const y: u32 = @intCast(year);
+    const m: u32 = @intCast(month);
+    const d: u32 = @intCast(day);
+    return try std.fmt.allocPrint(allocator, "{d:0>4}-{d:0>2}-{d:0>2}", .{ y, m, d });
+}
+
+// Helper to get days in month, returning i32 (uses the existing daysInMonth with proper casting)
+fn getDaysInMonth(year: i32, month: i32) i32 {
+    if (month < 1 or month > 12) return 30;
+    const m: u32 = @intCast(month);
+    return @intCast(daysInMonth(year, m) orelse 30);
+}
+
+// Add amount to a DateTime string (format: YYYY-MM-DDThh:mm:ss.fff[Z|+hh:mm])
+fn addToDateTime(allocator: std.mem.Allocator, dt_str: []const u8, amount: i32, unit: TimeUnit) !?[]const u8 {
+    // Split at 'T' to separate date and time parts
+    var t_iter = std.mem.splitScalar(u8, dt_str, 'T');
+    const date_part = t_iter.next() orelse return null;
+    const time_part = t_iter.next(); // May be null for partial DateTime
+
+    // Parse date
+    var year: i32 = 0;
+    var month: i32 = 1;
+    var day: i32 = 1;
+    var date_precision: u8 = 1;
+
+    var date_parts: [3][]const u8 = undefined;
+    var date_part_count: usize = 0;
+    var date_iter = std.mem.splitScalar(u8, date_part, '-');
+    while (date_iter.next()) |part| {
+        if (date_part_count >= 3) break;
+        date_parts[date_part_count] = part;
+        date_part_count += 1;
+    }
+
+    if (date_part_count >= 1) year = std.fmt.parseInt(i32, date_parts[0], 10) catch return null;
+    if (date_part_count >= 2) {
+        month = std.fmt.parseInt(i32, date_parts[1], 10) catch return null;
+        date_precision = 2;
+    }
+    if (date_part_count >= 3) {
+        day = std.fmt.parseInt(i32, date_parts[2], 10) catch return null;
+        date_precision = 3;
+    }
+
+    // Parse time if present
+    var hour: i32 = 0;
+    var minute: i32 = 0;
+    var second: i32 = 0;
+    var millis: i32 = 0;
+    var time_precision: u8 = 0; // 0=no time, 1=hour, 2=minute, 3=second, 4=millisecond
+    var timezone: ?[]const u8 = null;
+
+    if (time_part) |tp| {
+        var tz_start: usize = tp.len;
+        // Find timezone offset
+        for (tp, 0..) |c, i| {
+            if (c == 'Z' or c == '+' or (c == '-' and i > 0)) {
+                tz_start = i;
+                timezone = tp[i..];
+                break;
+            }
+        }
+        const time_only = tp[0..tz_start];
+
+        // Parse time components
+        var time_iter = std.mem.splitScalar(u8, time_only, ':');
+        if (time_iter.next()) |h| {
+            hour = std.fmt.parseInt(i32, h, 10) catch 0;
+            time_precision = 1;
+        }
+        if (time_iter.next()) |m| {
+            minute = std.fmt.parseInt(i32, m, 10) catch 0;
+            time_precision = 2;
+        }
+        if (time_iter.next()) |s_part| {
+            // Handle seconds with optional milliseconds
+            var sec_iter = std.mem.splitScalar(u8, s_part, '.');
+            if (sec_iter.next()) |sec| {
+                second = std.fmt.parseInt(i32, sec, 10) catch 0;
+                time_precision = 3;
+            }
+            if (sec_iter.next()) |ms| {
+                millis = std.fmt.parseInt(i32, ms, 10) catch 0;
+                // Normalize to 3 digits
+                if (ms.len == 1) millis *= 100;
+                if (ms.len == 2) millis *= 10;
+                time_precision = 4;
+            }
+        }
+    }
+
+    // Perform arithmetic
+    switch (unit) {
+        .year => year += amount,
+        .month => {
+            const total_months = (year * 12) + (month - 1) + amount;
+            year = @divFloor(total_months, 12);
+            month = @mod(total_months, 12) + 1;
+        },
+        .week => day += amount * 7,
+        .day => day += amount,
+        .hour => hour += amount,
+        .minute => minute += amount,
+        .second => second += amount,
+        .millisecond => millis += amount,
+    }
+
+    // Normalize time, cascading to date if necessary
+    while (millis < 0) {
+        millis += 1000;
+        second -= 1;
+    }
+    while (millis >= 1000) {
+        millis -= 1000;
+        second += 1;
+    }
+
+    while (second < 0) {
+        second += 60;
+        minute -= 1;
+    }
+    while (second >= 60) {
+        second -= 60;
+        minute += 1;
+    }
+
+    while (minute < 0) {
+        minute += 60;
+        hour -= 1;
+    }
+    while (minute >= 60) {
+        minute -= 60;
+        hour += 1;
+    }
+
+    while (hour < 0) {
+        hour += 24;
+        day -= 1;
+    }
+    while (hour >= 24) {
+        hour -= 24;
+        day += 1;
+    }
+
+    // Normalize month first
+    while (month < 1) {
+        month += 12;
+        year -= 1;
+    }
+    while (month > 12) {
+        month -= 12;
+        year += 1;
+    }
+
+    // Normalize day
+    while (day < 1) {
+        month -= 1;
+        if (month < 1) {
+            month = 12;
+            year -= 1;
+        }
+        day += getDaysInMonth(year, month);
+    }
+    while (day > getDaysInMonth(year, month)) {
+        day -= getDaysInMonth(year, month);
+        month += 1;
+        if (month > 12) {
+            month = 1;
+            year += 1;
+        }
+    }
+
+    // Clamp day to max days in month
+    const max_day = getDaysInMonth(year, month);
+    if (day > max_day) day = max_day;
+
+    // Format output based on precision
+    var buf: [64]u8 = undefined;
+    var len: usize = 0;
+
+    // Cast to unsigned for formatting
+    const y: u32 = @intCast(year);
+    const m: u32 = @intCast(month);
+    const d: u32 = @intCast(day);
+    const h: u32 = @intCast(hour);
+    const min: u32 = @intCast(minute);
+    const sec: u32 = @intCast(second);
+    const ms: u32 = @intCast(millis);
+
+    // Date part
+    if (date_precision == 1) {
+        len = (std.fmt.bufPrint(&buf, "{d:0>4}", .{y}) catch return null).len;
+    } else if (date_precision == 2) {
+        len = (std.fmt.bufPrint(&buf, "{d:0>4}-{d:0>2}", .{ y, m }) catch return null).len;
+    } else {
+        len = (std.fmt.bufPrint(&buf, "{d:0>4}-{d:0>2}-{d:0>2}", .{ y, m, d }) catch return null).len;
+    }
+
+    // Add time if present
+    if (time_precision >= 1) {
+        len += (std.fmt.bufPrint(buf[len..], "T{d:0>2}", .{h}) catch return null).len;
+    }
+    if (time_precision >= 2) {
+        len += (std.fmt.bufPrint(buf[len..], ":{d:0>2}", .{min}) catch return null).len;
+    }
+    if (time_precision >= 3) {
+        len += (std.fmt.bufPrint(buf[len..], ":{d:0>2}", .{sec}) catch return null).len;
+    }
+    if (time_precision >= 4) {
+        len += (std.fmt.bufPrint(buf[len..], ".{d:0>3}", .{ms}) catch return null).len;
+    }
+
+    // Add timezone if present
+    if (timezone) |tz| {
+        @memcpy(buf[len..][0..tz.len], tz);
+        len += tz.len;
+    }
+
+    return try allocator.dupe(u8, buf[0..len]);
+}
+
+// Add amount to a Time string (format: hh:mm:ss.fff, wraps around cyclically)
+fn addToTime(allocator: std.mem.Allocator, time_str: []const u8, amount: i32, unit: TimeUnit) !?[]const u8 {
+    var hour: i32 = 0;
+    var minute: i32 = 0;
+    var second: i32 = 0;
+    var millis: i32 = 0;
+    var time_precision: u8 = 1;
+
+    // Parse time components
+    var time_iter = std.mem.splitScalar(u8, time_str, ':');
+    if (time_iter.next()) |h| {
+        hour = std.fmt.parseInt(i32, h, 10) catch 0;
+        time_precision = 1;
+    }
+    if (time_iter.next()) |m| {
+        minute = std.fmt.parseInt(i32, m, 10) catch 0;
+        time_precision = 2;
+    }
+    if (time_iter.next()) |s_part| {
+        var sec_iter = std.mem.splitScalar(u8, s_part, '.');
+        if (sec_iter.next()) |sec| {
+            second = std.fmt.parseInt(i32, sec, 10) catch 0;
+            time_precision = 3;
+        }
+        if (sec_iter.next()) |ms| {
+            millis = std.fmt.parseInt(i32, ms, 10) catch 0;
+            if (ms.len == 1) millis *= 100;
+            if (ms.len == 2) millis *= 10;
+            time_precision = 4;
+        }
+    }
+
+    // Time doesn't support year/month/week/day
+    switch (unit) {
+        .hour => hour += amount,
+        .minute => minute += amount,
+        .second => second += amount,
+        .millisecond => millis += amount,
+        else => return null, // Year/month/week/day not valid for Time
+    }
+
+    // Normalize (cyclic for Time values)
+    while (millis < 0) {
+        millis += 1000;
+        second -= 1;
+    }
+    while (millis >= 1000) {
+        millis -= 1000;
+        second += 1;
+    }
+
+    while (second < 0) {
+        second += 60;
+        minute -= 1;
+    }
+    while (second >= 60) {
+        second -= 60;
+        minute += 1;
+    }
+
+    while (minute < 0) {
+        minute += 60;
+        hour -= 1;
+    }
+    while (minute >= 60) {
+        minute -= 60;
+        hour += 1;
+    }
+
+    // Cyclic wrap for hour (Time has no date, so wraps around)
+    hour = @mod(hour, 24);
+    if (hour < 0) hour += 24;
+
+    // Format output
+    var buf: [32]u8 = undefined;
+    var len: usize = 0;
+
+    // Cast to unsigned for formatting
+    const h: u32 = @intCast(hour);
+    const min: u32 = @intCast(minute);
+    const sec: u32 = @intCast(second);
+    const ms: u32 = @intCast(millis);
+
+    len = (std.fmt.bufPrint(&buf, "{d:0>2}", .{h}) catch return null).len;
+    if (time_precision >= 2) {
+        len += (std.fmt.bufPrint(buf[len..], ":{d:0>2}", .{min}) catch return null).len;
+    }
+    if (time_precision >= 3) {
+        len += (std.fmt.bufPrint(buf[len..], ":{d:0>2}", .{sec}) catch return null).len;
+    }
+    if (time_precision >= 4) {
+        len += (std.fmt.bufPrint(buf[len..], ".{d:0>3}", .{ms}) catch return null).len;
+    }
+
+    return try allocator.dupe(u8, buf[0..len]);
 }
 
 fn evalConcat(

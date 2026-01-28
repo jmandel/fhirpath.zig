@@ -193,6 +193,14 @@ pub const Parser = struct {
                     _ = try self.advance();
                     return self.parseTailSteps(.{ .Literal = .{ .Quantity = .{ .value = value, .unit = unit } } });
                 }
+                // Check for time-unit keyword (year, years, month, months, etc.)
+                if (self.current.kind == .Identifier) {
+                    if (isTimeUnitKeyword(self.current.lexeme)) {
+                        const unit = try self.allocator.dupe(u8, self.current.lexeme);
+                        _ = try self.advance();
+                        return self.parseTailSteps(.{ .Literal = .{ .Quantity = .{ .value = value, .unit = unit } } });
+                    }
+                }
                 return self.parseTailSteps(.{ .Literal = .{ .Number = value } });
             },
             .Date => {
@@ -499,3 +507,29 @@ pub const Parser = struct {
         return tok;
     }
 };
+
+// Check if an identifier is a FHIRPath time-unit keyword for quantity literals
+fn isTimeUnitKeyword(s: []const u8) bool {
+    const time_units = [_][]const u8{
+        "year",
+        "years",
+        "month",
+        "months",
+        "week",
+        "weeks",
+        "day",
+        "days",
+        "hour",
+        "hours",
+        "minute",
+        "minutes",
+        "second",
+        "seconds",
+        "millisecond",
+        "milliseconds",
+    };
+    for (time_units) |unit| {
+        if (std.mem.eql(u8, s, unit)) return true;
+    }
+    return false;
+}

@@ -43,8 +43,13 @@ const OwnedStr = struct {
 };
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
+    var gpa = std.heap.GeneralPurposeAllocator(.{ .verbose_log = false }){};
+    defer {
+        const result = gpa.deinit();
+        if (result == .leak) {
+            std.debug.print("\n=== MEMORY LEAK DETECTED ===\n", .{});
+        }
+    }
     const allocator = gpa.allocator();
 
     const args = try std.process.argsAlloc(allocator);
@@ -669,6 +674,7 @@ fn typesMatch(expected: []const u8, actual: []const u8) bool {
 
 fn jsonEqual(a: std.json.Value, b: std.json.Value) bool {
     if (!std.mem.eql(u8, @tagName(a), @tagName(b))) {
+        // Handle number coercion (integer vs float)
         const na = numberValue(a);
         const nb = numberValue(b);
         if (na != null and nb != null) {

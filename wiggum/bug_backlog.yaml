@@ -49,10 +49,66 @@ bugs:
     updated: 2026-01-27
     tags: [harness]
   - slug: memory-leaks-in-parser-harness
-    status: open
+    status: resolved
     severity: medium
     title: Memory leaks in parser/harness
     description: GPA reports memory leaks in parsePrimary (dupe lexeme) and harness (allocPrint)
     created: 2026-01-28
     updated: 2026-01-28
     tags: [parser, harness, memory]
+  - slug: boundary-functions
+    status: open
+    severity: high
+    title: Implement lowBoundary() and highBoundary() functions
+    description: Date/time boundary functions not implemented. ~25 R5 test failures. Spec §5.6.5.
+    created: 2026-01-28
+    updated: 2026-01-28
+    tags: [functions, datetime]
+  - slug: type-checking-operators
+    status: open
+    severity: high
+    title: Fix is()/as()/ofType() type checking with FHIR types
+    description: Type operators return wrong results for FHIR types (Quantity, instant, etc). ~24 R5 failures. Need schema integration.
+    created: 2026-01-28
+    updated: 2026-01-28
+    tags: [types, functions]
+  - slug: type-introspection
+    status: open
+    severity: medium
+    title: Implement type() function returning namespace/name
+    description: type() should return object with .namespace and .name fields. ~7 R5 failures. Spec §5.1.
+    created: 2026-01-28
+    updated: 2026-01-28
+    tags: [functions, types]
+  - slug: define-variable-scoping
+    status: open
+    severity: medium
+    title: Implement defineVariable() scoping rules
+    description: defineVariable() not respecting scope boundaries - should error when accessing vars outside their scope. ~10 R5 failures expecting errors.
+    created: 2026-01-28
+    updated: 2026-01-28
+    tags: [functions, variables]
+  - slug: polymorphic-choice-types
+    status: open
+    severity: high
+    title: Support FHIR polymorphic choice types (value[x])
+    description: Accessing Observation.value should find valueQuantity/valueString/etc. Observation.valueQuantity should work when value is Quantity. ~8 R5 failures.
+    created: 2026-01-28
+    updated: 2026-01-28
+    tags: [fhir, types]
+  - slug: tree-traversal-functions
+    status: open
+    severity: medium
+    title: Implement repeat() and descendants() tree traversal
+    description: repeat(expr) and descendants() not implemented. ~8 R5 failures. Spec §5.2.
+    created: 2026-01-28
+    updated: 2026-01-28
+    tags: [functions]
+  - slug: has-value-function
+    status: open
+    severity: low
+    title: Implement hasValue() for primitive extensions
+    description: hasValue() should return false for primitives with only extensions (no actual value). ~4 R5 failures. FHIR-specific.
+    created: 2026-01-28
+    updated: 2026-01-28
+    tags: [functions, fhir]

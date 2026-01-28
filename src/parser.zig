@@ -45,6 +45,7 @@ pub const Parser = struct {
 
     pub fn parseExpression(self: *Parser) !ast.Expr {
         const expr = try self.parseExprPrec(.none);
+        errdefer ast.deinitExpr(self.allocator, expr);
         if (self.current.kind != .Eof) {
             return error.UnexpectedToken;
         }
@@ -56,6 +57,7 @@ pub const Parser = struct {
     // Main precedence-climbing parser
     fn parseExprPrec(self: *Parser, min_prec: Precedence) ParseErrorSet!ast.Expr {
         var left = try self.parseUnaryOrPrimary();
+        errdefer ast.deinitExpr(self.allocator, left);
 
         while (true) {
             const op_info = self.getBinaryOp();
@@ -69,7 +71,10 @@ pub const Parser = struct {
             // Handle `is` and `as` specially - they take a type specifier, not an expression
             if (info.type_op != null) {
                 const type_name = try self.parseTypeSpecifier();
-                const left_ptr = try self.allocator.create(ast.Expr);
+                const left_ptr = self.allocator.create(ast.Expr) catch |err| {
+                    self.allocator.free(type_name);
+                    return err;
+                };
                 left_ptr.* = left;
                 left = ast.Expr{ .TypeExpr = .{ .op = info.type_op.?, .operand = left_ptr, .type_name = type_name } };
                 continue;
@@ -77,11 +82,21 @@ pub const Parser = struct {
 
             // For normal binary ops, parse right side with higher precedence for left-assoc
             const next_prec: Precedence = @enumFromInt(@intFromEnum(info.prec) + 1);
-            const right = try self.parseExprPrec(next_prec);
+            const right = self.parseExprPrec(next_prec) catch |err| {
+                // left is handled by outer errdefer
+                return err;
+            };
 
-            const left_ptr = try self.allocator.create(ast.Expr);
+            const left_ptr = self.allocator.create(ast.Expr) catch |err| {
+                ast.deinitExpr(self.allocator, right);
+                return err;
+            };
             left_ptr.* = left;
-            const right_ptr = try self.allocator.create(ast.Expr);
+            const right_ptr = self.allocator.create(ast.Expr) catch |err| {
+                ast.deinitExpr(self.allocator, right);
+                self.allocator.destroy(left_ptr);
+                return err;
+            };
             right_ptr.* = right;
 
             left = ast.Expr{ .Binary = .{ .op = info.op.?, .left = left_ptr, .right = right_ptr } };
@@ -164,14 +179,20 @@ pub const Parser = struct {
         if (self.current.kind == .Plus) {
             _ = try self.advance();
             const operand = try self.parseUnaryOrPrimary();
-            const operand_ptr = try self.allocator.create(ast.Expr);
+            const operand_ptr = self.allocator.create(ast.Expr) catch |err| {
+                ast.deinitExpr(self.allocator, operand);
+                return err;
+            };
             operand_ptr.* = operand;
             return ast.Expr{ .Unary = .{ .op = .Plus, .operand = operand_ptr } };
         }
         if (self.current.kind == .Minus) {
             _ = try self.advance();
             const operand = try self.parseUnaryOrPrimary();
-            const operand_ptr = try self.allocator.create(ast.Expr);
+            const operand_ptr = self.allocator.create(ast.Expr) catch |err| {
+                ast.deinitExpr(self.allocator, operand);
+                return err;
+            };
             operand_ptr.* = operand;
             return ast.Expr{ .Unary = .{ .op = .Minus, .operand = operand_ptr } };
         }
@@ -182,14 +203,19 @@ pub const Parser = struct {
         switch (self.current.kind) {
             .String => {
                 const value = try self.unescapeString(self.current.lexeme);
+                errdefer self.allocator.free(value);
                 _ = try self.advance();
                 return self.parseTailSteps(.{ .Literal = .{ .String = value } });
             },
             .Number => {
                 const value = try self.allocator.dupe(u8, self.current.lexeme);
+                errdefer self.allocator.free(value);
                 _ = try self.advance();
                 if (self.current.kind == .String) {
-                    const unit = try self.unescapeString(self.current.lexeme);
+                    const unit = self.unescapeString(self.current.lexeme) catch |err| {
+                        return err;
+                    };
+                    errdefer self.allocator.free(unit);
                     _ = try self.advance();
                     return self.parseTailSteps(.{ .Literal = .{ .Quantity = .{ .value = value, .unit = unit } } });
                 }
@@ -197,6 +223,7 @@ pub const Parser = struct {
                 if (self.current.kind == .Identifier) {
                     if (isTimeUnitKeyword(self.current.lexeme)) {
                         const unit = try self.allocator.dupe(u8, self.current.lexeme);
+                        errdefer self.allocator.free(unit);
                         _ = try self.advance();
                         return self.parseTailSteps(.{ .Literal = .{ .Quantity = .{ .value = value, .unit = unit } } });
                     }
@@ -207,21 +234,25 @@ pub const Parser = struct {
                 // Long literal: strip the 'L' suffix and store the numeric part
                 const lexeme = self.current.lexeme;
                 const value = try self.allocator.dupe(u8, lexeme[0 .. lexeme.len - 1]); // strip 'L'
+                errdefer self.allocator.free(value);
                 _ = try self.advance();
                 return self.parseTailSteps(.{ .Literal = .{ .Long = value } });
             },
             .Date => {
                 const value = try self.allocator.dupe(u8, self.current.lexeme);
+                errdefer self.allocator.free(value);
                 _ = try self.advance();
                 return self.parseTailSteps(.{ .Literal = .{ .Date = value } });
             },
             .DateTime => {
                 const value = try self.allocator.dupe(u8, self.current.lexeme);
+                errdefer self.allocator.free(value);
                 _ = try self.advance();
                 return self.parseTailSteps(.{ .Literal = .{ .DateTime = value } });
             },
             .Time => {
                 const value = try self.allocator.dupe(u8, self.current.lexeme);
+                errdefer self.allocator.free(value);
                 _ = try self.advance();
                 return self.parseTailSteps(.{ .Literal = .{ .Time = value } });
             },
@@ -251,9 +282,13 @@ pub const Parser = struct {
             .LParen => {
                 _ = try self.advance();
                 const expr = try self.parseExprPrec(.none);
-                if (self.current.kind != .RParen) return error.UnexpectedToken;
+                if (self.current.kind != .RParen) {
+                    ast.deinitExpr(self.allocator, expr);
+                    return error.UnexpectedToken;
+                }
                 _ = try self.advance();
                 // Support chaining on parenthesized expressions
+                // Note: parseTailStepsExpr takes ownership and will handle cleanup on error
                 return self.parseTailStepsExpr(expr);
             },
             else => return error.UnexpectedToken,
@@ -261,8 +296,12 @@ pub const Parser = struct {
     }
 
     fn parseTailSteps(self: *Parser, root: ast.Root) ParseErrorSet!ast.Expr {
+        errdefer self.deinitRoot(root);
         var steps = std.ArrayList(ast.Step).empty;
-        defer steps.deinit(self.allocator);
+        errdefer {
+            for (steps.items) |step| self.deinitStep(step);
+            steps.deinit(self.allocator);
+        }
 
         while (true) {
             switch (self.current.kind) {
@@ -299,7 +338,12 @@ pub const Parser = struct {
             }
         }
 
-        const step_slice = try self.allocator.dupe(ast.Step, steps.items);
+        const step_slice = self.allocator.dupe(ast.Step, steps.items) catch |err| {
+            // errdefer handles root and steps cleanup
+            return err;
+        };
+        // Success - clean up steps ArrayList (items now owned by step_slice)
+        steps.deinit(self.allocator);
         return ast.Expr{ .Path = .{ .root = root, .steps = step_slice } };
     }
 
@@ -310,9 +354,13 @@ pub const Parser = struct {
             return base;
         }
 
-        // Parse the steps
+        // Parse the steps - on error we need to clean up base and steps
+        errdefer ast.deinitExpr(self.allocator, base);
         var steps = std.ArrayList(ast.Step).empty;
-        defer steps.deinit(self.allocator);
+        errdefer {
+            for (steps.items) |step| self.deinitStep(step);
+            steps.deinit(self.allocator);
+        }
 
         while (true) {
             switch (self.current.kind) {
@@ -341,16 +389,63 @@ pub const Parser = struct {
             }
         }
 
-        const base_ptr = try self.allocator.create(ast.Expr);
+        const base_ptr = self.allocator.create(ast.Expr) catch |err| {
+            // errdefer handles base and steps cleanup
+            return err;
+        };
         base_ptr.* = base;
-        const step_slice = try self.allocator.dupe(ast.Step, steps.items);
+        const step_slice = self.allocator.dupe(ast.Step, steps.items) catch |err| {
+            self.allocator.destroy(base_ptr);
+            return err;
+        };
+        // Success - clean up steps ArrayList (items now owned by step_slice)
+        steps.deinit(self.allocator);
         return ast.Expr{ .Invoke = .{ .operand = base_ptr, .steps = step_slice } };
+    }
+
+    fn deinitStep(self: *Parser, step: ast.Step) void {
+        switch (step) {
+            .Property => |name| self.allocator.free(name),
+            .Function => |call| {
+                self.allocator.free(call.name);
+                for (call.args) |arg| ast.deinitExpr(self.allocator, arg);
+                self.allocator.free(call.args);
+                if (call.sort_directions) |dirs| self.allocator.free(dirs);
+            },
+            .Index => {},
+        }
+    }
+
+    fn deinitRoot(self: *Parser, root: ast.Root) void {
+        switch (root) {
+            .Env => |name| self.allocator.free(name),
+            .This, .Index, .Total, .Empty => {},
+            .Literal => |lit| {
+                switch (lit) {
+                    .String => |s| self.allocator.free(s),
+                    .Number => |n| self.allocator.free(n),
+                    .Long => |n| self.allocator.free(n),
+                    .Quantity => |q| {
+                        self.allocator.free(q.value);
+                        self.allocator.free(q.unit);
+                    },
+                    .Date => |d| self.allocator.free(d),
+                    .DateTime => |d| self.allocator.free(d),
+                    .Time => |t| self.allocator.free(t),
+                    .Null, .Bool => {},
+                }
+            },
+        }
     }
 
     fn parsePathExpression(self: *Parser) ParseErrorSet!ast.Expr {
         var root: ast.Root = .This;
+        errdefer self.deinitRoot(root);
         var steps = std.ArrayList(ast.Step).empty;
-        defer steps.deinit(self.allocator);
+        errdefer {
+            for (steps.items) |step| self.deinitStep(step);
+            steps.deinit(self.allocator);
+        }
 
         if (self.current.kind == .Percent) {
             _ = try self.advance();
@@ -408,7 +503,12 @@ pub const Parser = struct {
             }
         }
 
-        const step_slice = try self.allocator.dupe(ast.Step, steps.items);
+        const step_slice = self.allocator.dupe(ast.Step, steps.items) catch |err| {
+            // errdefer handles root and steps cleanup
+            return err;
+        };
+        // Success - clean up ArrayList (items now owned by step_slice)
+        steps.deinit(self.allocator);
         return ast.Expr{ .Path = .{ .root = root, .steps = step_slice } };
     }
 
@@ -416,7 +516,10 @@ pub const Parser = struct {
         if (self.current.kind != .LParen) return error.UnexpectedToken;
         _ = try self.advance();
         var args = std.ArrayList(ast.Expr).empty;
-        defer args.deinit(self.allocator);
+        errdefer {
+            for (args.items) |arg| ast.deinitExpr(self.allocator, arg);
+            args.deinit(self.allocator);
+        }
 
         // Track sort directions if this is sort()
         const is_sort = std.mem.eql(u8, name, "sort");
@@ -460,6 +563,8 @@ pub const Parser = struct {
             try self.allocator.dupe(ast.SortDirection, directions.items)
         else
             null;
+        // Clean up ArrayList without freeing items (now owned by arg_slice)
+        args.deinit(self.allocator);
         return .{ .name = name, .args = arg_slice, .sort_directions = dir_slice };
     }
 

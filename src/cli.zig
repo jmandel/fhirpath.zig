@@ -83,6 +83,7 @@ pub fn main() !void {
         .adapter = &adapter,
         .types = &types,
         .schema = if (schema_obj) |*s| s else null,
+        .timestamp = std.time.timestamp(),
     };
     var result = eval.evalExpression(&ctx, expr, adapter.root(), null) catch |err| {
         std.debug.print("Eval error: {}\n", .{err});

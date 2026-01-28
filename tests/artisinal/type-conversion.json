@@ -1075,7 +1075,19 @@
           "type": "date",
           "value": "2024-01-15"
         }
-      ]
+      ],
+      "_adjudicated": {
+        "fhirpath_js": [
+          {
+            "type": "dateTime",
+            "value": "2024-01-15"
+          }
+        ],
+        "our_old_value": null,
+        "verdict": "ours_correct",
+        "reason": "The toDate() function returns a Date when given a Date, DateTime, or a string in YYYY-MM-DD format. The spec’s toDate() definition and example show the result is a Date, not a DateTime, so a dateTime-typed result is incorrect here.",
+        "spec_ref": "§5.4.1 toDate()"
+      }
     },
     {
       "name": "toDate: string '2024-01' (partial)",

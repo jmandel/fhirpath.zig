@@ -410,7 +410,19 @@
       "name": "non-boolean criterion (integer) is error",
       "expr": "iif(42, 'yes', 'no')",
       "input": null,
-      "expect_error": true
+      "expect_error": true,
+      "_adjudicated": {
+        "fhirpath_js": [
+          {
+            "type": "string",
+            "value": "no"
+          }
+        ],
+        "our_old_value": null,
+        "verdict": "ours_correct",
+        "reason": "The iif() criterion is required to evaluate to a Boolean. There is no implicit Integer→Boolean conversion (only explicit toBoolean), so a non-boolean criterion should signal an error rather than be treated as false. This aligns with the spec’s wording for iif() and the official test case testIif6 that expects an error for non-boolean criteria.",
+        "spec_ref": "§5.4.1 iif()"
+      }
     },
     {
       "group": "error cases",

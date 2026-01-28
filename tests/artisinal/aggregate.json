@@ -486,10 +486,27 @@
       "input": {},
       "expect": [
         {
-          "type": "string",
+          "type": "date",
           "value": "2012-01-01"
         }
-      ]
+      ],
+      "_adjudicated": {
+        "fhirpath_js": [
+          {
+            "type": "dateTime",
+            "value": "2012-01-01"
+          }
+        ],
+        "our_old_value": [
+          {
+            "type": "string",
+            "value": "2012-01-01"
+          }
+        ],
+        "verdict": "ours_correct",
+        "reason": "min() returns the minimum element and requires all inputs be the same type. With Date literals as input, the result must be a Date (the spec’s example shows a date result), so returning a DateTime is incorrect and the prior string-typed expectation was wrong.",
+        "spec_ref": "§5.7.3 min()"
+      }
     },
     {
       "name": "min: dateTimes",

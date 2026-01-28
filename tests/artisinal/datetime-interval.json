@@ -1,0 +1,234 @@
+{
+  "_spec_summary": [
+    "DATE AND TIME INTERVAL FUNCTIONS - Functions for calculating intervals between date/time values.",
+    "These functions are STU (Standard for Trial Use).",
+    "",
+    "=== duration(value: date | datetime | time, precision: identifier): Integer ===",
+    "Returns the number of WHOLE CALENDAR PERIODS at the specified precision between input and value.",
+    "",
+    "Key semantics:",
+    "- If input is AFTER value, the result is NEGATIVE.",
+    "- Result is always an integer; fractional periods are dropped (floor division).",
+    "- Measures calendar periods, not exact durations (e.g., 'year' counts complete years).",
+    "",
+    "Precision argument must match the value types:",
+    "- For date: year, month, week, or day",
+    "- For datetime: year, month, week, day, hour, minute, second, or millisecond",
+    "- For time: hour, minute, second, or millisecond",
+    "",
+    "Edge cases:",
+    "- If input or value has LESS precision than the specified precision, result is EMPTY.",
+    "- If either input or value is empty, result is EMPTY.",
+    "- Multiple inputs → error (singleton required).",
+    "",
+    "Spec examples:",
+    "@2025-01-02.duration(@2025-01-07, 'week') → 0 (hasn't passed 7 days for a full week)",
+    "@2025-01-01.duration(@2025-09-01, 'year') → 0 (baby is 9 months old, not 1 year)",
+    "@2024-12-01.duration(@2025-09-01, 'year') → 0 (baby is 10 months old, not 1 year)",
+    "",
+    "Calendar vs duration:",
+    "- 'month' counts full calendar months, not 30-day periods.",
+    "- @2025-01-15.duration(@2025-02-15, 'month') → 1 (exactly one month)",
+    "- @2025-01-31.duration(@2025-02-28, 'month') → 0 (not a full month: Jan has 31 days, Feb has 28)",
+    "",
+    "Timezone handling for datetime:",
+    "When precision is hour, minute, second, or millisecond, implementations should normalize",
+    "timezones when comparing datetime values with different offsets.",
+    "",
+    "=== difference(value: date | datetime | time, precision: identifier): Integer ===",
+    "Returns the number of BOUNDARIES CROSSED for the specified precision between input and value.",
+    "",
+    "Key semantics:",
+    "- If input is AFTER value, the result is NEGATIVE.",
+    "- Counts boundary crossings, not full periods.",
+    "- Result is always an integer.",
+    "",
+    "Precision argument must match the value types (same as duration).",
+    "",
+    "Edge cases (same as duration):",
+    "- If input or value has LESS precision than the specified precision, result is EMPTY.",
+    "- If either input or value is empty, result is EMPTY.",
+    "- Multiple inputs → error.",
+    "",
+    "Week boundaries:",
+    "- Sunday is considered the first day of the week for week boundary calculations.",
+    "",
+    "Spec examples:",
+    "@2025-01-02.difference(@2025-01-07, 'week') → 1 (crossed a week boundary on Sunday)",
+    "@2025-01-01.difference(@2025-09-01, 'year') → 0 (baby born this year, no year boundary crossed)",
+    "@2024-12-01.difference(@2025-09-01, 'year') → 1 (baby born last year, crossed one year boundary)",
+    "",
+    "Key distinction: duration vs difference:",
+    "- duration(@2024-12-31, @2025-01-01, 'year') → 0 (not a full year)",
+    "- difference(@2024-12-31, @2025-01-01, 'year') → 1 (crossed January 1 boundary)",
+    "",
+    "- duration(@2025-01-01, @2025-12-31, 'year') → 0 (not a full year yet)",
+    "- difference(@2025-01-01, @2025-12-31, 'year') → 0 (still in same year)",
+    "",
+    "Timezone handling for datetime:",
+    "When precision is hour, minute, second, or millisecond, implementations should normalize",
+    "timezones when comparing datetime values with different offsets."
+  ],
+  "_todo": [
+    "[ ] Improve passing rate (0/21 passing)",
+    "[ ] Verify week boundary is Sunday per spec",
+    "[ ] Test timezone normalization for datetime comparisons",
+    "[ ] Test negative results when input > value",
+    "[ ] Verify precision validation for each type (date/datetime/time)"
+  ],
+  "meta": {
+    "status": "drafted"
+  },
+  "cases": [
+    {
+      "_comment": "=== duration() for Date ===",
+      "name": "duration_date_week_partial",
+      "expr": "@2025-01-02.duration(@2025-01-07, 'day')",
+      "input": {},
+      "expect": [{"type": "integer", "value": 5}],
+      "_note": "5 days between Jan 2 and Jan 7"
+    },
+    {
+      "name": "duration_date_week_not_full",
+      "expr": "@2025-01-02.duration(@2025-01-07, 'week')",
+      "input": {},
+      "expect": [{"type": "integer", "value": 0}],
+      "_note": "Spec example: hasn't passed 7 days for full week"
+    },
+    {
+      "name": "duration_date_year_9_months",
+      "expr": "@2025-01-01.duration(@2025-09-01, 'year')",
+      "input": {},
+      "expect": [{"type": "integer", "value": 0}],
+      "_note": "Spec example: 9 months old baby, not 1 year"
+    },
+    {
+      "name": "duration_date_year_10_months",
+      "expr": "@2024-12-01.duration(@2025-09-01, 'year')",
+      "input": {},
+      "expect": [{"type": "integer", "value": 0}],
+      "_note": "Spec example: 10 months old baby, still not 1 year"
+    },
+    {
+      "name": "duration_date_year_full",
+      "expr": "@2024-01-01.duration(@2025-01-01, 'year')",
+      "input": {},
+      "expect": [{"type": "integer", "value": 1}],
+      "_note": "Exactly 1 year"
+    },
+    {
+      "name": "duration_date_month_full",
+      "expr": "@2025-01-15.duration(@2025-02-15, 'month')",
+      "input": {},
+      "expect": [{"type": "integer", "value": 1}],
+      "_note": "Exactly 1 month"
+    },
+    {
+      "name": "duration_date_month_end_of_month",
+      "expr": "@2025-01-31.duration(@2025-02-28, 'month')",
+      "input": {},
+      "expect": [{"type": "integer", "value": 0}],
+      "_note": "Jan 31 to Feb 28 is not a full month (Feb is shorter)"
+    },
+    {
+      "name": "duration_date_negative",
+      "expr": "@2025-06-01.duration(@2025-01-01, 'month')",
+      "input": {},
+      "expect": [{"type": "integer", "value": -5}],
+      "_note": "Input after value gives negative result"
+    },
+    {
+      "_comment": "=== difference() for Date ===",
+      "name": "difference_date_week_boundary",
+      "expr": "@2025-01-02.difference(@2025-01-07, 'week')",
+      "input": {},
+      "expect": [{"type": "integer", "value": 1}],
+      "_note": "Spec example: crossed a week boundary (Sunday Jan 5)"
+    },
+    {
+      "name": "difference_date_year_same_year",
+      "expr": "@2025-01-01.difference(@2025-09-01, 'year')",
+      "input": {},
+      "expect": [{"type": "integer", "value": 0}],
+      "_note": "Spec example: born this year, no year boundary crossed"
+    },
+    {
+      "name": "difference_date_year_crossed",
+      "expr": "@2024-12-01.difference(@2025-09-01, 'year')",
+      "input": {},
+      "expect": [{"type": "integer", "value": 1}],
+      "_note": "Spec example: born last year, crossed one year boundary"
+    },
+    {
+      "name": "difference_date_year_boundary_single_day",
+      "expr": "@2024-12-31.difference(@2025-01-01, 'day')",
+      "input": {},
+      "expect": [{"type": "integer", "value": 1}],
+      "_note": "Crossed one day boundary"
+    },
+    {
+      "name": "difference_date_year_vs_duration",
+      "expr": "@2024-12-31.difference(@2025-01-01, 'year')",
+      "input": {},
+      "expect": [{"type": "integer", "value": 1}],
+      "_note": "Crossed January 1 boundary (cf. duration would be 0)"
+    },
+    {
+      "name": "difference_date_negative",
+      "expr": "@2025-06-01.difference(@2025-01-01, 'month')",
+      "input": {},
+      "expect": [{"type": "integer", "value": -5}],
+      "_note": "Input after value gives negative result"
+    },
+    {
+      "_comment": "=== Empty/error cases ===",
+      "name": "duration_empty_input",
+      "expr": "{}.duration(@2025-01-01, 'day')",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "duration_precision_too_fine",
+      "expr": "@2025-01.duration(@2025-02, 'day')",
+      "input": {},
+      "expect": [],
+      "_note": "Input has month precision, but 'day' requested - empty"
+    },
+    {
+      "name": "difference_empty_value",
+      "expr": "@2025-01-01.difference({}, 'day')",
+      "input": {},
+      "expect": []
+    },
+    {
+      "_comment": "=== DateTime cases ===",
+      "name": "duration_datetime_hours",
+      "expr": "@2025-01-01T10:00:00.duration(@2025-01-01T15:30:00, 'hour')",
+      "input": {},
+      "expect": [{"type": "integer", "value": 5}],
+      "_note": "5 complete hours (30 minutes don't count)"
+    },
+    {
+      "name": "difference_datetime_hours",
+      "expr": "@2025-01-01T10:30:00.difference(@2025-01-01T12:15:00, 'hour')",
+      "input": {},
+      "expect": [{"type": "integer", "value": 2}],
+      "_note": "Crossed hour boundaries at 11:00 and 12:00"
+    },
+    {
+      "_comment": "=== Time cases ===",
+      "name": "duration_time_minutes",
+      "expr": "@T10:00:00.duration(@T10:45:30, 'minute')",
+      "input": {},
+      "expect": [{"type": "integer", "value": 45}],
+      "_note": "45 complete minutes"
+    },
+    {
+      "name": "difference_time_seconds",
+      "expr": "@T10:00:00.difference(@T10:00:05, 'second')",
+      "input": {},
+      "expect": [{"type": "integer", "value": 5}],
+      "_note": "5 second boundaries crossed"
+    }
+  ]
+}

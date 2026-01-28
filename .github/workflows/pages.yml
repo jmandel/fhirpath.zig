@@ -35,7 +35,7 @@ jobs:
         run: ./scripts/build_models.sh
 
       - name: Build wasm
-        run: zig build wasm
+        run: zig build wasm -Doptimize=ReleaseSmall
 
       - name: Build web demo bundle
         run: ./scripts/build_web.sh dist

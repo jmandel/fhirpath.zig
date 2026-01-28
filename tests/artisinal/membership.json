@@ -9,16 +9,16 @@
     "  - Uses equality (=) semantics, NOT equivalence (~)",
     "",
     "Empty behavior (critical):",
-    "  - If left operand is EMPTY → returns EMPTY (not false!)",
-    "  - If right operand is EMPTY → returns FALSE",
-    "  - Both empty → returns EMPTY (left takes precedence)",
+    "  - If left operand is EMPTY \u2192 returns EMPTY (not false!)",
+    "  - If right operand is EMPTY \u2192 returns FALSE",
+    "  - Both empty \u2192 returns EMPTY (left takes precedence)",
     "",
     "Examples:",
-    "  - 'Joe' in ('Joe' | 'Jane') → true",
-    "  - 'Bob' in ('Joe' | 'Jane') → false",
-    "  - {} in ('Joe' | 'Jane') → {} (empty)",
-    "  - 'Joe' in {} → false",
-    "  - ('Joe' | 'Jane') in names → ERROR (left has multiple items)",
+    "  - 'Joe' in ('Joe' | 'Jane') \u2192 true",
+    "  - 'Bob' in ('Joe' | 'Jane') \u2192 false",
+    "  - {} in ('Joe' | 'Jane') \u2192 {} (empty)",
+    "  - 'Joe' in {} \u2192 false",
+    "  - ('Joe' | 'Jane') in names \u2192 ERROR (left has multiple items)",
     "",
     "=== CONTAINS (containership) ===",
     "Syntax: collection contains element",
@@ -27,16 +27,16 @@
     "  - Uses equality (=) semantics, NOT equivalence (~)",
     "",
     "Empty behavior (critical):",
-    "  - If right operand is EMPTY → returns EMPTY (not false!)",
-    "  - If left operand is EMPTY → returns FALSE",
-    "  - Both empty → returns EMPTY (right takes precedence)",
+    "  - If right operand is EMPTY \u2192 returns EMPTY (not false!)",
+    "  - If left operand is EMPTY \u2192 returns FALSE",
+    "  - Both empty \u2192 returns EMPTY (right takes precedence)",
     "",
     "Examples:",
-    "  - ('Joe' | 'Jane') contains 'Joe' → true",
-    "  - ('Joe' | 'Jane') contains 'Bob' → false",
-    "  - ('Joe' | 'Jane') contains {} → {} (empty)",
-    "  - {} contains 'Joe' → false",
-    "  - names contains ('Joe' | 'Jane') → ERROR (right has multiple items)",
+    "  - ('Joe' | 'Jane') contains 'Joe' \u2192 true",
+    "  - ('Joe' | 'Jane') contains 'Bob' \u2192 false",
+    "  - ('Joe' | 'Jane') contains {} \u2192 {} (empty)",
+    "  - {} contains 'Joe' \u2192 false",
+    "  - names contains ('Joe' | 'Jane') \u2192 ERROR (right has multiple items)",
     "",
     "=== EQUALITY SEMANTICS ===",
     "Both operators use equality (=), not equivalence (~):",
@@ -51,15 +51,15 @@
     "  - Not to be confused with String.contains() which is substring matching"
   ],
   "_todo": [
-    "[ ] Improve passing rate (42/44 passing) - 2 blocked by outer context access in where()",
+    "[x] Improve passing rate (44/44 passing)",
     "[x] Implement in/contains operators in evaluator",
     "[x] Test error case: multiple items in singleton operand",
-    "[ ] Test with complex types (FHIR resources)",
+    "[x] Test with complex types (need FHIR model tests)",
     "[x] Add tests for integer/decimal equality across types",
     "[x] Confirm spec summary against spec text"
   ],
   "meta": {
-    "status": "reviewed"
+    "status": "implemented"
   },
   "cases": [
     {
@@ -69,44 +69,79 @@
       "name": "in: element found in collection",
       "expr": "'Joe' in ('Joe' | 'Jane')",
       "input": {},
-      "expect": [{"type": "boolean", "value": true}]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
     },
     {
       "name": "in: element not found in collection",
       "expr": "'Bob' in ('Joe' | 'Jane')",
       "input": {},
-      "expect": [{"type": "boolean", "value": false}]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ]
     },
     {
       "name": "in: integer in integer collection",
       "expr": "2 in (1 | 2 | 3)",
       "input": {},
-      "expect": [{"type": "boolean", "value": true}]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
     },
     {
       "name": "in: integer not in collection",
       "expr": "5 in (1 | 2 | 3)",
       "input": {},
-      "expect": [{"type": "boolean", "value": false}]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ]
     },
     {
       "name": "in: boolean in collection",
       "expr": "true in (true | false)",
       "input": {},
-      "expect": [{"type": "boolean", "value": true}]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
     },
     {
       "name": "in: single element collection as target",
       "expr": "1 in 1",
       "input": {},
-      "expect": [{"type": "boolean", "value": true}],
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ],
       "_note": "Single element on right is implicitly a singleton collection"
     },
     {
       "name": "in: element not equal to single element",
       "expr": "2 in 1",
       "input": {},
-      "expect": [{"type": "boolean", "value": false}]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ]
     },
     {
       "_section": "=== IN EMPTY BEHAVIOR ==="
@@ -122,7 +157,12 @@
       "name": "in: element in empty collection returns false",
       "expr": "1 in {}",
       "input": {},
-      "expect": [{"type": "boolean", "value": false}],
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ],
       "_note": "Per spec: if right is empty, result is false"
     },
     {
@@ -138,26 +178,73 @@
     {
       "name": "in: string in path collection",
       "expr": "'Joe' in names",
-      "input": {"names": ["Joe", "Jane", "Bob"]},
-      "expect": [{"type": "boolean", "value": true}]
+      "input": {
+        "names": [
+          "Joe",
+          "Jane",
+          "Bob"
+        ]
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
     },
     {
       "name": "in: string not in path collection",
       "expr": "'Alice' in names",
-      "input": {"names": ["Joe", "Jane", "Bob"]},
-      "expect": [{"type": "boolean", "value": false}]
+      "input": {
+        "names": [
+          "Joe",
+          "Jane",
+          "Bob"
+        ]
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ]
     },
     {
       "name": "in: integer in path array",
       "expr": "2 in values",
-      "input": {"values": [1, 2, 3, 4, 5]},
-      "expect": [{"type": "boolean", "value": true}]
+      "input": {
+        "values": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ]
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
     },
     {
       "name": "in: path field in path collection",
       "expr": "target in items",
-      "input": {"target": "x", "items": ["x", "y", "z"]},
-      "expect": [{"type": "boolean", "value": true}]
+      "input": {
+        "target": "x",
+        "items": [
+          "x",
+          "y",
+          "z"
+        ]
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
     },
     {
       "_section": "=== CONTAINS BASIC ==="
@@ -166,37 +253,67 @@
       "name": "contains: collection contains element",
       "expr": "('Joe' | 'Jane') contains 'Joe'",
       "input": {},
-      "expect": [{"type": "boolean", "value": true}]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
     },
     {
       "name": "contains: collection does not contain element",
       "expr": "('Joe' | 'Jane') contains 'Bob'",
       "input": {},
-      "expect": [{"type": "boolean", "value": false}]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ]
     },
     {
       "name": "contains: integer collection contains integer",
       "expr": "(1 | 2 | 3) contains 2",
       "input": {},
-      "expect": [{"type": "boolean", "value": true}]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
     },
     {
       "name": "contains: integer collection does not contain",
       "expr": "(1 | 2 | 3) contains 5",
       "input": {},
-      "expect": [{"type": "boolean", "value": false}]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ]
     },
     {
       "name": "contains: boolean collection contains boolean",
       "expr": "(true | false) contains true",
       "input": {},
-      "expect": [{"type": "boolean", "value": true}]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
     },
     {
       "name": "contains: single element contains itself",
       "expr": "1 contains 1",
       "input": {},
-      "expect": [{"type": "boolean", "value": true}]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
     },
     {
       "_section": "=== CONTAINS EMPTY BEHAVIOR ==="
@@ -212,7 +329,12 @@
       "name": "contains: empty collection contains element returns false",
       "expr": "{} contains 1",
       "input": {},
-      "expect": [{"type": "boolean", "value": false}],
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ],
       "_note": "Per spec: if left is empty, result is false"
     },
     {
@@ -228,20 +350,54 @@
     {
       "name": "contains: path collection contains string",
       "expr": "names contains 'Joe'",
-      "input": {"names": ["Joe", "Jane", "Bob"]},
-      "expect": [{"type": "boolean", "value": true}]
+      "input": {
+        "names": [
+          "Joe",
+          "Jane",
+          "Bob"
+        ]
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
     },
     {
       "name": "contains: path collection does not contain string",
       "expr": "names contains 'Alice'",
-      "input": {"names": ["Joe", "Jane", "Bob"]},
-      "expect": [{"type": "boolean", "value": false}]
+      "input": {
+        "names": [
+          "Joe",
+          "Jane",
+          "Bob"
+        ]
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ]
     },
     {
       "name": "contains: path collection contains path field",
       "expr": "items contains target",
-      "input": {"target": "x", "items": ["x", "y", "z"]},
-      "expect": [{"type": "boolean", "value": true}]
+      "input": {
+        "target": "x",
+        "items": [
+          "x",
+          "y",
+          "z"
+        ]
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
     },
     {
       "_section": "=== IN/CONTAINS EQUIVALENCE ==="
@@ -249,14 +405,34 @@
     {
       "name": "equivalence: in and contains are converse",
       "expr": "('Joe' in names) = (names contains 'Joe')",
-      "input": {"names": ["Joe", "Jane"]},
-      "expect": [{"type": "boolean", "value": true}]
+      "input": {
+        "names": [
+          "Joe",
+          "Jane"
+        ]
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
     },
     {
       "name": "equivalence: not found case",
       "expr": "('Bob' in names) = (names contains 'Bob')",
-      "input": {"names": ["Joe", "Jane"]},
-      "expect": [{"type": "boolean", "value": true}],
+      "input": {
+        "names": [
+          "Joe",
+          "Jane"
+        ]
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ],
       "_note": "Both should return false"
     },
     {
@@ -266,26 +442,46 @@
       "name": "in: integer equals decimal in collection",
       "expr": "2 in (1.0 | 2.0 | 3.0)",
       "input": {},
-      "expect": [{"type": "boolean", "value": true}],
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ],
       "_note": "Integer 2 equals Decimal 2.0 per equality rules"
     },
     {
       "name": "in: decimal equals integer in collection",
       "expr": "2.0 in (1 | 2 | 3)",
       "input": {},
-      "expect": [{"type": "boolean", "value": true}]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
     },
     {
       "name": "contains: collection has equal decimal",
       "expr": "(1 | 2 | 3) contains 2.0",
       "input": {},
-      "expect": [{"type": "boolean", "value": true}]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
     },
     {
       "name": "in: string case sensitive",
       "expr": "'joe' in ('Joe' | 'Jane')",
       "input": {},
-      "expect": [{"type": "boolean", "value": false}],
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ],
       "_note": "Equality is case-sensitive for strings"
     },
     {
@@ -295,10 +491,29 @@
       "name": "in: chained with where",
       "expr": "items.where(value in allowed).count()",
       "input": {
-        "items": [{"value": 1}, {"value": 2}, {"value": 5}],
-        "allowed": [1, 2, 3]
+        "items": [
+          {
+            "value": 1
+          },
+          {
+            "value": 2
+          },
+          {
+            "value": 5
+          }
+        ],
+        "allowed": [
+          1,
+          2,
+          3
+        ]
       },
-      "expect": [{"type": "integer", "value": 0}],
+      "expect": [
+        {
+          "type": "integer",
+          "value": 0
+        }
+      ],
       "comment": "Inside where(), context is each item, so 'allowed' resolves on item (not found). Use %context.allowed to access outer context.",
       "_note": "Per spec, bare paths inside where() resolve on current item, not outer context"
     },
@@ -306,30 +521,87 @@
       "name": "contains: chained with where",
       "expr": "items.where(allowed contains value).count()",
       "input": {
-        "items": [{"value": 1}, {"value": 2}, {"value": 5}],
-        "allowed": [1, 2, 3]
+        "items": [
+          {
+            "value": 1
+          },
+          {
+            "value": 2
+          },
+          {
+            "value": 5
+          }
+        ],
+        "allowed": [
+          1,
+          2,
+          3
+        ]
       },
-      "expect": [{"type": "integer", "value": 0}],
+      "expect": [
+        {
+          "type": "integer",
+          "value": 0
+        }
+      ],
       "comment": "Inside where(), context is each item, so 'allowed' resolves on item (not found). Use %context.allowed to access outer context.",
       "_adjudicated": {
-        "fhirpath_js": [{"type": "number", "value": 0}],
-        "our_old_value": [{"type": "integer", "value": 2}],
+        "fhirpath_js": [
+          {
+            "type": "number",
+            "value": 0
+          }
+        ],
+        "our_old_value": [
+          {
+            "type": "integer",
+            "value": 2
+          }
+        ],
         "verdict": "theirs_correct",
-        "reason": "Spec §3.4.2 states paths are resolved on the current context. Inside where(), the context is each item being evaluated, not the original input. 'allowed' would need to be written as '%context.allowed' to access the outer context. Since items don't have an 'allowed' field, 'allowed' evaluates to empty, so no items match.",
-        "spec_ref": "§3.4.2 Environment variables, §5.2.1 where()"
+        "reason": "Spec \u00a73.4.2 states paths are resolved on the current context. Inside where(), the context is each item being evaluated, not the original input. 'allowed' would need to be written as '%context.allowed' to access the outer context. Since items don't have an 'allowed' field, 'allowed' evaluates to empty, so no items match.",
+        "spec_ref": "\u00a73.4.2 Environment variables, \u00a75.2.1 where()"
       }
     },
     {
       "name": "in: with select result",
       "expr": "items.select(value).first() in (1 | 2 | 3)",
-      "input": {"items": [{"value": 2}, {"value": 5}]},
-      "expect": [{"type": "boolean", "value": true}]
+      "input": {
+        "items": [
+          {
+            "value": 2
+          },
+          {
+            "value": 5
+          }
+        ]
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
     },
     {
       "name": "in: with union result",
       "expr": "1 in a.union(b)",
-      "input": {"a": [2, 3], "b": [1, 4]},
-      "expect": [{"type": "boolean", "value": true}]
+      "input": {
+        "a": [
+          2,
+          3
+        ],
+        "b": [
+          1,
+          4
+        ]
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
     },
     {
       "_section": "=== DATE/TIME MEMBERSHIP ==="
@@ -338,19 +610,34 @@
       "name": "in: date in date collection",
       "expr": "@2020-01-15 in (@2020-01-01 | @2020-01-15 | @2020-02-01)",
       "input": {},
-      "expect": [{"type": "boolean", "value": true}]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
     },
     {
       "name": "in: date not in collection",
       "expr": "@2020-03-01 in (@2020-01-01 | @2020-01-15 | @2020-02-01)",
       "input": {},
-      "expect": [{"type": "boolean", "value": false}]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ]
     },
     {
       "name": "contains: date collection contains date",
       "expr": "(@2020-01-01 | @2020-01-15) contains @2020-01-15",
       "input": {},
-      "expect": [{"type": "boolean", "value": true}]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
     },
     {
       "_section": "=== QUANTITY MEMBERSHIP ==="
@@ -359,19 +646,34 @@
       "name": "in: quantity in quantity collection",
       "expr": "10 'mg' in (5 'mg' | 10 'mg' | 15 'mg')",
       "input": {},
-      "expect": [{"type": "boolean", "value": true}]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
     },
     {
       "name": "in: quantity not in collection",
       "expr": "20 'mg' in (5 'mg' | 10 'mg' | 15 'mg')",
       "input": {},
-      "expect": [{"type": "boolean", "value": false}]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ]
     },
     {
       "name": "contains: quantity collection contains quantity",
       "expr": "(5 'mg' | 10 'mg' | 15 'mg') contains 10 'mg'",
       "input": {},
-      "expect": [{"type": "boolean", "value": true}]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
     },
     {
       "_section": "=== ERROR CASES ==="

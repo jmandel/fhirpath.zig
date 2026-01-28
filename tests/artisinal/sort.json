@@ -56,19 +56,21 @@
     "Patient.telecom.sort(system, use desc)"
   ],
   "_todo": [
-    "[x] Improve passing rate (31/31 passing) - sort() implemented with asc/desc parsing",
+    "[x] Improve passing rate (31/31 passing)",
     "[x] Test multi-key sorting with asc/desc qualifiers",
     "[x] Test error cases: mixed types, multi-valued key selector",
     "[x] Test empty value positioning in ascending vs descending",
-    "[ ] Add tests for Date/DateTime/Time sorting",
-    "[ ] Add tests for Quantity sorting"
+    "[x] Add tests for Date/DateTime/Time sorting",
+    "[ ] Add tests for Quantity sorting",
+    "[ ] Consider: R5 tests use -$this for descending (invalid for strings - filed upstream)"
   ],
   "_open_questions": [
     "Is the sort stable? (Do equal items maintain original order?)",
-    "How do timezone differences affect DateTime sorting?"
+    "How do timezone differences affect DateTime sorting?",
+    "Official R5 tests use -$this (unary minus) for descending which is invalid for strings. We filed upstream issue."
   ],
   "meta": {
-    "status": "reviewed"
+    "status": "implemented"
   },
   "cases": [
     {
@@ -79,9 +81,18 @@
       "expr": "(3 | 1 | 2).sort()",
       "input": {},
       "expect": [
-        {"type": "integer", "value": 1},
-        {"type": "integer", "value": 2},
-        {"type": "integer", "value": 3}
+        {
+          "type": "integer",
+          "value": 1
+        },
+        {
+          "type": "integer",
+          "value": 2
+        },
+        {
+          "type": "integer",
+          "value": 3
+        }
       ],
       "comment": "Spec example: natural numeric ordering"
     },
@@ -90,9 +101,18 @@
       "expr": "('c' | 'a' | 'b').sort()",
       "input": {},
       "expect": [
-        {"type": "string", "value": "a"},
-        {"type": "string", "value": "b"},
-        {"type": "string", "value": "c"}
+        {
+          "type": "string",
+          "value": "a"
+        },
+        {
+          "type": "string",
+          "value": "b"
+        },
+        {
+          "type": "string",
+          "value": "c"
+        }
       ],
       "comment": "Spec example: default string ordering"
     },
@@ -101,9 +121,18 @@
       "expr": "(3.5 | 1.2 | 2.8).sort()",
       "input": {},
       "expect": [
-        {"type": "decimal", "value": 1.2},
-        {"type": "decimal", "value": 2.8},
-        {"type": "decimal", "value": 3.5}
+        {
+          "type": "decimal",
+          "value": 1.2
+        },
+        {
+          "type": "decimal",
+          "value": 2.8
+        },
+        {
+          "type": "decimal",
+          "value": 3.5
+        }
       ]
     },
     {
@@ -111,9 +140,18 @@
       "expr": "('abc' | 'ABC' | 'aBC').sort()",
       "input": {},
       "expect": [
-        {"type": "string", "value": "ABC"},
-        {"type": "string", "value": "aBC"},
-        {"type": "string", "value": "abc"}
+        {
+          "type": "string",
+          "value": "ABC"
+        },
+        {
+          "type": "string",
+          "value": "aBC"
+        },
+        {
+          "type": "string",
+          "value": "abc"
+        }
       ],
       "comment": "Unicode ordering: uppercase letters come before lowercase (A=65, a=97)"
     },
@@ -121,22 +159,41 @@
       "name": "sort: empty input returns empty",
       "expr": "{}.sort().empty()",
       "input": {},
-      "expect": [{"type": "boolean", "value": true}]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
     },
     {
       "name": "sort: single item returns itself",
       "expr": "42.sort()",
       "input": {},
-      "expect": [{"type": "integer", "value": 42}]
+      "expect": [
+        {
+          "type": "integer",
+          "value": 42
+        }
+      ]
     },
     {
       "name": "sort: already sorted collection",
       "expr": "(1 | 2 | 3).sort()",
       "input": {},
       "expect": [
-        {"type": "integer", "value": 1},
-        {"type": "integer", "value": 2},
-        {"type": "integer", "value": 3}
+        {
+          "type": "integer",
+          "value": 1
+        },
+        {
+          "type": "integer",
+          "value": 2
+        },
+        {
+          "type": "integer",
+          "value": 3
+        }
       ]
     },
     {
@@ -144,11 +201,26 @@
       "expr": "(5 | 4 | 3 | 2 | 1).sort()",
       "input": {},
       "expect": [
-        {"type": "integer", "value": 1},
-        {"type": "integer", "value": 2},
-        {"type": "integer", "value": 3},
-        {"type": "integer", "value": 4},
-        {"type": "integer", "value": 5}
+        {
+          "type": "integer",
+          "value": 1
+        },
+        {
+          "type": "integer",
+          "value": 2
+        },
+        {
+          "type": "integer",
+          "value": 3
+        },
+        {
+          "type": "integer",
+          "value": 4
+        },
+        {
+          "type": "integer",
+          "value": 5
+        }
       ]
     },
     {
@@ -159,9 +231,18 @@
       "expr": "(3 | 1 | 2).sort($this)",
       "input": {},
       "expect": [
-        {"type": "integer", "value": 1},
-        {"type": "integer", "value": 2},
-        {"type": "integer", "value": 3}
+        {
+          "type": "integer",
+          "value": 1
+        },
+        {
+          "type": "integer",
+          "value": 2
+        },
+        {
+          "type": "integer",
+          "value": 3
+        }
       ],
       "comment": "Spec example: explicit ascending"
     },
@@ -170,9 +251,18 @@
       "expr": "(3 | 1 | 2).sort($this desc)",
       "input": {},
       "expect": [
-        {"type": "integer", "value": 3},
-        {"type": "integer", "value": 2},
-        {"type": "integer", "value": 1}
+        {
+          "type": "integer",
+          "value": 3
+        },
+        {
+          "type": "integer",
+          "value": 2
+        },
+        {
+          "type": "integer",
+          "value": 1
+        }
       ],
       "comment": "Spec example: descending"
     },
@@ -181,9 +271,18 @@
       "expr": "('c' | 'a' | 'b').sort($this desc)",
       "input": {},
       "expect": [
-        {"type": "string", "value": "c"},
-        {"type": "string", "value": "b"},
-        {"type": "string", "value": "a"}
+        {
+          "type": "string",
+          "value": "c"
+        },
+        {
+          "type": "string",
+          "value": "b"
+        },
+        {
+          "type": "string",
+          "value": "a"
+        }
       ],
       "comment": "Spec example: descending"
     },
@@ -192,9 +291,18 @@
       "expr": "(3 | 1 | 2).sort($this asc)",
       "input": {},
       "expect": [
-        {"type": "integer", "value": 1},
-        {"type": "integer", "value": 2},
-        {"type": "integer", "value": 3}
+        {
+          "type": "integer",
+          "value": 1
+        },
+        {
+          "type": "integer",
+          "value": 2
+        },
+        {
+          "type": "integer",
+          "value": 3
+        }
       ],
       "comment": "Explicit asc should behave same as default"
     },
@@ -206,15 +314,33 @@
       "expr": "items.sort(value).select(value)",
       "input": {
         "items": [
-          {"value": 3, "name": "third"},
-          {"value": 1, "name": "first"},
-          {"value": 2, "name": "second"}
+          {
+            "value": 3,
+            "name": "third"
+          },
+          {
+            "value": 1,
+            "name": "first"
+          },
+          {
+            "value": 2,
+            "name": "second"
+          }
         ]
       },
       "expect": [
-        {"type": "integer", "value": 1},
-        {"type": "integer", "value": 2},
-        {"type": "integer", "value": 3}
+        {
+          "type": "integer",
+          "value": 1
+        },
+        {
+          "type": "integer",
+          "value": 2
+        },
+        {
+          "type": "integer",
+          "value": 3
+        }
       ],
       "comment": "Sort items by value field, then project to get sorted values"
     },
@@ -223,15 +349,33 @@
       "expr": "items.sort(value desc).select(name)",
       "input": {
         "items": [
-          {"value": 3, "name": "third"},
-          {"value": 1, "name": "first"},
-          {"value": 2, "name": "second"}
+          {
+            "value": 3,
+            "name": "third"
+          },
+          {
+            "value": 1,
+            "name": "first"
+          },
+          {
+            "value": 2,
+            "name": "second"
+          }
         ]
       },
       "expect": [
-        {"type": "string", "value": "third"},
-        {"type": "string", "value": "second"},
-        {"type": "string", "value": "first"}
+        {
+          "type": "string",
+          "value": "third"
+        },
+        {
+          "type": "string",
+          "value": "second"
+        },
+        {
+          "type": "string",
+          "value": "first"
+        }
       ],
       "comment": "Sort by value descending, return names in that order"
     },
@@ -240,15 +384,33 @@
       "expr": "items.sort(name).select(value)",
       "input": {
         "items": [
-          {"value": 3, "name": "charlie"},
-          {"value": 1, "name": "alice"},
-          {"value": 2, "name": "bob"}
+          {
+            "value": 3,
+            "name": "charlie"
+          },
+          {
+            "value": 1,
+            "name": "alice"
+          },
+          {
+            "value": 2,
+            "name": "bob"
+          }
         ]
       },
       "expect": [
-        {"type": "integer", "value": 1},
-        {"type": "integer", "value": 2},
-        {"type": "integer", "value": 3}
+        {
+          "type": "integer",
+          "value": 1
+        },
+        {
+          "type": "integer",
+          "value": 2
+        },
+        {
+          "type": "integer",
+          "value": 3
+        }
       ],
       "comment": "Sort by name field alphabetically"
     },
@@ -260,15 +422,36 @@
       "expr": "items.sort(primary, secondary).select(id)",
       "input": {
         "items": [
-          {"id": "B2", "primary": 2, "secondary": 1},
-          {"id": "A1", "primary": 1, "secondary": 1},
-          {"id": "C3", "primary": 3, "secondary": 1}
+          {
+            "id": "B2",
+            "primary": 2,
+            "secondary": 1
+          },
+          {
+            "id": "A1",
+            "primary": 1,
+            "secondary": 1
+          },
+          {
+            "id": "C3",
+            "primary": 3,
+            "secondary": 1
+          }
         ]
       },
       "expect": [
-        {"type": "string", "value": "A1"},
-        {"type": "string", "value": "B2"},
-        {"type": "string", "value": "C3"}
+        {
+          "type": "string",
+          "value": "A1"
+        },
+        {
+          "type": "string",
+          "value": "B2"
+        },
+        {
+          "type": "string",
+          "value": "C3"
+        }
       ],
       "comment": "When primary keys are all different, secondary key is not used"
     },
@@ -277,15 +460,36 @@
       "expr": "items.sort(primary, secondary).select(id)",
       "input": {
         "items": [
-          {"id": "A2", "primary": 1, "secondary": 2},
-          {"id": "A1", "primary": 1, "secondary": 1},
-          {"id": "B1", "primary": 2, "secondary": 1}
+          {
+            "id": "A2",
+            "primary": 1,
+            "secondary": 2
+          },
+          {
+            "id": "A1",
+            "primary": 1,
+            "secondary": 1
+          },
+          {
+            "id": "B1",
+            "primary": 2,
+            "secondary": 1
+          }
         ]
       },
       "expect": [
-        {"type": "string", "value": "A1"},
-        {"type": "string", "value": "A2"},
-        {"type": "string", "value": "B1"}
+        {
+          "type": "string",
+          "value": "A1"
+        },
+        {
+          "type": "string",
+          "value": "A2"
+        },
+        {
+          "type": "string",
+          "value": "B1"
+        }
       ],
       "comment": "Items with same primary are sorted by secondary"
     },
@@ -294,15 +498,36 @@
       "expr": "items.sort(primary desc, secondary asc).select(id)",
       "input": {
         "items": [
-          {"id": "A1", "primary": 1, "secondary": 1},
-          {"id": "B2", "primary": 2, "secondary": 2},
-          {"id": "B1", "primary": 2, "secondary": 1}
+          {
+            "id": "A1",
+            "primary": 1,
+            "secondary": 1
+          },
+          {
+            "id": "B2",
+            "primary": 2,
+            "secondary": 2
+          },
+          {
+            "id": "B1",
+            "primary": 2,
+            "secondary": 1
+          }
         ]
       },
       "expect": [
-        {"type": "string", "value": "B1"},
-        {"type": "string", "value": "B2"},
-        {"type": "string", "value": "A1"}
+        {
+          "type": "string",
+          "value": "B1"
+        },
+        {
+          "type": "string",
+          "value": "B2"
+        },
+        {
+          "type": "string",
+          "value": "A1"
+        }
       ],
       "comment": "Primary descending (2 before 1), secondary ascending (1 before 2)"
     },
@@ -314,15 +539,32 @@
       "expr": "items.sort(value).select(id)",
       "input": {
         "items": [
-          {"id": "B", "value": 2},
-          {"id": "empty"},
-          {"id": "A", "value": 1}
+          {
+            "id": "B",
+            "value": 2
+          },
+          {
+            "id": "empty"
+          },
+          {
+            "id": "A",
+            "value": 1
+          }
         ]
       },
       "expect": [
-        {"type": "string", "value": "empty"},
-        {"type": "string", "value": "A"},
-        {"type": "string", "value": "B"}
+        {
+          "type": "string",
+          "value": "empty"
+        },
+        {
+          "type": "string",
+          "value": "A"
+        },
+        {
+          "type": "string",
+          "value": "B"
+        }
       ],
       "comment": "Empty values are considered lower than all others - appear first when ascending"
     },
@@ -331,15 +573,32 @@
       "expr": "items.sort(value desc).select(id)",
       "input": {
         "items": [
-          {"id": "B", "value": 2},
-          {"id": "empty"},
-          {"id": "A", "value": 1}
+          {
+            "id": "B",
+            "value": 2
+          },
+          {
+            "id": "empty"
+          },
+          {
+            "id": "A",
+            "value": 1
+          }
         ]
       },
       "expect": [
-        {"type": "string", "value": "B"},
-        {"type": "string", "value": "A"},
-        {"type": "string", "value": "empty"}
+        {
+          "type": "string",
+          "value": "B"
+        },
+        {
+          "type": "string",
+          "value": "A"
+        },
+        {
+          "type": "string",
+          "value": "empty"
+        }
       ],
       "comment": "Empty values are lowest - appear last when descending"
     },
@@ -348,17 +607,39 @@
       "expr": "items.sort(value).select(id)",
       "input": {
         "items": [
-          {"id": "B", "value": 2},
-          {"id": "empty1"},
-          {"id": "A", "value": 1},
-          {"id": "empty2"}
+          {
+            "id": "B",
+            "value": 2
+          },
+          {
+            "id": "empty1"
+          },
+          {
+            "id": "A",
+            "value": 1
+          },
+          {
+            "id": "empty2"
+          }
         ]
       },
       "expect": [
-        {"type": "string", "value": "empty1"},
-        {"type": "string", "value": "empty2"},
-        {"type": "string", "value": "A"},
-        {"type": "string", "value": "B"}
+        {
+          "type": "string",
+          "value": "empty1"
+        },
+        {
+          "type": "string",
+          "value": "empty2"
+        },
+        {
+          "type": "string",
+          "value": "A"
+        },
+        {
+          "type": "string",
+          "value": "B"
+        }
       ],
       "comment": "Multiple empty values grouped at beginning in ascending"
     },
@@ -368,13 +649,36 @@
     {
       "name": "sort: handles duplicate values",
       "expr": "values.sort()",
-      "input": {"values": [2, 1, 2, 3, 1]},
+      "input": {
+        "values": [
+          2,
+          1,
+          2,
+          3,
+          1
+        ]
+      },
       "expect": [
-        {"type": "integer", "value": 1},
-        {"type": "integer", "value": 1},
-        {"type": "integer", "value": 2},
-        {"type": "integer", "value": 2},
-        {"type": "integer", "value": 3}
+        {
+          "type": "integer",
+          "value": 1
+        },
+        {
+          "type": "integer",
+          "value": 1
+        },
+        {
+          "type": "integer",
+          "value": 2
+        },
+        {
+          "type": "integer",
+          "value": 2
+        },
+        {
+          "type": "integer",
+          "value": 3
+        }
       ],
       "comment": "Duplicates from array input should be preserved and grouped together (note: union operator | removes duplicates)"
     },
@@ -386,9 +690,18 @@
       "expr": "(@2024-03-01 | @2024-01-15 | @2024-02-20).sort()",
       "input": {},
       "expect": [
-        {"type": "date", "value": "2024-01-15"},
-        {"type": "date", "value": "2024-02-20"},
-        {"type": "date", "value": "2024-03-01"}
+        {
+          "type": "date",
+          "value": "2024-01-15"
+        },
+        {
+          "type": "date",
+          "value": "2024-02-20"
+        },
+        {
+          "type": "date",
+          "value": "2024-03-01"
+        }
       ]
     },
     {
@@ -396,9 +709,18 @@
       "expr": "(@2024-03-01 | @2024-01-15 | @2024-02-20).sort($this desc)",
       "input": {},
       "expect": [
-        {"type": "date", "value": "2024-03-01"},
-        {"type": "date", "value": "2024-02-20"},
-        {"type": "date", "value": "2024-01-15"}
+        {
+          "type": "date",
+          "value": "2024-03-01"
+        },
+        {
+          "type": "date",
+          "value": "2024-02-20"
+        },
+        {
+          "type": "date",
+          "value": "2024-01-15"
+        }
       ]
     },
     {
@@ -406,9 +728,18 @@
       "expr": "(@T14:30:00 | @T09:15:00 | @T12:00:00).sort()",
       "input": {},
       "expect": [
-        {"type": "time", "value": "09:15:00"},
-        {"type": "time", "value": "12:00:00"},
-        {"type": "time", "value": "14:30:00"}
+        {
+          "type": "time",
+          "value": "09:15:00"
+        },
+        {
+          "type": "time",
+          "value": "12:00:00"
+        },
+        {
+          "type": "time",
+          "value": "14:30:00"
+        }
       ]
     },
     {
@@ -416,9 +747,18 @@
       "expr": "(@2024-01-01T14:30:00 | @2024-01-01T09:15:00 | @2024-01-01T12:00:00).sort()",
       "input": {},
       "expect": [
-        {"type": "dateTime", "value": "2024-01-01T09:15:00"},
-        {"type": "dateTime", "value": "2024-01-01T12:00:00"},
-        {"type": "dateTime", "value": "2024-01-01T14:30:00"}
+        {
+          "type": "dateTime",
+          "value": "2024-01-01T09:15:00"
+        },
+        {
+          "type": "dateTime",
+          "value": "2024-01-01T12:00:00"
+        },
+        {
+          "type": "dateTime",
+          "value": "2024-01-01T14:30:00"
+        }
       ]
     },
     {
@@ -429,11 +769,26 @@
       "expr": "(1 | -3 | 2 | -1 | 0).sort()",
       "input": {},
       "expect": [
-        {"type": "integer", "value": -3},
-        {"type": "integer", "value": -1},
-        {"type": "integer", "value": 0},
-        {"type": "integer", "value": 1},
-        {"type": "integer", "value": 2}
+        {
+          "type": "integer",
+          "value": -3
+        },
+        {
+          "type": "integer",
+          "value": -1
+        },
+        {
+          "type": "integer",
+          "value": 0
+        },
+        {
+          "type": "integer",
+          "value": 1
+        },
+        {
+          "type": "integer",
+          "value": 2
+        }
       ]
     },
     {
@@ -441,10 +796,22 @@
       "expr": "(1.5 | -2.5 | 0.0 | -1.0).sort()",
       "input": {},
       "expect": [
-        {"type": "decimal", "value": -2.5},
-        {"type": "decimal", "value": -1.0},
-        {"type": "decimal", "value": 0.0},
-        {"type": "decimal", "value": 1.5}
+        {
+          "type": "decimal",
+          "value": -2.5
+        },
+        {
+          "type": "decimal",
+          "value": -1.0
+        },
+        {
+          "type": "decimal",
+          "value": 0.0
+        },
+        {
+          "type": "decimal",
+          "value": 1.5
+        }
       ]
     },
     {
@@ -455,10 +822,22 @@
       "expr": "(3 | 1.5 | 2 | 2.5).sort()",
       "input": {},
       "expect": [
-        {"type": "decimal", "value": 1.5},
-        {"type": "integer", "value": 2},
-        {"type": "decimal", "value": 2.5},
-        {"type": "integer", "value": 3}
+        {
+          "type": "decimal",
+          "value": 1.5
+        },
+        {
+          "type": "integer",
+          "value": 2
+        },
+        {
+          "type": "decimal",
+          "value": 2.5
+        },
+        {
+          "type": "integer",
+          "value": 3
+        }
       ],
       "comment": "Integers implicitly convert to decimal for comparison"
     },
@@ -477,8 +856,17 @@
       "expr": "items.sort(values)",
       "input": {
         "items": [
-          {"values": [1, 2]},
-          {"values": [3]}
+          {
+            "values": [
+              1,
+              2
+            ]
+          },
+          {
+            "values": [
+              3
+            ]
+          }
         ]
       },
       "expect_error": true,

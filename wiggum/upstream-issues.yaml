@@ -27,3 +27,29 @@ issues:
     spec_section: 6.1 Operator Precedence
     created: 2026-01-28
     updated: 2026-01-28
+  - slug: lowboundary-highboundary-tests-expect-datetime-for-date-input
+    status: draft
+    severity: medium
+    category: test-error
+    target: fhirpath-editors
+    title: lowBoundary/highBoundary tests expect dateTime for Date input
+    description: "Spec says lowBoundary 'returns the same type as the value in the input collection'. For @2014 (a Date literal), the tests expect type 'dateTime' but should expect 'date'. Affected tests: LowBoundaryDateMonth, HighBoundaryDateMonth, HighBoundaryDateTimeMillisecond1, HighBoundaryDateTimeMillisecond3."
+    expected: dateTime
+    actual: date
+    test_file: tests-fhir-r5.xml
+    test_name: LowBoundaryDateMonth
+    created: 2026-01-28
+    updated: 2026-01-28
+  - slug: r5-tests-testsort8-testsort10-use-invalid-this-on-strings
+    status: draft
+    severity: medium
+    category: test-error
+    target: fhirpath-editors
+    title: R5 tests testSort8/testSort10 use invalid -$this on strings
+    description: "Tests testSort8 and testSort10 use -$this to reverse sort order, but -$this (unary minus) is not valid for strings. The spec shows 'desc' keyword for descending: ('c'|'a'|'b').sort($this desc). Firely .NET errors on -string. Suggest changing to use 'desc' keyword."
+    expected: sort('-$this') on strings should reverse sort order
+    actual: Unary minus on strings is not valid - should error or use 'desc' keyword
+    test_file: tests-fhir-r5.xml
+    test_name: testSort8, testSort10
+    created: 2026-01-28
+    updated: 2026-01-28

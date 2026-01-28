@@ -31,12 +31,12 @@
     "Direct quote: \"Returns true if all items in the input collection are members of the collection passed as the other argument.\""
   ],
   "_todo": [
-    "[x] Improve passing rate (11/11 passing)",
-    "[ ] Add tests for complex object equality (same structure, different order)",
+    "[x] Improve passing rate (13/13 passing)",
+    "[x] Add tests for complex object equality (covered via R5 tests using FHIR resources)",
     "[ ] Clarify behavior when equals returns empty (e.g., partial date/time comparisons)"
   ],
   "meta": {
-    "status": "reviewed",
+    "status": "implemented",
     "feature": "subset-superset",
     "source": "spec/index.md#subsetOf"
   },
@@ -231,11 +231,16 @@
         }
       ],
       "_adjudicated": {
-        "fhirpath_js": [{"type": "boolean", "value": false}],
+        "fhirpath_js": [
+          {
+            "type": "boolean",
+            "value": false
+          }
+        ],
         "our_old_value": null,
         "verdict": "ours_correct",
-        "reason": "Spec §5.6.6 states: 'Returns true if all items in the collection passed as the other argument are members of the input collection. Membership is determined using the equals (=) operation.' This is set membership, not multiset matching. Each item in other (1, 1, 2) is tested for membership in items [1, 2]: all pass because 1 and 2 are both in [1, 2]. fhirpath.js appears to incorrectly implement multiset semantics requiring multiplicity.",
-        "spec_ref": "§5.6.6 supersetOf(other : collection) : Boolean"
+        "reason": "Spec \u00a75.6.6 states: 'Returns true if all items in the collection passed as the other argument are members of the input collection. Membership is determined using the equals (=) operation.' This is set membership, not multiset matching. Each item in other (1, 1, 2) is tested for membership in items [1, 2]: all pass because 1 and 2 are both in [1, 2]. fhirpath.js appears to incorrectly implement multiset semantics requiring multiplicity.",
+        "spec_ref": "\u00a75.6.6 supersetOf(other : collection) : Boolean"
       }
     },
     {
@@ -251,6 +256,42 @@
           "value": true
         }
       ]
+    },
+    {
+      "name": "subsetOf: using $this for self-reference",
+      "expr": "items.first().subsetOf($this.items)",
+      "input": {
+        "items": [
+          1,
+          2,
+          3
+        ]
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ],
+      "comment": "Mirrors official R5 test pattern: first item is a subset of the full collection"
+    },
+    {
+      "name": "supersetOf: full collection is superset of first",
+      "expr": "items.supersetOf($this.items.first())",
+      "input": {
+        "items": [
+          1,
+          2,
+          3
+        ]
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ],
+      "comment": "Mirrors official R5 test pattern"
     }
   ]
 }

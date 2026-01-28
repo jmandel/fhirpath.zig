@@ -1,6 +1,6 @@
 {
   "meta": {
-    "status": "reviewed",
+    "status": "implemented",
     "spec_sections": [
       "5.1.4 (Integer, Decimal, Quantity literals)",
       "6.6 (Math operators)",

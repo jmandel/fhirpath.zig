@@ -13,8 +13,16 @@
     "",
     "2. TYPED ACCESS via concrete name:",
     "   - `Observation.valueQuantity` accesses only valueQuantity directly",
-    "   - Returns empty if a different variant is present",
-    "   - Should ERROR if the concrete name doesn't match what's in the data (per testPolymorphismB)",
+    "   - Returns empty if a different variant is present (in non-strict mode)",
+    "   - In STRICT mode only, it should error if the concrete name doesn't match (testPolymorphismB)",
+    "",
+    "=== STRICT vs NON-STRICT MODE ===",
+    "R5 official tests define 'mode: strict' for compile-time type checking behavior.",
+    "In strict mode, accessing the wrong variant should error (semantic validation).",
+    "In normal (non-strict) mode, accessing a nonexistent variant returns empty.",
+    "Example: Observation.valueQuantity.unit when valueString is present:",
+    "  - strict mode: semantic error",
+    "  - normal mode: returns empty []",
     "",
     "=== TYPE CHECKING ===",
     "- `is Quantity` checks if the resolved value is of type Quantity",
@@ -26,7 +34,12 @@
     "'JSON and XML specific features are not visible to the FHIRPath language",
     "(such as comments and the split representation of primitives (i.e. value[x]))'",
     "",
-    "From spec §11.2:",
+    "From spec §3.9 (Paths and polymorphic items):",
+    "'Paths may either ignore the type of a node, and continue along the path or may",
+    "be explicit about the expected node and filter the set of nodes by type before",
+    "navigating down child nodes.'",
+    "",
+    "From spec §11.2 (Type safety and strict evaluation):",
     "'A member which is polymorphic (e.g. a choice[x] type in FHIR)'",
     "'Authors can use the as operator or ofType() function directly after such constructs",
     "to inform the compiler of the expected type.'",
@@ -40,15 +53,17 @@
     "concrete field in the JSON (valueQuantity, valueString, etc.) using model info."
   ],
   "_todo": [
-    "[ ] Improve passing rate (4/22 passing - requires model-aware choice type resolution)",
-    "[ ] Test value[x] with Quantity (valueQuantity)",
-    "[ ] Test value[x] with CodeableConcept (valueCodeableConcept)",
-    "[ ] Test value[x] with String (valueString)",
-    "[ ] Test type checking with is/as/ofType",
-    "[ ] Test error cases for accessing wrong concrete name"
+    "[ ] Improve passing rate (5/22 with model, 4/22 without - requires model-aware choice type resolution)",
+    "[x] Test value[x] with Quantity (valueQuantity)",
+    "[ ] Add CodeableConcept variant tests when needed",
+    "[x] Test value[x] with String (valueString)",
+    "[x] Test value[x] with Integer/Boolean/DateTime",
+    "[x] Test type checking with is/as/ofType",
+    "[x] Verify concrete access behavior (empty vs error) per spec",
+    "[x] Document strict vs non-strict mode behavior"
   ],
   "meta": {
-    "status": "drafted",
+    "status": "reviewed",
     "feature": "fhir-choice-types",
     "requires_model": true
   },
@@ -240,14 +255,14 @@
       "expect": [{"type": "string", "value": "lbs"}]
     },
     {
-      "name": "concrete access: wrong variant errors",
-      "comment": "Per R5 testPolymorphismB, accessing valueQuantity when valueString is present should error",
+      "name": "concrete access: missing variant returns empty",
+      "comment": "In non-strict mode, accessing valueQuantity when valueString is present returns empty (not error). Only in strict mode (compile-time type checking) would this error - see testPolymorphismB in R5.",
       "expr": "Observation.valueQuantity.unit",
       "input": {
         "resourceType": "Observation",
         "valueString": "positive"
       },
-      "expect_error": true
+      "expect": []
     },
     {
       "_section": "=== NO VALUE PRESENT ==="

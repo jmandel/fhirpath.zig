@@ -4215,6 +4215,18 @@ fn evalFunction(
         }
         return out;
     }
+    // trace(name: String [, projection: Expression]) - debugging function that returns input unchanged
+    // The name and optional projection are for logging; the function always returns its input.
+    if (std.mem.eql(u8, call.name, "trace")) {
+        if (call.args.len < 1 or call.args.len > 2) return error.InvalidFunction;
+        // Note: We don't actually log anything - that's implementation-defined.
+        // The key behavior is that trace() returns its input unchanged.
+        // If there's a projection (2nd arg), we'd evaluate it for logging but still return input.
+        // Since we're not logging, we don't need to evaluate the projection.
+        var out = ItemList.empty;
+        try out.appendSlice(ctx.allocator, input);
+        return out;
+    }
     return error.InvalidFunction;
 }
 

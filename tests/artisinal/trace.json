@@ -1,6 +1,6 @@
 {
   "meta": {
-    "status": "drafted",
+    "status": "implemented",
     "spec_sections": ["5.11.1 (trace)"]
   },
   "_spec_summary": {
@@ -22,8 +22,8 @@
     "chaining": "Because trace() returns its input unchanged, it can be inserted anywhere in a chain without affecting the result: expr.trace('x').count() == expr.count()"
   },
   "_todo": [
-    "[ ] Improve passing rate (0/15 passing)",
-    "[ ] Implement trace() function in evaluator",
+    "[x] Improve passing rate (15/15 passing)",
+    "[x] Implement trace() function in evaluator",
     "[ ] Consider whether logging side-effects should be testable"
   ],
   "cases": [

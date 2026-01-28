@@ -6,7 +6,7 @@
     "Performs truncated division of left operand by right operand.",
     "- Supported for Integer and Decimal operands",
     "- Result is always Integer for integer inputs, Decimal for decimal inputs",
-    "- 'Truncated' means the fractional part is discarded (floor toward zero)",
+    "- 'Truncated' means the fractional part is discarded (toward zero, NOT floor)",
     "- Division by zero returns empty collection ({}), NOT an error",
     "- Empty operands return empty collection",
     "",
@@ -56,13 +56,14 @@
   ],
   "_todo": [
     "[x] Improve passing rate (36/36 passing)",
+    "[x] Verified against spec §div, §mod, §& (string concatenation) sections",
     "[ ] Verify decimal div/mod precision handling - floating point precision issues require ~ instead of =",
     "[ ] Test negative number truncation behavior (toward zero, not toward -infinity)",
     "[ ] Add tests for multi-item collection in & (if specification clarifies)",
     "[ ] Note: decimal div returns Decimal type, not Integer - matches R5 equality tests"
   ],
   "meta": {
-    "status": "drafted"
+    "status": "reviewed"
   },
   "cases": [
     {

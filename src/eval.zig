@@ -2248,6 +2248,64 @@ fn evalFunction(
         try out.append(ctx.allocator, makeBoolItem(ctx, convertible));
         return out;
     }
+    if (std.mem.eql(u8, call.name, "toQuantity")) {
+        // toQuantity([unit]) - optional unit argument for conversion
+        if (call.args.len > 1) return error.InvalidFunction;
+        var out = ItemList.empty;
+        if (input.len == 0) return out;
+        if (input.len != 1) return error.SingletonRequired;
+        if (convertToQuantity(ctx, input[0])) |q| {
+            // If unit argument is provided, we would need to convert
+            // For now, we don't support unit conversion - just return empty
+            if (call.args.len == 1) {
+                // Unit conversion requested - check if same unit, else empty
+                const target_unit = try evalExpressionCtx(ctx, call.args[0], ctx.root_item, env, null);
+                if (target_unit.items.len == 1) {
+                    const target_str = itemStringValue(ctx, target_unit.items[0]);
+                    if (target_str) |tu| {
+                        if (std.mem.eql(u8, q.unit, tu)) {
+                            // Same unit - return as-is
+                            try out.append(ctx.allocator, makeQuantityItem(ctx, q.value, q.unit));
+                            return out;
+                        }
+                    }
+                }
+                // Unit conversion not supported - return empty
+                return out;
+            }
+            try out.append(ctx.allocator, makeQuantityItem(ctx, q.value, q.unit));
+        }
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "convertsToQuantity")) {
+        // convertsToQuantity([unit]) - optional unit argument
+        if (call.args.len > 1) return error.InvalidFunction;
+        var out = ItemList.empty;
+        if (input.len == 0) return out;
+        if (input.len != 1) return error.SingletonRequired;
+        var convertible = canConvertToQuantity(ctx, input[0]);
+        // If unit argument provided, check if conversion would succeed
+        if (convertible and call.args.len == 1) {
+            if (convertToQuantity(ctx, input[0])) |q| {
+                const target_unit = try evalExpressionCtx(ctx, call.args[0], ctx.root_item, env, null);
+                if (target_unit.items.len == 1) {
+                    const target_str = itemStringValue(ctx, target_unit.items[0]);
+                    if (target_str) |tu| {
+                        // Only same unit conversion supported
+                        convertible = std.mem.eql(u8, q.unit, tu);
+                    } else {
+                        convertible = false;
+                    }
+                } else {
+                    convertible = false;
+                }
+            } else {
+                convertible = false;
+            }
+        }
+        try out.append(ctx.allocator, makeBoolItem(ctx, convertible));
+        return out;
+    }
     if (std.mem.eql(u8, call.name, "not")) {
         // not() returns the boolean negation of the input
         // Per FHIRPath spec: non-boolean singleton is truthy, so not() returns false
@@ -4614,6 +4672,152 @@ fn convertToDateTime(ctx: anytype, it: item.Item) ?[]const u8 {
         },
         else => return null,
     }
+}
+
+// Quantity value tuple for conversion functions
+const QuantityParts = struct {
+    value: []const u8,
+    unit: []const u8,
+};
+
+// Parse a quantity string according to the FHIRPath spec regex:
+// (?'value'(\+|-)?\d+(\.\d+)?)\s*('(?'unit'[^']+)'|(?'time'[a-zA-Z]+))?
+// Returns (value, unit) where unit defaults to '1' if not provided.
+fn parseQuantityString(s: []const u8) ?QuantityParts {
+    if (s.len == 0) return null;
+
+    var idx: usize = 0;
+
+    // Parse optional sign
+    if (idx < s.len and (s[idx] == '+' or s[idx] == '-')) {
+        idx += 1;
+    }
+
+    // Parse integer part (required: at least one digit)
+    const int_start = idx;
+    while (idx < s.len and s[idx] >= '0' and s[idx] <= '9') {
+        idx += 1;
+    }
+    if (idx == int_start) return null; // no digits
+
+    // Parse optional decimal part
+    if (idx < s.len and s[idx] == '.') {
+        idx += 1;
+        const dec_start = idx;
+        while (idx < s.len and s[idx] >= '0' and s[idx] <= '9') {
+            idx += 1;
+        }
+        if (idx == dec_start) return null; // decimal point but no digits
+    }
+
+    const value_end = idx;
+    const value = s[0..value_end];
+
+    // Skip whitespace
+    while (idx < s.len and (s[idx] == ' ' or s[idx] == '\t')) {
+        idx += 1;
+    }
+
+    // If nothing left, unit defaults to '1'
+    if (idx >= s.len) {
+        return .{ .value = value, .unit = "1" };
+    }
+
+    // Check for quoted unit: '...'
+    if (s[idx] == '\'') {
+        idx += 1;
+        const unit_start = idx;
+        // Find closing quote
+        while (idx < s.len and s[idx] != '\'') {
+            idx += 1;
+        }
+        if (idx >= s.len) return null; // no closing quote
+        const unit = s[unit_start..idx];
+        idx += 1; // skip closing quote
+
+        // Should be at end of string (allow trailing whitespace)
+        while (idx < s.len and (s[idx] == ' ' or s[idx] == '\t')) {
+            idx += 1;
+        }
+        if (idx != s.len) return null; // extra characters after unit
+
+        return .{ .value = value, .unit = unit };
+    }
+
+    // Check for calendar duration keyword: alphabetic characters only
+    const time_start = idx;
+    while (idx < s.len and ((s[idx] >= 'a' and s[idx] <= 'z') or (s[idx] >= 'A' and s[idx] <= 'Z'))) {
+        idx += 1;
+    }
+    if (idx > time_start) {
+        const time_unit = s[time_start..idx];
+
+        // Should be at end of string (allow trailing whitespace)
+        while (idx < s.len and (s[idx] == ' ' or s[idx] == '\t')) {
+            idx += 1;
+        }
+        if (idx != s.len) return null; // extra characters after unit
+
+        // Only accept valid calendar duration keywords as bare words
+        // Per spec: year/years, month/months, week/weeks, day/days,
+        // hour/hours, minute/minutes, second/seconds, millisecond/milliseconds
+        if (!isCalendarDurationKeyword(time_unit)) return null;
+
+        return .{ .value = value, .unit = time_unit };
+    }
+
+    // Something else - invalid
+    return null;
+}
+
+// Check if a string is a valid FHIRPath calendar duration keyword
+fn isCalendarDurationKeyword(s: []const u8) bool {
+    const keywords = [_][]const u8{
+        "year",   "years",
+        "month",  "months",
+        "week",   "weeks",
+        "day",    "days",
+        "hour",   "hours",
+        "minute", "minutes",
+        "second", "seconds",
+        "millisecond", "milliseconds",
+    };
+    for (keywords) |kw| {
+        if (std.mem.eql(u8, s, kw)) return true;
+    }
+    return false;
+}
+
+// Convert item to Quantity (for toQuantity)
+// Returns (value, unit) tuple or null if conversion fails.
+fn convertToQuantity(ctx: anytype, it: item.Item) ?QuantityParts {
+    const val = itemToValue(ctx, it);
+    switch (val) {
+        .quantity => |q| return .{ .value = q.value, .unit = q.unit }, // passthrough
+        .integer => |v| {
+            // Integer becomes decimal string with unit '1'
+            const value_str = std.fmt.allocPrint(ctx.allocator, "{d}", .{v}) catch return null;
+            return .{ .value = value_str, .unit = "1" };
+        },
+        .decimal => |d| return .{ .value = d, .unit = "1" }, // decimal with unit '1'
+        .boolean => |b| {
+            // true -> 1.0 '1', false -> 0.0 '1'
+            const value_str = if (b) "1.0" else "0.0";
+            return .{ .value = value_str, .unit = "1" };
+        },
+        .string => |s| return parseQuantityString(s),
+        else => return null,
+    }
+}
+
+// Check if item can be converted to Quantity
+fn canConvertToQuantity(ctx: anytype, it: item.Item) bool {
+    const val = itemToValue(ctx, it);
+    return switch (val) {
+        .quantity, .integer, .decimal, .boolean => true,
+        .string => |s| parseQuantityString(s) != null,
+        else => false,
+    };
 }
 
 fn typeIdForNode(ctx: anytype, node_ref: @TypeOf(ctx.adapter.*).NodeRef) !u32 {

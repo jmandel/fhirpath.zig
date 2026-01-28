@@ -59,11 +59,24 @@ Minimal usage from JS:
 import { FhirPathEngine } from "./js/fhirpath.js";
 
 const engine = await FhirPathEngine.instantiate("./fhirpath.wasm");
-engine.registerSchema({ name: "r5", prefix: "FHIR", model: modelBytes, isDefault: true });
+await engine.registerSchemaFromUrl({
+  name: "r5",
+  prefix: "FHIR",
+  url: "./model-r5.bin",
+  isDefault: true,
+});
 
 for (const node of engine.eval({ expr: "name.given", json: patientJson, schema: "r5" })) {
   console.log(node.meta.typeName, node.data);
 }
+```
+
+If you need `now()`, `today()`, or `timeOfDay()` to reflect a specific time, set it:
+
+```js
+engine.setNowDate(new Date()); // uses Unix epoch seconds internally
+// or per-eval:
+engine.eval({ expr: "now()", json: "{}", schema: "r5", now: new Date() });
 ```
 
 ### Web demo (landing page)

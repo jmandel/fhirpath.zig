@@ -46,6 +46,17 @@ async function resolveWasm(wasm) {
   throw new Error("Unsupported wasm input");
 }
 
+async function resolveBytes(input) {
+  if (input instanceof Response) return input.arrayBuffer();
+  if (typeof input === "string" || input instanceof URL) {
+    const res = await fetch(input);
+    if (!res.ok) throw new Error(`Failed to fetch bytes: ${res.status}`);
+    return res.arrayBuffer();
+  }
+  if (input instanceof ArrayBuffer || ArrayBuffer.isView(input)) return input;
+  throw new Error("Unsupported byte input");
+}
+
 function readDecimal(view, ptr) {
   const sign = view.getInt32(ptr + 0, true);
   const scale = view.getUint32(ptr + 4, true);
@@ -128,9 +139,31 @@ export class FhirPathEngine {
     }
   }
 
-  eval({ expr, json, schema = "", env = null } = {}) {
+  async registerSchemaFromUrl({ name, prefix = "FHIR", url, isDefault = false }) {
+    if (!url) throw new Error("schema url required");
+    const bytes = await resolveBytes(url);
+    this.registerSchema({ name, prefix, model: bytes, isDefault });
+  }
+
+  eval({ expr, json, schema = "", env = null, now = undefined } = {}) {
     if (env && Object.keys(env).length > 0) {
       throw new Error("env is not supported by the current wasm build");
+    }
+    if (now !== undefined) {
+      if (now instanceof Date) {
+        this.setNowDate(now);
+      } else {
+        this.setNowEpochSeconds(now);
+      }
+    }
+    if (json === undefined || json === null) {
+      json = "";
+    }
+    if (expr === undefined || expr === null) {
+      expr = "";
+    }
+    if (schema === undefined || schema === null) {
+      schema = "";
     }
     const exprBuf = this.#writeString(expr ?? "");
     const jsonBuf = this.#writeString(json ?? "");
@@ -162,6 +195,19 @@ export class FhirPathEngine {
     this._lastJsonBuf = jsonBuf;
 
     return new FhirPathResult(this);
+  }
+
+  setNowEpochSeconds(seconds) {
+    const value = typeof seconds === "bigint" ? seconds : BigInt(Math.floor(seconds));
+    const status = this.exports.fhirpath_ctx_set_time(this.ctx, value);
+    if (status !== Status.ok) {
+      throw new Error(`set_time failed: ${status}`);
+    }
+  }
+
+  setNowDate(date) {
+    const ms = date instanceof Date ? date.getTime() : Number(date);
+    this.setNowEpochSeconds(Math.floor(ms / 1000));
   }
 
   typeNameFromId(typeId) {

@@ -104,6 +104,9 @@ export fn fhirpath_ctx_register_schema(
     model_len: u32,
     is_default: u32, // 0 or 1
 ) Status;
+
+// Set current time (Unix epoch seconds) used by now(), today(), timeOfDay().
+export fn fhirpath_ctx_set_time(ctx: u32, epoch_seconds: i64) Status;
 ```
 
 Behavior:

@@ -119,10 +119,12 @@ async function init() {
     engine = await FhirPathEngine.instantiate(new URL("./fhirpath.wasm", import.meta.url));
 
     statusEl.textContent = "Loading schema…";
-    const modelRes = await fetch(new URL("./model-r5.bin", import.meta.url));
-    if (!modelRes.ok) throw new Error("Failed to load model-r5.bin");
-    const modelBuf = await modelRes.arrayBuffer();
-    engine.registerSchema({ name: "r5", prefix: "FHIR", model: modelBuf, isDefault: true });
+    await engine.registerSchemaFromUrl({
+      name: "r5",
+      prefix: "FHIR",
+      url: new URL("./model-r5.bin", import.meta.url),
+      isDefault: true,
+    });
 
     statusEl.textContent = "Ready";
   } catch (err) {
@@ -157,7 +159,7 @@ async function runExpression() {
   }
 
   try {
-    const results = engine.eval({ expr, json: jsonText, schema: "r5" });
+    const results = engine.eval({ expr, json: jsonText, schema: "r5", now: new Date() });
     let count = 0;
     for (const node of results) {
       count += 1;

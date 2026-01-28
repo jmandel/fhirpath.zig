@@ -71,13 +71,13 @@
   ],
   "_todo": [
     "[ ] Improve passing rate (0/21 passing)",
-    "[ ] Verify week boundary is Sunday per spec",
+    "[x] Verify week boundary is Sunday per spec (confirmed: spec §2501)",
     "[ ] Test timezone normalization for datetime comparisons",
-    "[ ] Test negative results when input > value",
-    "[ ] Verify precision validation for each type (date/datetime/time)"
+    "[x] Test negative results when input > value (covered)",
+    "[x] Verify precision validation for each type (date/datetime/time)"
   ],
   "meta": {
-    "status": "drafted"
+    "status": "reviewed"
   },
   "cases": [
     {

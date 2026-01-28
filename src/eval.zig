@@ -498,6 +498,25 @@ const DateTimeParts = struct {
     time: TimeParts,
 };
 
+const TimePartsPartial = struct {
+    hour: []const u8,
+    minute: ?[]const u8,
+    second: ?[]const u8,
+    zone: ?[]const u8,
+};
+
+const SecondParts = struct {
+    whole: []const u8,
+    frac: ?[]const u8,
+};
+
+const BoundaryKind = enum { low, high };
+
+const DecimalMaxPrecision: u32 = 8;
+const DateMaxPrecision: u32 = 8;
+const DateTimeMaxPrecision: u32 = 17;
+const TimeMaxPrecision: u32 = 9;
+
 fn parseDateParts(text: []const u8) ?DateParts {
     if (text.len == 0) return null;
     var it = std.mem.splitScalar(u8, text, '-');
@@ -543,6 +562,302 @@ fn parseDateTimeParts(text: []const u8) ?DateTimeParts {
     const date = parseDateParts(date_part) orelse return null;
     const time = parseTimeParts(time_part) orelse return null;
     return .{ .date = date, .time = time };
+}
+
+fn stripAtPrefix(text: []const u8) []const u8 {
+    if (text.len > 0 and text[0] == '@') return text[1..];
+    return text;
+}
+
+fn stripTimePrefix(text: []const u8) []const u8 {
+    if (text.len > 0 and text[0] == 'T') return text[1..];
+    return text;
+}
+
+fn parseTimePartsPartial(text: []const u8) ?TimePartsPartial {
+    if (text.len == 0) return null;
+    var tz_index: ?usize = null;
+    var idx: usize = 0;
+    while (idx < text.len) : (idx += 1) {
+        const c = text[idx];
+        if (c == 'Z' or c == '+' or c == '-') {
+            tz_index = idx;
+            break;
+        }
+    }
+    const time_part = if (tz_index) |pos| text[0..pos] else text;
+    const zone_part = if (tz_index) |pos| text[pos..] else null;
+
+    var it = std.mem.splitScalar(u8, time_part, ':');
+    const hour = it.next() orelse return null;
+    const minute = it.next();
+    const second = it.next();
+    if (it.next() != null) return null;
+
+    return .{
+        .hour = hour,
+        .minute = minute,
+        .second = second,
+        .zone = zone_part,
+    };
+}
+
+fn splitSecond(sec: []const u8) SecondParts {
+    if (std.mem.indexOfScalar(u8, sec, '.')) |dot| {
+        return .{ .whole = sec[0..dot], .frac = sec[dot + 1 ..] };
+    }
+    return .{ .whole = sec, .frac = null };
+}
+
+fn datePrecisionDigits(text: []const u8) ?u32 {
+    const normalized = stripAtPrefix(text);
+    const parts = parseDateParts(normalized) orelse return null;
+    var prec: u32 = 4;
+    if (parts.month != null) prec += 2;
+    if (parts.day != null) prec += 2;
+    return prec;
+}
+
+fn timePrecisionDigits(text: []const u8) ?u32 {
+    const normalized = stripTimePrefix(stripAtPrefix(text));
+    const parts = parseTimePartsPartial(normalized) orelse return null;
+    var prec: u32 = 2;
+    if (parts.minute == null) return prec;
+    prec += 2;
+    if (parts.second) |sec| {
+        prec += 2;
+        if (std.mem.indexOfScalar(u8, sec, '.')) |dot| {
+            const frac_len = sec.len - dot - 1;
+            prec += @intCast(frac_len);
+        }
+    }
+    return prec;
+}
+
+fn dateTimePrecisionDigits(text: []const u8) ?u32 {
+    const normalized = stripAtPrefix(text);
+    if (std.mem.indexOfScalar(u8, normalized, 'T')) |t_index| {
+        const date_part = normalized[0..t_index];
+        const time_part = normalized[t_index + 1 ..];
+        const date_prec = datePrecisionDigits(date_part) orelse return null;
+        const time_prec = timePrecisionDigits(time_part) orelse return null;
+        return date_prec + time_prec;
+    }
+    return datePrecisionDigits(normalized);
+}
+
+fn isLeapYear(year: i32) bool {
+    if (@mod(year, 400) == 0) return true;
+    if (@mod(year, 100) == 0) return false;
+    return @mod(year, 4) == 0;
+}
+
+fn daysInMonth(year: i32, month: u32) ?u32 {
+    if (month < 1 or month > 12) return null;
+    return switch (month) {
+        1, 3, 5, 7, 8, 10, 12 => 31,
+        4, 6, 9, 11 => 30,
+        2 => if (isLeapYear(year)) 29 else 28,
+        else => null,
+    };
+}
+
+fn appendTwoDigits(out: *std.ArrayList(u8), allocator: std.mem.Allocator, value: u32) EvalError!void {
+    var buf: [2]u8 = undefined;
+    const slice = std.fmt.bufPrint(&buf, "{d:0>2}", .{value}) catch return error.InvalidOperand;
+    try out.appendSlice(allocator, slice);
+}
+
+fn buildDateBoundary(
+    allocator: std.mem.Allocator,
+    text: []const u8,
+    precision: u32,
+    kind: BoundaryKind,
+) EvalError!?[]const u8 {
+    if (precision != 4 and precision != 6 and precision != 8) return null;
+    const normalized = stripAtPrefix(text);
+    const parts = parseDateParts(normalized) orelse return null;
+
+    var out = std.ArrayList(u8).empty;
+    errdefer out.deinit(allocator);
+
+    try out.appendSlice(allocator, parts.year);
+
+    if (precision >= 6) {
+        try out.append(allocator, '-');
+        const month = parts.month orelse if (kind == .low) "01" else "12";
+        try out.appendSlice(allocator, month);
+    }
+
+    if (precision >= 8) {
+        try out.append(allocator, '-');
+        if (parts.day) |day| {
+            try out.appendSlice(allocator, day);
+        } else if (kind == .low) {
+            try out.appendSlice(allocator, "01");
+        } else {
+            const month = parts.month orelse "12";
+            const year_val = std.fmt.parseInt(i32, parts.year, 10) catch return null;
+            const month_val = std.fmt.parseInt(u32, month, 10) catch return null;
+            const day_val = daysInMonth(year_val, month_val) orelse return null;
+            try appendTwoDigits(&out, allocator, day_val);
+        }
+    }
+
+    return try out.toOwnedSlice(allocator);
+}
+
+fn buildTimeBoundary(
+    allocator: std.mem.Allocator,
+    text: []const u8,
+    precision: u32,
+    kind: BoundaryKind,
+) EvalError!?[]const u8 {
+    if (precision != 2 and precision != 4 and precision != 6 and precision != 9) return null;
+    const normalized = stripTimePrefix(stripAtPrefix(text));
+    const parts = parseTimePartsPartial(normalized) orelse return null;
+
+    var out = std.ArrayList(u8).empty;
+    errdefer out.deinit(allocator);
+
+    if (parts.hour.len == 0) return null;
+    try out.appendSlice(allocator, parts.hour);
+
+    if (precision >= 4) {
+        try out.append(allocator, ':');
+        const minute = parts.minute orelse if (kind == .low) "00" else "59";
+        try out.appendSlice(allocator, minute);
+    }
+
+    if (precision >= 6) {
+        try out.append(allocator, ':');
+        const sec_text = parts.second orelse if (kind == .low) "00" else "59";
+        const sec_parts = splitSecond(sec_text);
+        try out.appendSlice(allocator, sec_parts.whole);
+        if (precision == 9) {
+            try out.append(allocator, '.');
+            if (sec_parts.frac) |frac| {
+                if (frac.len >= 3) {
+                    try out.appendSlice(allocator, frac[0..3]);
+                } else {
+                    try out.appendSlice(allocator, frac);
+                    const pad_char: u8 = if (kind == .low) '0' else '9';
+                    var i: usize = frac.len;
+                    while (i < 3) : (i += 1) {
+                        try out.append(allocator, pad_char);
+                    }
+                }
+            } else {
+                const fill = if (kind == .low) "000" else "999";
+                try out.appendSlice(allocator, fill);
+            }
+        }
+    }
+
+    if (parts.zone) |zone| {
+        try out.appendSlice(allocator, zone);
+    }
+
+    return try out.toOwnedSlice(allocator);
+}
+
+fn buildDateTimeBoundary(
+    allocator: std.mem.Allocator,
+    text: []const u8,
+    precision: u32,
+    kind: BoundaryKind,
+) EvalError!?[]const u8 {
+    if (precision != 4 and precision != 6 and precision != 8 and precision != 10 and precision != 12 and precision != 14 and precision != 17) return null;
+    const normalized = stripAtPrefix(text);
+    var date_part = normalized;
+    var time_part: ?[]const u8 = null;
+    if (std.mem.indexOfScalar(u8, normalized, 'T')) |t_index| {
+        date_part = normalized[0..t_index];
+        time_part = normalized[t_index + 1 ..];
+    }
+
+    const date = parseDateParts(date_part) orelse return null;
+    const time = if (time_part) |tp| parseTimePartsPartial(tp) else null;
+
+    var out = std.ArrayList(u8).empty;
+    errdefer out.deinit(allocator);
+
+    try out.appendSlice(allocator, date.year);
+
+    if (precision >= 6) {
+        try out.append(allocator, '-');
+        const month = date.month orelse if (kind == .low) "01" else "12";
+        try out.appendSlice(allocator, month);
+    }
+
+    if (precision >= 8) {
+        try out.append(allocator, '-');
+        if (date.day) |day| {
+            try out.appendSlice(allocator, day);
+        } else if (kind == .low) {
+            try out.appendSlice(allocator, "01");
+        } else {
+            const month = date.month orelse "12";
+            const year_val = std.fmt.parseInt(i32, date.year, 10) catch return null;
+            const month_val = std.fmt.parseInt(u32, month, 10) catch return null;
+            const day_val = daysInMonth(year_val, month_val) orelse return null;
+            try appendTwoDigits(&out, allocator, day_val);
+        }
+    }
+
+    if (precision >= 10) {
+        const time_parts = time orelse TimePartsPartial{
+            .hour = "",
+            .minute = null,
+            .second = null,
+            .zone = null,
+        };
+        try out.append(allocator, 'T');
+        const hour = if (time_parts.hour.len > 0) time_parts.hour else if (kind == .low) "00" else "23";
+        try out.appendSlice(allocator, hour);
+
+        if (precision >= 12) {
+            try out.append(allocator, ':');
+            const minute = time_parts.minute orelse if (kind == .low) "00" else "59";
+            try out.appendSlice(allocator, minute);
+        }
+
+        if (precision >= 14) {
+            try out.append(allocator, ':');
+            const sec_text = time_parts.second orelse if (kind == .low) "00" else "59";
+            const sec_parts = splitSecond(sec_text);
+            try out.appendSlice(allocator, sec_parts.whole);
+
+            if (precision == 17) {
+                try out.append(allocator, '.');
+                if (sec_parts.frac) |frac| {
+                    if (frac.len >= 3) {
+                        try out.appendSlice(allocator, frac[0..3]);
+                    } else {
+                        try out.appendSlice(allocator, frac);
+                        const pad_char: u8 = if (kind == .low) '0' else '9';
+                        var i: usize = frac.len;
+                        while (i < 3) : (i += 1) {
+                            try out.append(allocator, pad_char);
+                        }
+                    }
+                } else {
+                    const fill = if (kind == .low) "000" else "999";
+                    try out.appendSlice(allocator, fill);
+                }
+            }
+        }
+
+        const zone = if (time) |tp| tp.zone else null;
+        if (zone) |z| {
+            try out.appendSlice(allocator, z);
+        } else {
+            const fill = if (kind == .low) "+14:00" else "-12:00";
+            try out.appendSlice(allocator, fill);
+        }
+    }
+
+    return try out.toOwnedSlice(allocator);
 }
 
 fn datePartsEquivalent(a: DateParts, b: DateParts) bool {
@@ -1639,6 +1954,145 @@ fn evalFunction(
         const precision: i64 = if (call.args.len > 0) (try parseIntegerArg(call)) else 0;
         return evalRound(ctx, input[0], precision);
     }
+    if (std.mem.eql(u8, call.name, "precision")) {
+        if (call.args.len != 0) return error.InvalidFunction;
+        var out = ItemList.empty;
+        if (input.len == 0) return out;
+        if (input.len != 1) return error.SingletonRequired;
+        const it = input[0];
+        const val = itemToValue(ctx, it);
+
+        const date_id = ctx.types.getOrAdd("System.Date") catch 0;
+        const time_id = ctx.types.getOrAdd("System.Time") catch 0;
+        const datetime_id = ctx.types.getOrAdd("System.DateTime") catch 0;
+
+        if (val == .decimal) {
+            const scale = decimalScale(val.decimal) orelse return out;
+            try out.append(ctx.allocator, makeIntegerItem(ctx, @intCast(scale)));
+            return out;
+        }
+        if (val == .date or it.type_id == date_id) {
+            const text = if (val == .date) val.date else if (val == .string) val.string else return out;
+            const prec = datePrecisionDigits(text) orelse return out;
+            try out.append(ctx.allocator, makeIntegerItem(ctx, @intCast(prec)));
+            return out;
+        }
+        if (val == .dateTime or it.type_id == datetime_id) {
+            const text = if (val == .dateTime) val.dateTime else if (val == .string) val.string else return out;
+            const prec = dateTimePrecisionDigits(text) orelse return out;
+            try out.append(ctx.allocator, makeIntegerItem(ctx, @intCast(prec)));
+            return out;
+        }
+        if (val == .time or it.type_id == time_id) {
+            const text = if (val == .time) val.time else if (val == .string) val.string else return out;
+            const prec = timePrecisionDigits(text) orelse return out;
+            try out.append(ctx.allocator, makeIntegerItem(ctx, @intCast(prec)));
+            return out;
+        }
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "lowBoundary") or std.mem.eql(u8, call.name, "highBoundary")) {
+        if (call.args.len > 1) return error.InvalidFunction;
+        var out = ItemList.empty;
+        if (input.len == 0) return out;
+        if (input.len != 1) return error.SingletonRequired;
+
+        const it = input[0];
+        const val = itemToValue(ctx, it);
+        const kind: BoundaryKind = if (std.mem.eql(u8, call.name, "lowBoundary")) .low else .high;
+
+        var precision_opt: ?i64 = null;
+        if (call.args.len == 1) {
+            precision_opt = try evalIntegerArg(ctx, call.args[0], env);
+            if (precision_opt == null) return out;
+        }
+        if (precision_opt != null and precision_opt.? < 0) return out;
+
+        const date_id = ctx.types.getOrAdd("System.Date") catch 0;
+        const time_id = ctx.types.getOrAdd("System.Time") catch 0;
+        const datetime_id = ctx.types.getOrAdd("System.DateTime") catch 0;
+        const decimal_id = ctx.types.getOrAdd("System.Decimal") catch 0;
+        const integer_id = ctx.types.getOrAdd("System.Integer") catch 0;
+
+        if (val == .quantity) {
+            const precision: u32 = if (precision_opt) |p| blk: {
+                if (p > std.math.maxInt(u32)) return out;
+                break :blk @intCast(p);
+            } else DecimalMaxPrecision;
+            if (precision > DecimalMaxPrecision) return out;
+
+            const scale = decimalScale(val.quantity.value) orelse return out;
+            const base_scaled = parseDecimalScaled(val.quantity.value, scale) orelse return out;
+            const boundary_text = (try boundaryFromScaled(ctx.allocator, base_scaled, scale, precision, kind)) orelse return out;
+            try out.append(ctx.allocator, makeQuantityItem(ctx, boundary_text, val.quantity.unit));
+            return out;
+        }
+
+        if (val == .decimal or val == .integer or it.type_id == decimal_id or it.type_id == integer_id) {
+            const precision: u32 = if (precision_opt) |p| blk: {
+                if (p > std.math.maxInt(u32)) return out;
+                break :blk @intCast(p);
+            } else DecimalMaxPrecision;
+            if (precision > DecimalMaxPrecision) return out;
+
+            var scale: u32 = 0;
+            var base_scaled: i128 = 0;
+            if (val == .integer) {
+                base_scaled = @intCast(val.integer);
+                scale = 0;
+            } else if (val == .decimal) {
+                scale = decimalScale(val.decimal) orelse return out;
+                base_scaled = parseDecimalScaled(val.decimal, scale) orelse return out;
+            } else if (val == .string and (it.type_id == decimal_id or it.type_id == integer_id)) {
+                scale = decimalScale(val.string) orelse return out;
+                base_scaled = parseDecimalScaled(val.string, scale) orelse return out;
+            } else {
+                return out;
+            }
+
+            const boundary_text = (try boundaryFromScaled(ctx.allocator, base_scaled, scale, precision, kind)) orelse return out;
+            try out.append(ctx.allocator, makeDecimalItemText(ctx, boundary_text));
+            return out;
+        }
+
+        if (val == .date or it.type_id == date_id) {
+            const precision: u32 = if (precision_opt) |p| blk: {
+                if (p > std.math.maxInt(u32)) return out;
+                break :blk @intCast(p);
+            } else DateMaxPrecision;
+            if (precision > DateMaxPrecision) return out;
+            const text = if (val == .date) val.date else if (val == .string) val.string else return out;
+            const boundary_text = (try buildDateBoundary(ctx.allocator, text, precision, kind)) orelse return out;
+            try out.append(ctx.allocator, makeDateItem(ctx, boundary_text));
+            return out;
+        }
+
+        if (val == .dateTime or it.type_id == datetime_id) {
+            const precision: u32 = if (precision_opt) |p| blk: {
+                if (p > std.math.maxInt(u32)) return out;
+                break :blk @intCast(p);
+            } else DateTimeMaxPrecision;
+            if (precision > DateTimeMaxPrecision) return out;
+            const text = if (val == .dateTime) val.dateTime else if (val == .string) val.string else return out;
+            const boundary_text = (try buildDateTimeBoundary(ctx.allocator, text, precision, kind)) orelse return out;
+            try out.append(ctx.allocator, makeDateTimeItem(ctx, boundary_text));
+            return out;
+        }
+
+        if (val == .time or it.type_id == time_id) {
+            const precision: u32 = if (precision_opt) |p| blk: {
+                if (p > std.math.maxInt(u32)) return out;
+                break :blk @intCast(p);
+            } else TimeMaxPrecision;
+            if (precision > TimeMaxPrecision) return out;
+            const text = if (val == .time) val.time else if (val == .string) val.string else return out;
+            const boundary_text = (try buildTimeBoundary(ctx.allocator, text, precision, kind)) orelse return out;
+            try out.append(ctx.allocator, makeTimeItem(ctx, boundary_text));
+            return out;
+        }
+
+        return out;
+    }
     if (std.mem.eql(u8, call.name, "exp")) {
         if (input.len == 0) return ItemList.empty;
         if (input.len > 1) return error.SingletonRequired;
@@ -2715,6 +3169,81 @@ fn formatScaledDecimal(allocator: std.mem.Allocator, value: i128, scale: u32) ![
     try out.append(allocator, '.');
     try out.appendSlice(allocator, digits[point_pos..]);
     return try out.toOwnedSlice(allocator);
+}
+
+fn adjustScaledBoundary(value: i128, current_scale: u32, target_scale: u32, kind: BoundaryKind) ?i128 {
+    if (current_scale == target_scale) return value;
+    if (target_scale > current_scale) {
+        const factor = pow10i128(target_scale - current_scale) orelse return null;
+        const mul = @mulWithOverflow(value, factor);
+        if (mul[1] != 0) return null;
+        return mul[0];
+    }
+
+    const div = pow10i128(current_scale - target_scale) orelse return null;
+    const q = @divTrunc(value, div);
+    const r = @rem(value, div);
+    if (r == 0) return q;
+
+    const abs_r: i128 = if (r < 0) -r else r;
+    const twice = @mulWithOverflow(abs_r, 2);
+    if (twice[1] != 0) return q;
+
+    if (twice[0] == div) {
+        // Halfway case: round outward for the relevant boundary.
+        if (kind == .high and value > 0) {
+            const add = @addWithOverflow(q, 1);
+            if (add[1] != 0) return null;
+            return add[0];
+        }
+        if (kind == .low and value < 0) {
+            const sub = @addWithOverflow(q, -1);
+            if (sub[1] != 0) return null;
+            return sub[0];
+        }
+    }
+
+    return q;
+}
+
+fn boundaryFromScaled(
+    allocator: std.mem.Allocator,
+    base_scaled: i128,
+    scale: u32,
+    precision: u32,
+    kind: BoundaryKind,
+) EvalError!?[]const u8 {
+    const uncertainty_scale: u32 = if (precision < scale) precision else scale;
+    const work_scale: u32 = (if (scale > uncertainty_scale) scale else uncertainty_scale) + 1;
+
+    // Scale value up to work_scale
+    const scale_factor = pow10i128(work_scale - scale) orelse return null;
+    const mul = @mulWithOverflow(base_scaled, scale_factor);
+    if (mul[1] != 0) return null;
+
+    const delta_factor = pow10i128(work_scale - uncertainty_scale - 1) orelse return null;
+    const delta_mul = @mulWithOverflow(@as(i128, 5), delta_factor);
+    if (delta_mul[1] != 0) return null;
+    const delta: i128 = if (kind == .low) -delta_mul[0] else delta_mul[0];
+    const boundary_add = @addWithOverflow(mul[0], delta);
+    if (boundary_add[1] != 0) return null;
+
+    const adjusted = adjustScaledBoundary(boundary_add[0], work_scale, precision, kind) orelse return null;
+    if (adjusted == 0 and boundary_add[0] < 0) {
+        // Preserve negative zero for boundary results that truncate to zero.
+        if (precision == 0) return try allocator.dupe(u8, "-0");
+        var out = std.ArrayList(u8).empty;
+        errdefer out.deinit(allocator);
+        try out.append(allocator, '-');
+        try out.append(allocator, '0');
+        try out.append(allocator, '.');
+        var i: u32 = 0;
+        while (i < precision) : (i += 1) {
+            try out.append(allocator, '0');
+        }
+        return try out.toOwnedSlice(allocator);
+    }
+    return try formatScaledDecimal(allocator, adjusted, precision);
 }
 
 fn makeDecimalItemText(ctx: anytype, text: []const u8) item.Item {

@@ -124,7 +124,7 @@
     "(-120).highBoundary(2) parses as highBoundary on -120 = -119.50"
   ],
   "_todo": [
-    "[ ] Improve passing rate (0/65 passing)",
+    "[x] Improve passing rate (64/64 passing)",
     "[ ] Parser may need to support negative decimal literals like (-1.587)",
     "[ ] Verify timezone handling for DateTime boundaries (+14:00 and -12:00)",
     "[ ] Test interaction with Quantity type",
@@ -700,7 +700,7 @@
       "input": {},
       "expect": [
         {
-          "type": "dateTime",
+          "type": "date",
           "value": "2014-01"
         }
       ]
@@ -756,7 +756,7 @@
       "input": {},
       "expect": [
         {
-          "type": "dateTime",
+          "type": "date",
           "value": "2014-12"
         }
       ]

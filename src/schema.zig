@@ -279,6 +279,16 @@ pub const Schema = struct {
         return self.full_names[idx];
     }
 
+    /// Get the primitive base type id for a model type.
+    /// Returns 0 if not a model type or no primitive base.
+    pub fn primBaseId(self: *Schema, id: u32) u32 {
+        if (!isModelType(id)) return 0;
+        const idx = modelIndex(id);
+        if (idx >= self.model.header.types_count) return 0;
+        const t = self.model.typeEntry(idx);
+        return t.prim_base_id;
+    }
+
     pub fn typeIdByLocalName(self: *Schema, name: []const u8) ?u32 {
         const idx = self.model.findTypeIndexByName(name) orelse return null;
         return 0x8000_0000 | (idx + 1);

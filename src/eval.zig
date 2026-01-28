@@ -1134,6 +1134,19 @@ fn compareItems(ctx: anytype, a: item.Item, b: item.Item) EvalError!?i32 {
     const va = itemToValue(ctx, a);
     const vb = itemToValue(ctx, b);
 
+    // Check if either operand is Date or DateTime (by type_id or value kind)
+    const a_is_date = isDateTypeId(ctx, a.type_id) or va == .date;
+    const a_is_datetime = isDateTimeTypeId(ctx, a.type_id) or va == .dateTime;
+    const b_is_date = isDateTypeId(ctx, b.type_id) or vb == .date;
+    const b_is_datetime = isDateTimeTypeId(ctx, b.type_id) or vb == .dateTime;
+
+    // Cross-type Date/DateTime comparison (implicit conversion)
+    if ((a_is_date or a_is_datetime) and (b_is_date or b_is_datetime)) {
+        const a_text = if (va == .dateTime) va.dateTime else if (va == .date) va.date else if (va == .string) va.string else return error.InvalidOperand;
+        const b_text = if (vb == .dateTime) vb.dateTime else if (vb == .date) vb.date else if (vb == .string) vb.string else return error.InvalidOperand;
+        return compareDateAndDateTime(a_text, a_is_datetime, b_text, b_is_datetime);
+    }
+
     // Compare integers (including Long)
     if ((va == .integer or va == .long) and (vb == .integer or vb == .long)) {
         const ai: i64 = switch (va) {
@@ -1179,30 +1192,12 @@ fn compareItems(ctx: anytype, a: item.Item, b: item.Item) EvalError!?i32 {
         };
     }
 
-    // Compare dates - precision mismatch yields empty
-    if (va == .date and vb == .date) {
-        if (va.date.len != vb.date.len) return null; // different precision
-        return switch (std.mem.order(u8, va.date, vb.date)) {
-            .lt => -1,
-            .eq => 0,
-            .gt => 1,
-        };
-    }
-
     // Compare times - precision mismatch yields empty
     if (va == .time and vb == .time) {
         const a_prec = timePrecisionLevel(va.time);
         const b_prec = timePrecisionLevel(vb.time);
         if (a_prec != b_prec) return null; // different precision
         return compareTimeStrings(va.time, vb.time);
-    }
-
-    // Compare dateTimes - precision mismatch yields empty
-    if (va == .dateTime and vb == .dateTime) {
-        const a_prec = dateTimePrecisionLevel(va.dateTime);
-        const b_prec = dateTimePrecisionLevel(vb.dateTime);
-        if (a_prec != b_prec) return null; // different precision
-        return compareDateTimeStrings(va.dateTime, vb.dateTime);
     }
 
     // Compare quantities (same unit only)
@@ -1248,6 +1243,98 @@ fn compareTimeStrings(a: []const u8, b: []const u8) i32 {
 }
 
 /// Compare dateTime strings handling seconds+milliseconds as decimal.
+/// Compare Date and DateTime values with implicit conversion.
+/// When comparing Date vs DateTime:
+///   - Date is implicitly converted to DateTime with empty time components
+///   - The comparison proceeds precision by precision
+///   - If one value has a precision the other doesn't, result is empty (null)
+///   - If values differ at any precision, comparison stops and returns result
+fn compareDateAndDateTime(a: []const u8, a_is_datetime: bool, b: []const u8, b_is_datetime: bool) ?i32 {
+    // Get date parts (everything before T, or whole string if no T)
+    const a_t = std.mem.indexOfScalar(u8, a, 'T');
+    const b_t = std.mem.indexOfScalar(u8, b, 'T');
+
+    const a_date = a[0 .. a_t orelse a.len];
+    const b_date = b[0 .. b_t orelse b.len];
+
+    // Determine date precisions (count hyphens: 0=year, 1=month, 2=day)
+    const a_date_prec = countDatePrecision(a_date);
+    const b_date_prec = countDatePrecision(b_date);
+
+    // Compare at shared date precision
+    const shared_date_prec = @min(a_date_prec, b_date_prec);
+    const cmp = compareDatePortionAtPrecision(a_date, b_date, shared_date_prec);
+    if (cmp != 0) return cmp;
+
+    // Date portions are equal at shared precision
+    // If date precisions differ, we need to check time precision to know if we can determine order
+    if (a_date_prec != b_date_prec) return null; // different date precision
+
+    // Both have same date precision - now check time
+    // Determine if each has time component
+    const a_has_time = a_t != null and a_t.? + 1 < a.len;
+    const b_has_time = b_t != null and b_t.? + 1 < b.len;
+
+    // For DateTime type with no time (e.g., Date converted to DateTime), treat as no time
+    const a_datetime_with_time = a_is_datetime and a_has_time;
+    const b_datetime_with_time = b_is_datetime and b_has_time;
+
+    // A Date type never has time; a DateTime may or may not have time
+    // For implicit Date->DateTime conversion, Date becomes DateTime with empty time
+    const a_effectively_has_time = a_datetime_with_time;
+    const b_effectively_has_time = b_datetime_with_time;
+
+    // If neither has time, they're equal at date precision
+    if (!a_effectively_has_time and !b_effectively_has_time) return 0;
+
+    // If one has time and other doesn't, precision differs - return empty
+    if (a_effectively_has_time != b_effectively_has_time) return null;
+
+    // Both have time - compare time portions
+    const a_time = stripTimezone(a[a_t.? + 1 ..]);
+    const b_time = stripTimezone(b[b_t.? + 1 ..]);
+
+    const a_time_prec = timePrecisionLevel(a_time);
+    const b_time_prec = timePrecisionLevel(b_time);
+
+    if (a_time_prec != b_time_prec) return null; // different time precision
+
+    return compareTimeStrings(a_time, b_time);
+}
+
+/// Count date precision by number of hyphens (0=year, 1=month, 2=day)
+fn countDatePrecision(date: []const u8) u8 {
+    var hyphens: u8 = 0;
+    for (date) |c| {
+        if (c == '-' and hyphens < 2) hyphens += 1;
+    }
+    return hyphens;
+}
+
+/// Compare date portions at specified precision level
+fn compareDatePortionAtPrecision(a: []const u8, b: []const u8, prec: u8) i32 {
+    // Get the substring up to the precision level
+    const a_end = dateEndAtPrecision(a, prec);
+    const b_end = dateEndAtPrecision(b, prec);
+    return switch (std.mem.order(u8, a[0..a_end], b[0..b_end])) {
+        .lt => -1,
+        .eq => 0,
+        .gt => 1,
+    };
+}
+
+/// Get end index for date string at given precision
+fn dateEndAtPrecision(date: []const u8, prec: u8) usize {
+    var hyphens: u8 = 0;
+    for (date, 0..) |c, i| {
+        if (c == '-') {
+            hyphens += 1;
+            if (hyphens > prec) return i;
+        }
+    }
+    return date.len;
+}
+
 fn compareDateTimeStrings(a: []const u8, b: []const u8) i32 {
     // Find T separator
     const a_t = std.mem.indexOfScalar(u8, a, 'T');
@@ -5472,6 +5559,28 @@ fn itemsEqual(ctx: anytype, a: item.Item, b: item.Item) bool {
 /// Three-valued equality: true, false, or null (empty - precision mismatch).
 /// Used by the = operator which needs to propagate empty for date/time precision differences.
 fn itemsEqualTriState(ctx: anytype, a: item.Item, b: item.Item) ?bool {
+    const va = itemToValue(ctx, a);
+    const vb = itemToValue(ctx, b);
+
+    // Check if either operand is Date or DateTime (by type_id or value kind)
+    const a_is_date = isDateTypeId(ctx, a.type_id) or va == .date;
+    const a_is_datetime = isDateTimeTypeId(ctx, a.type_id) or va == .dateTime;
+    const b_is_date = isDateTypeId(ctx, b.type_id) or vb == .date;
+    const b_is_datetime = isDateTimeTypeId(ctx, b.type_id) or vb == .dateTime;
+
+    // Cross-type Date/DateTime equality (implicit conversion)
+    // Note: equality also returns null for precision mismatch
+    if ((a_is_date or a_is_datetime) and (b_is_date or b_is_datetime)) {
+        const a_text = getDateTimeText(va);
+        const b_text = getDateTimeText(vb);
+        if (a_text != null and b_text != null) {
+            const cmp = compareDateAndDateTime(a_text.?, a_is_datetime, b_text.?, b_is_datetime);
+            if (cmp) |c| return c == 0;
+            return null; // precision mismatch -> empty
+        }
+    }
+
+    // Both value-backed items with same value kinds
     if (a.data_kind == .value and b.data_kind == .value) {
         return valueEqualTriState(a.value.?, b.value.?);
     }
@@ -5481,7 +5590,17 @@ fn itemsEqualTriState(ctx: anytype, a: item.Item, b: item.Item) ?bool {
         const b_ref = nodeRefFromRaw(A, b.node.?);
         return nodeEqual(ctx, a_ref, b_ref);
     }
-    return valueEqualTriState(itemToValue(ctx, a), itemToValue(ctx, b));
+    return valueEqualTriState(va, vb);
+}
+
+/// Extract date/time text from a Value
+fn getDateTimeText(v: item.Value) ?[]const u8 {
+    return switch (v) {
+        .dateTime => |dt| dt,
+        .date => |d| d,
+        .string => |s| s,
+        else => null,
+    };
 }
 
 /// Three-valued value equality. Returns null for date/time precision mismatch.
@@ -5876,6 +5995,36 @@ fn itemToValue(ctx: anytype, it: item.Item) item.Value {
         };
     }
     return .{ .empty = {} };
+}
+
+/// Check if a type_id represents a Date type (System.Date or FHIR.date)
+fn isDateTypeId(ctx: anytype, type_id: u32) bool {
+    const date_id = ctx.types.getOrAdd("System.Date") catch 0;
+    if (type_id == date_id) return true;
+    // Check schema for FHIR types
+    if (ctx.schema) |s| {
+        const prim_base = s.primBaseId(type_id);
+        if (prim_base == date_id) return true;
+        // Also check type name ends with ".date"
+        const name = s.typeName(type_id);
+        if (name.len > 0 and std.mem.endsWith(u8, name, ".date")) return true;
+    }
+    return false;
+}
+
+/// Check if a type_id represents a DateTime type (System.DateTime or FHIR.dateTime)
+fn isDateTimeTypeId(ctx: anytype, type_id: u32) bool {
+    const datetime_id = ctx.types.getOrAdd("System.DateTime") catch 0;
+    if (type_id == datetime_id) return true;
+    // Check schema for FHIR types
+    if (ctx.schema) |s| {
+        const prim_base = s.primBaseId(type_id);
+        if (prim_base == datetime_id) return true;
+        // Also check type name ends with ".dateTime"
+        const name = s.typeName(type_id);
+        if (name.len > 0 and std.mem.endsWith(u8, name, ".dateTime")) return true;
+    }
+    return false;
 }
 
 fn convertToInteger(ctx: anytype, it: item.Item) ?i64 {

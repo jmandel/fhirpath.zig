@@ -76,15 +76,15 @@
     "\u00a75.6.3 (Comparison), \u00a75.7.10 (toDateTime)"
   ],
   "_todo": [
-    "[ ] Improve passing rate (28/40 passing)",
-    "[ ] Fix equality (=) to return empty when Date/DateTime precisions differ",
-    "[ ] Fix comparison (<,>,<=,>=) to return empty (not error) for different precisions",
-    "[ ] Fix toDateTime() to properly mark time components as empty",
-    "[ ] Implement implicit Date\u2192DateTime conversion in comparison operators",
-    "[ ] Test now() > today() returns empty per spec (currently returns error)"
+    "[x] Improve passing rate (40/40 passing)",
+    "[x] Fix equality (=) to return empty when Date/DateTime precisions differ",
+    "[x] Fix comparison (<,>,<=,>=) to return empty (not error) for different precisions",
+    "[x] Fix toDateTime() to properly mark time components as empty",
+    "[x] Implement implicit Date\u2192DateTime conversion in comparison operators",
+    "[x] Test now() > today() returns empty per spec (works correctly)"
   ],
   "meta": {
-    "status": "reviewed",
+    "status": "implemented",
     "feature": "datetime-cross-type",
     "source": "spec/index.md\u00a75.2, \u00a75.6"
   },
@@ -240,18 +240,18 @@
       "_section": "=== COMPARISON (<, >, <=, >=) WITH DIFFERENT PRECISION ==="
     },
     {
-      "name": "greater than: Date vs DateTime returns empty",
+      "name": "greater than: Date vs DateTime (different days) returns result",
       "expr": "@2024-01-15 > @2024-01-14T23:59:59",
       "input": {},
-      "expect": [],
-      "comment": "Even though Jan 15 'feels' greater than end of Jan 14, precision differs \u2192 empty"
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Days differ (15 vs 14), so order is determinable without time precision"
     },
     {
-      "name": "less than: Date vs DateTime returns empty",
+      "name": "less than: Date vs DateTime (different days) returns result",
       "expr": "@2024-01-14 < @2024-01-15T00:00:01",
       "input": {},
-      "expect": [],
-      "comment": "Different precisions \u2192 empty"
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Days differ (14 vs 15), so order is determinable without time precision"
     },
     {
       "name": "greater than: DateTime vs Date returns empty",

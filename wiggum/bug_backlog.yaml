@@ -112,3 +112,51 @@ bugs:
     created: 2026-01-28
     updated: 2026-01-28
     tags: [functions, fhir]
+  - slug: extension-function
+    status: open
+    severity: medium
+    title: Implement extension() function for FHIR extensions
+    description: extension(url) should filter to extensions matching the URL. ~6 R5 failures.
+    created: 2026-01-28
+    updated: 2026-01-28
+    tags: [functions, fhir]
+  - slug: datetime-comparison-today-now
+    status: resolved
+    severity: medium
+    title: Fix date/datetime comparison with today()/now()
+    description: Comparisons like 'birthDate < today()' failing. ~6 R5 failures. May be type coercion issue.
+    created: 2026-01-28
+    updated: 2026-01-28
+    tags: [datetime, comparison]
+  - slug: sort-descending
+    status: open
+    severity: low
+    title: Implement sort() with descending (-) modifier
+    description: sort(-field) for descending order not implemented. ~2 R5 failures.
+    created: 2026-01-28
+    updated: 2026-01-28
+    tags: [functions]
+  - slug: to-quantity-function
+    status: open
+    severity: low
+    title: Implement toQuantity() conversion function
+    description: toQuantity() for converting strings/numbers to Quantity. ~4 R5 failures.
+    created: 2026-01-28
+    updated: 2026-01-28
+    tags: [functions, conversion]
+  - slug: comparable-function
+    status: open
+    severity: low
+    title: Implement comparable() function
+    description: comparable() checks if two quantities can be compared. ~3 R5 failures.
+    created: 2026-01-28
+    updated: 2026-01-28
+    tags: [functions]
+  - slug: conforms-to-function
+    status: open
+    severity: low
+    title: Implement conformsTo() for profile validation
+    description: conformsTo(url) checks if resource conforms to a profile. ~2 R5 failures. FHIR-specific.
+    created: 2026-01-28
+    updated: 2026-01-28
+    tags: [functions, fhir]

@@ -19,8 +19,10 @@ jobs:
           ZIG_URL="https://ziglang.org/download/${ZIG_VERSION}/zig-x86_64-linux-${ZIG_VERSION}.tar.xz"
           curl -fsSL "$ZIG_URL" -o zig.tar.xz
           tar -xf zig.tar.xz
-          echo "$PWD/zig-x86_64-linux-${ZIG_VERSION}" >> "$GITHUB_PATH"
-          zig version
+          ZIG_DIR="$PWD/zig-x86_64-linux-${ZIG_VERSION}"
+          echo "$ZIG_DIR" >> "$GITHUB_PATH"
+          export PATH="$ZIG_DIR:$PATH"
+          "$ZIG_DIR/zig" version
 
       - name: Fetch FHIR models
         run: ./scripts/fetch_models.sh

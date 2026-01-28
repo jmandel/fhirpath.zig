@@ -1,0 +1,224 @@
+{
+  "_spec_summary": [
+    "DateTime Timezone Comparison and Normalization",
+    "",
+    "=== CORE BEHAVIOR ===",
+    "DateTime values can have timezone offsets (e.g., +02:00, -05:00, Z for UTC).",
+    "When comparing DateTimes with different timezone offsets, the comparison must",
+    "normalize to a common point in time.",
+    "",
+    "=== SPEC REFERENCE §6.3.6 (Comparison) ===",
+    "For partial Date, DateTime, and Time values, the comparison is performed by",
+    "comparing the values at each precision, beginning with years, and proceeding",
+    "to the finest precision specified in either input, and respecting timezone offsets.",
+    "",
+    "If one value is specified to a different level of precision than the other,",
+    "the result is empty ({ }) to indicate that the result of the comparison is unknown.",
+    "",
+    "=== TIMEZONE NORMALIZATION ===",
+    "Two DateTimes with different offsets can represent the same instant:",
+    "  @2012-04-15T15:00:00+02:00 = @2012-04-15T16:00:00+03:00  // true (same moment)",
+    "",
+    "They can also represent different instants:",
+    "  @2018-01-01T16:00:00+12:00 < @2018-01-01T15:00:00+10:00  // true (4pm+12 is earlier than 5pm+10)",
+    "",
+    "=== PRECISION HANDLING ===",
+    "Timezone only matters when precision extends to time:",
+    "- Date only (year, month, day): timezone is irrelevant",
+    "- DateTime with time: timezone offsets must be considered",
+    "",
+    "=== EDGE CASES ===",
+    "- Z suffix is equivalent to +00:00",
+    "- No timezone means 'local' time, which is incomparable to zoned times (returns empty)",
+    "- Cross-date-boundary comparisons due to timezone (midnight crossing)",
+    "",
+    "=== SPEC EXAMPLE ===",
+    "@2018-01-01T16:00:00+11:00 < @2018-01-01T15:00:00.0+10:00  // false (same moment)",
+    "@2018-01-01T16:00:00+12:00 < @2018-01-01T15:00:00.0+10:00  // true (4pm+12 is earlier)"
+  ],
+  "_todo": [
+    "[ ] Improve passing rate (6/21 passing - requires timezone normalization for equality)",
+    "[ ] Test equality with different offsets same moment",
+    "[ ] Test comparison with different offsets",
+    "[ ] Test Z suffix handling",
+    "[ ] Test cross-date-boundary cases",
+    "[ ] Test no-timezone vs with-timezone comparison"
+  ],
+  "meta": {
+    "status": "drafted",
+    "feature": "datetime-timezone",
+    "source": "spec/index.md#comparison §6.3.6"
+  },
+  "cases": [
+    {
+      "_section": "=== EQUALITY WITH TIMEZONE OFFSETS ==="
+    },
+    {
+      "name": "timezone: same moment different offsets equals",
+      "comment": "15:00+02:00 = 16:00+03:00 (both are 13:00 UTC)",
+      "expr": "@2012-04-15T15:00:00+02:00 = @2012-04-15T16:00:00+03:00",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "timezone: Z equals +00:00",
+      "comment": "Z suffix is equivalent to +00:00 offset",
+      "expr": "@2024-01-15T10:00:00Z = @2024-01-15T10:00:00+00:00",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "timezone: different moments not equal",
+      "comment": "Same local time, different offsets = different moments",
+      "expr": "@2024-01-15T10:00:00+02:00 = @2024-01-15T10:00:00+05:00",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}]
+    },
+    {
+      "name": "timezone: same UTC equivalent equals",
+      "comment": "12:00+01:00 = 11:00Z (both are 11:00 UTC)",
+      "expr": "@2024-01-15T12:00:00+01:00 = @2024-01-15T11:00:00Z",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "_section": "=== GREATER THAN WITH TIMEZONE OFFSETS ==="
+    },
+    {
+      "name": "timezone: later UTC moment is greater",
+      "comment": "DST example from spec: 01:30-04:00 is later than 01:15-05:00",
+      "expr": "@2017-11-05T01:30:00.0-04:00 > @2017-11-05T01:15:00.0-05:00",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "timezone: same moment not greater",
+      "comment": "16:00+11:00 is not greater than 15:00+10:00 (same moment)",
+      "expr": "@2018-01-01T16:00:00+11:00 > @2018-01-01T15:00:00+10:00",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}]
+    },
+    {
+      "name": "timezone: earlier UTC moment not greater",
+      "comment": "16:00+12:00 (04:00 UTC) is earlier than 15:00+10:00 (05:00 UTC)",
+      "expr": "@2018-01-01T16:00:00+12:00 > @2018-01-01T15:00:00+10:00",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}]
+    },
+    {
+      "_section": "=== LESS THAN WITH TIMEZONE OFFSETS ==="
+    },
+    {
+      "name": "timezone: earlier UTC moment is less",
+      "comment": "From spec: 16:00+12:00 < 15:00+10:00 (4pm+12 is earlier than 5pm+10)",
+      "expr": "@2018-01-01T16:00:00+12:00 < @2018-01-01T15:00:00.0+10:00",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "timezone: DST transition not less",
+      "comment": "01:30-04:00 is not less than 01:15-05:00 (both after accounting for offset)",
+      "expr": "@2017-11-05T01:30:00.0-04:00 < @2017-11-05T01:15:00.0-05:00",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}]
+    },
+    {
+      "name": "timezone: same moment not less",
+      "comment": "Same moment is not less than itself",
+      "expr": "@2018-01-01T16:00:00+11:00 < @2018-01-01T15:00:00+10:00",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}]
+    },
+    {
+      "_section": "=== EQUALITY - SAME MOMENT DIFFERENT EXPRESSIONS ==="
+    },
+    {
+      "name": "timezone: DST crossing same moment",
+      "comment": "These should be the same moment",
+      "expr": "@2017-11-05T01:30:00.0-04:00 = @2017-11-05T00:30:00.0-05:00",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "_section": "=== CROSS-DATE BOUNDARY ==="
+    },
+    {
+      "name": "timezone: cross midnight same moment",
+      "comment": "23:00+01:00 Jan 15 = 00:00+02:00 Jan 16 (same UTC moment)",
+      "expr": "@2024-01-15T23:00:00+01:00 = @2024-01-16T00:00:00+02:00",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "timezone: cross midnight comparison",
+      "comment": "22:00-05:00 Jan 15 (03:00 UTC Jan 16) > 01:00+02:00 Jan 16 (23:00 UTC Jan 15)",
+      "expr": "@2024-01-15T22:00:00-05:00 > @2024-01-16T01:00:00+02:00",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "_section": "=== NO TIMEZONE (LOCAL TIME) ==="
+    },
+    {
+      "name": "timezone: no offset vs Z returns empty",
+      "comment": "Local time is not comparable to zoned time",
+      "expr": "@2024-01-15T10:00:00 = @2024-01-15T10:00:00Z",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "timezone: no offset vs offset returns empty",
+      "comment": "Local time is not comparable to zoned time",
+      "expr": "@2024-01-15T10:00:00 = @2024-01-15T12:00:00+02:00",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "timezone: no offset comparison returns empty",
+      "expr": "@2024-01-15T10:00:00 > @2024-01-15T10:00:00Z",
+      "input": {},
+      "expect": []
+    },
+    {
+      "_section": "=== EQUIVALENCE (~) WITH TIMEZONE ==="
+    },
+    {
+      "name": "timezone: equivalence same moment",
+      "comment": "Equivalence should also normalize timezone",
+      "expr": "@2012-04-15T15:00:00+02:00 ~ @2012-04-15T16:00:00+03:00",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "timezone: equivalence different moment",
+      "expr": "@2024-01-15T10:00:00+02:00 ~ @2024-01-15T10:00:00+05:00",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}]
+    },
+    {
+      "_section": "=== MILLISECOND PRECISION ==="
+    },
+    {
+      "name": "timezone: milliseconds same moment",
+      "expr": "@2024-01-15T10:30:00.500+01:00 = @2024-01-15T11:30:00.500+02:00",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "timezone: milliseconds different",
+      "expr": "@2024-01-15T10:30:00.500+01:00 = @2024-01-15T11:30:00.501+02:00",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}]
+    },
+    {
+      "_section": "=== NEGATIVE OFFSETS ==="
+    },
+    {
+      "name": "timezone: negative offset comparison",
+      "comment": "08:00-08:00 (16:00 UTC) vs 18:00+02:00 (16:00 UTC) - same moment",
+      "expr": "@2024-01-15T08:00:00-08:00 = @2024-01-15T18:00:00+02:00",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    }
+  ]
+}

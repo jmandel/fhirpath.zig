@@ -1,0 +1,219 @@
+{
+  "_spec_summary": [
+    "UCUM Unit Conversion for Quantity Operations",
+    "",
+    "=== CORE BEHAVIOR ===",
+    "The FHIRPath spec says implementations 'shall' support UCUM unit conversion.",
+    "When comparing or operating on quantities with different units, the values",
+    "should be converted to a common unit before the operation.",
+    "",
+    "=== SPEC REFERENCE §6.3.1 (Quantity Equality) ===",
+    "'For Quantity equality, the dimensions of each quantity must be the same,",
+    "but not necessarily the unit. For example, units of cm and m can be compared,",
+    "but units of cm2 and cm cannot.'",
+    "",
+    "=== UNIT CONVERSION RULES ===",
+    "Supported conversions (examples):",
+    "- Mass: g ↔ mg ↔ kg (1 g = 1000 mg, 1 kg = 1000 g)",
+    "- Length: m ↔ cm ↔ mm (1 m = 100 cm = 1000 mm)",
+    "- Length: m ↔ [in_i] ↔ [ft_i] (1 [in_i] = 2.54 cm)",
+    "- Volume: L ↔ mL ↔ dL",
+    "",
+    "=== EQUALITY SEMANTICS ===",
+    "Two quantities are equal if they represent the same measurement:",
+    "  4000 'mg' = 4 'g'  // true",
+    "  4 'g' = 4000 'mg'  // true",
+    "",
+    "=== COMPARISON SEMANTICS ===",
+    "Comparison normalizes to the more granular unit:",
+    "  4 'g' > 3000 'mg'  // true (4000 mg > 3000 mg)",
+    "",
+    "=== EQUIVALENCE (~) ===",
+    "'For Quantity equivalence, the dimensions of each quantity must be the same,",
+    "but not necessarily the unit.'",
+    "  4 'g' ~ 4000 'mg'   // true (same value after conversion)",
+    "  4 'g' ~ 4040 'mg'   // false (different values)",
+    "",
+    "=== ARITHMETIC ===",
+    "Unit conversion also applies to multiplication/division:",
+    "  2.0 'cm' * 2.0 'm' = 0.040 'm2'  // area calculation",
+    "  1.0 'm' / 1.0 'm' = 1 '1'         // dimensionless result",
+    "",
+    "=== IMPLEMENTATION NOTES ===",
+    "Implementations are not required to fully support operations on units,",
+    "but they must at least respect units, recognizing when units differ.",
+    "If unit conversion is not supported, result may be empty {}."
+  ],
+  "_todo": [
+    "[ ] Improve passing rate (2/21 passing - requires UCUM conversion)",
+    "[ ] Test mass conversions (g/mg/kg)",
+    "[ ] Test length conversions (m/cm/mm)",
+    "[ ] Test imperial conversions ([in_i]/[ft_i])",
+    "[ ] Test multiplication producing derived units",
+    "[ ] Test division producing dimensionless or derived units"
+  ],
+  "meta": {
+    "status": "drafted",
+    "feature": "ucum-conversion",
+    "source": "spec/index.md §6.3.1, UCUM spec"
+  },
+  "cases": [
+    {
+      "_section": "=== MASS CONVERSION ==="
+    },
+    {
+      "name": "ucum: g to mg equality",
+      "comment": "4000 mg = 4 g",
+      "expr": "4.0000 'g' = 4000.0 'mg'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "ucum: g to mg equivalence",
+      "expr": "4 'g' ~ 4000 'mg'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "ucum: g not equivalent to different mg",
+      "comment": "4g is not equivalent to 4040mg",
+      "expr": "4 'g' ~ 4040 'mg'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}]
+    },
+    {
+      "name": "ucum: kg to g equality",
+      "expr": "1 'kg' = 1000 'g'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "ucum: kg to mg equality",
+      "expr": "1 'kg' = 1000000 'mg'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "_section": "=== LENGTH CONVERSION ==="
+    },
+    {
+      "name": "ucum: m to cm equality",
+      "expr": "1 'm' = 100 'cm'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "ucum: m to mm equality",
+      "expr": "1 'm' = 1000 'mm'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "ucum: cm to mm comparison",
+      "expr": "10 'cm' > 99 'mm'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "_section": "=== IMPERIAL TO METRIC ==="
+    },
+    {
+      "name": "ucum: inch to cm equality",
+      "comment": "1 inch = 2.54 cm",
+      "expr": "1 '[in_i]' ~ 2.54 'cm'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "ucum: foot to cm equality",
+      "comment": "1 foot = 30.48 cm",
+      "expr": "1 '[ft_i]' ~ 30.48 'cm'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "_section": "=== DERIVED UNITS ==="
+    },
+    {
+      "name": "ucum: area multiplication",
+      "comment": "Length * length = area",
+      "expr": "2.0 'cm' * 2.0 'm' = 0.040 'm2'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "ucum: dimensionless division",
+      "comment": "Same unit divided = dimensionless (1)",
+      "expr": "1.0 'm' / 1.0 'm' = 1 '1'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "ucum: speed division",
+      "comment": "Distance / time = speed",
+      "expr": "100 'm' / 10 's' = 10 'm/s'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "_section": "=== INCOMPATIBLE DIMENSIONS ==="
+    },
+    {
+      "name": "ucum: cm not comparable to s",
+      "comment": "Length not comparable to time",
+      "expr": "1 'cm'.comparable(1 's')",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}]
+    },
+    {
+      "name": "ucum: cm comparable to inch",
+      "comment": "Same dimension (length)",
+      "expr": "1 'cm'.comparable(1 '[in_i]')",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "ucum: incompatible equality returns empty",
+      "comment": "Can't compare length to time",
+      "expr": "1 'cm' = 1 's'",
+      "input": {},
+      "expect": []
+    },
+    {
+      "_section": "=== VOLUME CONVERSION ==="
+    },
+    {
+      "name": "ucum: L to mL equality",
+      "expr": "1 'L' = 1000 'mL'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "ucum: L to dL equality",
+      "expr": "1 'L' = 10 'dL'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "_section": "=== TIME CONVERSION ==="
+    },
+    {
+      "name": "ucum: hour to minute equality",
+      "expr": "1 'h' = 60 'min'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "ucum: minute to second equality",
+      "expr": "1 'min' = 60 's'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "ucum: day to hour equality",
+      "expr": "1 'd' = 24 'h'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    }
+  ]
+}

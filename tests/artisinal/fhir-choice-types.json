@@ -1,0 +1,331 @@
+{
+  "_spec_summary": [
+    "FHIR Choice Types (value[x] Polymorphism)",
+    "",
+    "=== CORE BEHAVIOR ===",
+    "In FHIR, some fields can hold multiple types (e.g., value[x] can be valueQuantity, valueString, etc.).",
+    "FHIRPath abstracts this with two patterns:",
+    "",
+    "1. GENERIC ACCESS via base name:",
+    "   - `Observation.value` accesses whatever value[x] variant is present",
+    "   - Returns the value with the actual type (Quantity if valueQuantity, String if valueString)",
+    "   - Model-aware resolution finds the concrete child matching value* pattern",
+    "",
+    "2. TYPED ACCESS via concrete name:",
+    "   - `Observation.valueQuantity` accesses only valueQuantity directly",
+    "   - Returns empty if a different variant is present",
+    "   - Should ERROR if the concrete name doesn't match what's in the data (per testPolymorphismB)",
+    "",
+    "=== TYPE CHECKING ===",
+    "- `is Quantity` checks if the resolved value is of type Quantity",
+    "- `as Quantity` casts the value to Quantity, empty if not compatible",
+    "- `ofType(Quantity)` filters to only Quantity items",
+    "",
+    "=== SPEC REFERENCE ===",
+    "From spec §1.3 (Formal Syntax):",
+    "'JSON and XML specific features are not visible to the FHIRPath language",
+    "(such as comments and the split representation of primitives (i.e. value[x]))'",
+    "",
+    "From spec §11.2:",
+    "'A member which is polymorphic (e.g. a choice[x] type in FHIR)'",
+    "'Authors can use the as operator or ofType() function directly after such constructs",
+    "to inform the compiler of the expected type.'",
+    "",
+    "=== MODEL REQUIREMENT ===",
+    "These tests require a FHIR model to be loaded (e.g., models/r5/model.bin).",
+    "Without a model, the engine cannot resolve choice types.",
+    "",
+    "=== KEY INSIGHT ===",
+    "The base name `value` is a virtual accessor that gets resolved to the actual",
+    "concrete field in the JSON (valueQuantity, valueString, etc.) using model info."
+  ],
+  "_todo": [
+    "[ ] Improve passing rate (4/22 passing - requires model-aware choice type resolution)",
+    "[ ] Test value[x] with Quantity (valueQuantity)",
+    "[ ] Test value[x] with CodeableConcept (valueCodeableConcept)",
+    "[ ] Test value[x] with String (valueString)",
+    "[ ] Test type checking with is/as/ofType",
+    "[ ] Test error cases for accessing wrong concrete name"
+  ],
+  "meta": {
+    "status": "drafted",
+    "feature": "fhir-choice-types",
+    "requires_model": true
+  },
+  "cases": [
+    {
+      "_section": "=== VALUE[X] AS QUANTITY ==="
+    },
+    {
+      "name": "choice type: value navigates to valueQuantity",
+      "comment": "When valueQuantity is present, Observation.value should return it",
+      "expr": "Observation.value.exists()",
+      "input": {
+        "resourceType": "Observation",
+        "valueQuantity": {
+          "value": 185,
+          "unit": "lbs",
+          "system": "http://unitsofmeasure.org",
+          "code": "[lb_av]"
+        }
+      },
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "choice type: value.unit accesses Quantity child",
+      "comment": "Navigation through resolved choice type",
+      "expr": "Observation.value.unit",
+      "input": {
+        "resourceType": "Observation",
+        "valueQuantity": {
+          "value": 185,
+          "unit": "lbs",
+          "system": "http://unitsofmeasure.org",
+          "code": "[lb_av]"
+        }
+      },
+      "expect": [{"type": "string", "value": "lbs"}]
+    },
+    {
+      "name": "choice type: value.value accesses Quantity value",
+      "expr": "Observation.value.value",
+      "input": {
+        "resourceType": "Observation",
+        "valueQuantity": {
+          "value": 185,
+          "unit": "lbs"
+        }
+      },
+      "expect": [{"type": "decimal", "value": 185}]
+    },
+    {
+      "name": "choice type: value is Quantity returns true",
+      "expr": "Observation.value is Quantity",
+      "input": {
+        "resourceType": "Observation",
+        "valueQuantity": {
+          "value": 185,
+          "unit": "lbs"
+        }
+      },
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "choice type: value.is(Quantity) returns true",
+      "expr": "Observation.value.is(Quantity)",
+      "input": {
+        "resourceType": "Observation",
+        "valueQuantity": {
+          "value": 185,
+          "unit": "lbs"
+        }
+      },
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "choice type: value.as(Quantity).unit",
+      "expr": "Observation.value.as(Quantity).unit",
+      "input": {
+        "resourceType": "Observation",
+        "valueQuantity": {
+          "value": 185,
+          "unit": "lbs"
+        }
+      },
+      "expect": [{"type": "string", "value": "lbs"}]
+    },
+    {
+      "name": "choice type: (value as Quantity).unit",
+      "comment": "Infix as syntax should also work",
+      "expr": "(Observation.value as Quantity).unit",
+      "input": {
+        "resourceType": "Observation",
+        "valueQuantity": {
+          "value": 185,
+          "unit": "lbs"
+        }
+      },
+      "expect": [{"type": "string", "value": "lbs"}]
+    },
+    {
+      "_section": "=== VALUE[X] AS STRING ==="
+    },
+    {
+      "name": "choice type: value navigates to valueString",
+      "expr": "Observation.value",
+      "input": {
+        "resourceType": "Observation",
+        "valueString": "positive"
+      },
+      "expect": [{"type": "string", "value": "positive"}]
+    },
+    {
+      "name": "choice type: valueString is String returns true",
+      "expr": "Observation.value is string",
+      "input": {
+        "resourceType": "Observation",
+        "valueString": "positive"
+      },
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "choice type: value is Quantity returns false for string",
+      "expr": "Observation.value is Quantity",
+      "input": {
+        "resourceType": "Observation",
+        "valueString": "positive"
+      },
+      "expect": [{"type": "boolean", "value": false}]
+    },
+    {
+      "_section": "=== VALUE[X] AS INTEGER ==="
+    },
+    {
+      "name": "choice type: value navigates to valueInteger",
+      "expr": "Observation.value",
+      "input": {
+        "resourceType": "Observation",
+        "valueInteger": 42
+      },
+      "expect": [{"type": "integer", "value": 42}]
+    },
+    {
+      "name": "choice type: valueInteger is integer returns true",
+      "comment": "System types use lowercase in is operator",
+      "expr": "Observation.value is integer",
+      "input": {
+        "resourceType": "Observation",
+        "valueInteger": 42
+      },
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "_section": "=== VALUE[X] AS BOOLEAN ==="
+    },
+    {
+      "name": "choice type: value navigates to valueBoolean",
+      "expr": "Observation.value",
+      "input": {
+        "resourceType": "Observation",
+        "valueBoolean": true
+      },
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "_section": "=== VALUE[X] AS DATETIME ==="
+    },
+    {
+      "name": "choice type: value navigates to valueDateTime",
+      "expr": "Observation.value",
+      "input": {
+        "resourceType": "Observation",
+        "valueDateTime": "2024-01-15T10:30:00Z"
+      },
+      "expect": [{"type": "dateTime", "value": "2024-01-15T10:30:00Z"}]
+    },
+    {
+      "_section": "=== DIRECT CONCRETE ACCESS ==="
+    },
+    {
+      "name": "concrete access: valueQuantity.unit direct",
+      "comment": "Direct access to concrete field should work",
+      "expr": "Observation.valueQuantity.unit",
+      "input": {
+        "resourceType": "Observation",
+        "valueQuantity": {
+          "value": 185,
+          "unit": "lbs"
+        }
+      },
+      "expect": [{"type": "string", "value": "lbs"}]
+    },
+    {
+      "name": "concrete access: wrong variant errors",
+      "comment": "Per R5 testPolymorphismB, accessing valueQuantity when valueString is present should error",
+      "expr": "Observation.valueQuantity.unit",
+      "input": {
+        "resourceType": "Observation",
+        "valueString": "positive"
+      },
+      "expect_error": true
+    },
+    {
+      "_section": "=== NO VALUE PRESENT ==="
+    },
+    {
+      "name": "choice type: value empty when no value[x]",
+      "expr": "Observation.value.exists()",
+      "input": {
+        "resourceType": "Observation",
+        "status": "final"
+      },
+      "expect": [{"type": "boolean", "value": false}]
+    },
+    {
+      "name": "choice type: value.unit empty when no value[x]",
+      "expr": "Observation.value.unit",
+      "input": {
+        "resourceType": "Observation",
+        "status": "final"
+      },
+      "expect": []
+    },
+    {
+      "_section": "=== MULTIPLE RESOURCES ==="
+    },
+    {
+      "name": "choice type: ofType filters by resolved type",
+      "comment": "ofType(Quantity) should filter to only Quantity values",
+      "expr": "entry.resource.ofType(Observation).value.ofType(Quantity).count()",
+      "input": {
+        "resourceType": "Bundle",
+        "entry": [
+          {"resource": {"resourceType": "Observation", "valueQuantity": {"value": 100, "unit": "mg"}}},
+          {"resource": {"resourceType": "Observation", "valueString": "normal"}},
+          {"resource": {"resourceType": "Observation", "valueQuantity": {"value": 200, "unit": "mg"}}}
+        ]
+      },
+      "expect": [{"type": "integer", "value": 2}]
+    },
+    {
+      "_section": "=== EFFECTIVE[X] CHOICE TYPE ==="
+    },
+    {
+      "name": "choice type: effective navigates to effectiveDateTime",
+      "expr": "Observation.effective",
+      "input": {
+        "resourceType": "Observation",
+        "effectiveDateTime": "2024-01-15"
+      },
+      "expect": [{"type": "dateTime", "value": "2024-01-15"}]
+    },
+    {
+      "name": "choice type: effective navigates to effectivePeriod",
+      "expr": "Observation.effective.start",
+      "input": {
+        "resourceType": "Observation",
+        "effectivePeriod": {
+          "start": "2024-01-01",
+          "end": "2024-01-31"
+        }
+      },
+      "expect": [{"type": "dateTime", "value": "2024-01-01"}]
+    },
+    {
+      "_section": "=== TYPE PRIMITIVES WITH EXTENSIONS ==="
+    },
+    {
+      "name": "choice type: primitive with extension still accessible",
+      "comment": "FHIR primitives can have extensions; value[x] should still resolve",
+      "expr": "Observation.value",
+      "input": {
+        "resourceType": "Observation",
+        "valueString": "test value",
+        "_valueString": {
+          "extension": [{"url": "http://example.org", "valueBoolean": true}]
+        }
+      },
+      "expect": [{"type": "string", "value": "test value"}]
+    }
+  ]
+}

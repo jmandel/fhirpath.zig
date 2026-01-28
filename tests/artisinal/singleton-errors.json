@@ -1,0 +1,320 @@
+{
+  "_spec_summary": [
+    "Singleton Evaluation of Collections: Error Conditions",
+    "",
+    "=== WHEN ERRORS OCCUR ===",
+    "When a collection is passed where a single item is expected:",
+    "- If collection has single node of expected type (or convertible): use that value",
+    "- If collection has single node and Boolean expected: evaluates to true",
+    "- If collection is empty: evaluates to empty collection",
+    "- Otherwise: ERROR - multiple items or type mismatch",
+    "",
+    "=== FUNCTIONS REQUIRING SINGLETONS ===",
+    "Many functions expect singleton arguments. If passed a multi-item collection",
+    "or incompatible type, an error must be signaled:",
+    "- String functions with string args: startsWith, endsWith, contains, indexOf, etc.",
+    "- Math functions with numeric args: power, log, round, etc.",
+    "- Comparison operators: both operands must be singletons",
+    "- Arithmetic operators: +, -, *, /, div, mod expect singletons",
+    "- single(): returns error when input has >1 items",
+    "",
+    "=== EXAMPLES FROM SPEC ===",
+    "Patient.name.family + ', ' + Patient.name.given",
+    "  - Error if Patient has multiple names or name has multiple given elements",
+    "",
+    "Patient.active and Patient.gender and Patient.telecom",
+    "  - Error if Patient has multiple telecom elements",
+    "",
+    "Spec refs: Singleton Evaluation of Collections (spec/index.md)"
+  ],
+  "_todo": [
+    "[ ] Improve passing rate (14/41 passing) - most singleton error checks not implemented",
+    "[ ] Implement single() error on multi-item input (2 tests failing)",
+    "[ ] Implement arithmetic operator singleton checks (7 tests failing)",
+    "[ ] Implement string concat singleton checks (3 tests failing)",
+    "[ ] Implement string function argument singleton checks (10 tests failing)",
+    "[ ] Implement comparison operator singleton checks (5 tests failing)",
+    "[ ] Implement math function argument singleton checks (2+ tests failing)"
+  ],
+  "meta": {
+    "status": "written"
+  },
+  "cases": [
+    {
+      "_section": "=== SINGLE() ERROR CONDITIONS ==="
+    },
+    {
+      "name": "single: error on multi-item input",
+      "expr": "(1 | 2).single()",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "name": "single: error on three items",
+      "expr": "('a' | 'b' | 'c').single()",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "name": "single: succeeds with one item",
+      "expr": "name.single()",
+      "input": {"name": ["Alice"]},
+      "expect": [{"type": "string", "value": "Alice"}]
+    },
+    {
+      "name": "single: returns empty for empty input",
+      "expr": "name.single()",
+      "input": {"name": []},
+      "expect": []
+    },
+    {
+      "_section": "=== ARITHMETIC OPERATOR ERRORS ==="
+    },
+    {
+      "name": "addition: error on multi-item left operand",
+      "expr": "(1 | 2) + 3",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "name": "addition: error on multi-item right operand",
+      "expr": "1 + (2 | 3)",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "name": "subtraction: error on multi-item operand",
+      "expr": "(5 | 6) - 1",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "name": "multiplication: error on multi-item operand",
+      "expr": "2 * (3 | 4)",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "name": "division: error on multi-item operand",
+      "expr": "(10 | 20) / 2",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "name": "div: error on multi-item operand",
+      "expr": "(10 | 20) div 3",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "name": "mod: error on multi-item operand",
+      "expr": "(10 | 20) mod 3",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "_section": "=== STRING CONCATENATION ERRORS ==="
+    },
+    {
+      "name": "string concat: error on multi-item left",
+      "expr": "('a' | 'b') + 'c'",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "name": "string concat: error on multi-item right",
+      "expr": "'a' + ('b' | 'c')",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "name": "ampersand concat: propagates empty (no error)",
+      "expr": "'a' & {}",
+      "input": {},
+      "expect": [{"type": "string", "value": "a"}],
+      "comment": "& treats empty as empty string, so no error"
+    },
+    {
+      "name": "ampersand concat: error on multi-item",
+      "expr": "'a' & ('b' | 'c')",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "_section": "=== STRING FUNCTION ARGUMENT ERRORS ==="
+    },
+    {
+      "name": "startsWith: error on multi-item argument",
+      "expr": "'hello'.startsWith('h' | 'x')",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "name": "endsWith: error on multi-item argument",
+      "expr": "'hello'.endsWith('o' | 'x')",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "name": "contains: error on multi-item argument",
+      "expr": "'hello'.contains('ell' | 'xyz')",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "name": "indexOf: error on multi-item argument",
+      "expr": "'hello'.indexOf('l' | 'o')",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "name": "substring: error on multi-item start index",
+      "expr": "'hello'.substring(1 | 2)",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "name": "substring: error on multi-item length",
+      "expr": "'hello'.substring(0, 2 | 3)",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "name": "replace: error on multi-item pattern",
+      "expr": "'hello'.replace('l' | 'o', 'x')",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "name": "replace: error on multi-item substitution",
+      "expr": "'hello'.replace('l', 'x' | 'y')",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "name": "split: error on multi-item separator",
+      "expr": "'a,b;c'.split(',' | ';')",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "name": "join: error on multi-item separator",
+      "expr": "('a' | 'b' | 'c').join(',' | '-')",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "_section": "=== COMPARISON OPERATOR ERRORS ==="
+    },
+    {
+      "name": "greater than: error on multi-item left",
+      "expr": "(1 | 2) > 0",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "name": "greater than: error on multi-item right",
+      "expr": "5 > (3 | 4)",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "name": "less than: error on multi-item operand",
+      "expr": "(1 | 2) < 5",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "name": "greater or equal: error on multi-item operand",
+      "expr": "(1 | 2) >= 1",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "name": "less or equal: error on multi-item operand",
+      "expr": "(1 | 2) <= 2",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "_section": "=== MATH FUNCTION ARGUMENT ERRORS ==="
+    },
+    {
+      "name": "power: error on multi-item exponent",
+      "expr": "2.power(2 | 3)",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "name": "log: error on multi-item base",
+      "expr": "8.log(2 | 10)",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "name": "round: error on multi-item precision",
+      "expr": "3.14159.round(2 | 3)",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "_section": "=== SKIP/TAKE ARGUMENT ERRORS ==="
+    },
+    {
+      "name": "skip: error on multi-item argument",
+      "expr": "('a' | 'b' | 'c').skip(1 | 2)",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "name": "take: error on multi-item argument",
+      "expr": "('a' | 'b' | 'c').take(1 | 2)",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "_section": "=== INDEXER ERRORS ==="
+    },
+    {
+      "name": "indexer: error on multi-item index",
+      "expr": "('a' | 'b' | 'c')[0 | 1]",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "_section": "=== VALID SINGLETON OPERATIONS (NO ERROR) ==="
+    },
+    {
+      "name": "arithmetic: empty propagates (no error)",
+      "expr": "1 + {}",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "comparison: empty propagates (no error)",
+      "expr": "1 > {}",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "string function: empty propagates (no error)",
+      "expr": "'hello'.startsWith({})",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "equality: multi-item allowed (not error)",
+      "expr": "(1 | 2) = (1 | 2)",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Equality/equivalence operators allow multi-item collections"
+    },
+    {
+      "name": "equivalence: multi-item allowed (not error)",
+      "expr": "(1 | 2) ~ (2 | 1)",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Equivalence compares collections order-independently"
+    }
+  ]
+}

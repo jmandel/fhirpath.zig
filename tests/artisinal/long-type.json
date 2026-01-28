@@ -14,10 +14,20 @@
     "  - 45L.is(Integer) = false",
     "  - Long and Integer are distinct types for is/as/ofType operations",
     "",
-    "=== ARITHMETIC ===",
-    "  - Long supports all arithmetic operations: +, -, *, /, div, mod",
-    "  - Mixed Long/Integer arithmetic may promote to Long (implementation-specific)",
-    "  - Long with Decimal operations may promote to Decimal",
+    "=== TYPE CONVERSIONS ===",
+    "According to spec conversion table (implicitly converted when necessary):",
+    "  - Integer -> Long: Implicit",
+    "  - Long -> Decimal: Implicit",
+    "  - Long -> Integer: Explicit only (requires toInteger(), may lose precision)",
+    "",
+    "=== ARITHMETIC (SPEC AMBIGUITY) ===",
+    "IMPORTANT: The spec does NOT explicitly define Long arithmetic!",
+    "  - Spec says +,-,*,/ are 'for Integer, Decimal, and Quantity'",
+    "  - Spec says div/mod are 'for Integer and Decimal'",
+    "  - Long is NOT mentioned in arithmetic operator definitions",
+    "  - Reasonable interpretation: Long behaves like Integer for arithmetic",
+    "  - Alternative: Long could convert to Decimal (via implicit conversion)",
+    "Our tests assume Long+Long returns Long (intuitive behavior)",
     "",
     "=== toLong() : Long ===",
     "Converts input to Long if possible, empty otherwise:",
@@ -25,6 +35,7 @@
     "  - String: must match regex (\\+|-)?\\d+ and fit in 64 bits",
     "  - Boolean: true -> 1L, false -> 0L",
     "  - Other types: empty",
+    "Note: Spec says 'return a single integer' but function is toLong().",
     "",
     "=== convertsToLong() : Boolean ===",
     "Returns true if input can be converted to Long:",
@@ -36,20 +47,26 @@
     "",
     "=== COMPARISON ===",
     "  - Long values compare with = and ~ using numeric equality",
-    "  - Long can be compared with Integer: 45L = 45 is true",
+    "  - Long can be compared with Integer via implicit Integer->Long conversion",
     "  - Ordering comparisons (<, >, <=, >=) work normally",
     "",
     "Spec refs: spec/index.md Long literal section, toLong(), convertsToLong()."
   ],
   "_todo": [
-    "[ ] Improve passing rate (0/32 passing) - Long literals and functions not implemented",
-    "[ ] Implement Long literal parsing (0L, 45L syntax)",
+    "[ ] Improve passing rate (14/45 passing)",
+    "[x] Long literal parsing works (0L, 45L syntax)",
+    "[x] Long type identity checks work (is/as/ofType Long)",
+    "[x] Long equality/comparison with same type works",
     "[ ] Implement toLong() and convertsToLong() functions",
-    "[ ] Implement Long type identity checks (is/as Long)",
-    "[ ] Test large Long values near 64-bit boundaries"
+    "[ ] Implement Long arithmetic operations (+, -, *, div, mod)",
+    "[ ] Implement Long ordering comparisons (<, >, <=, >=)",
+    "[ ] Implement Long equivalence with Integer (45L ~ 45)",
+    "[ ] Implement Long aggregate functions (sum, min, max, avg)",
+    "[ ] Add tests for 64-bit boundary values (max/min Long)",
+    "[ ] Open question: Should Long+Long return Long or Decimal? (spec unclear)"
   ],
   "meta": {
-    "status": "written",
+    "status": "reviewed",
     "feature": "long-type",
     "source": "spec/index.md#Long"
   },
@@ -74,6 +91,13 @@
       "expr": "123456789L",
       "input": {},
       "expect": [{"type": "Long", "value": 123456789}]
+    },
+    {
+      "name": "Long: negative via unary minus",
+      "expr": "-45L",
+      "input": {},
+      "expect": [{"type": "Long", "value": -45}],
+      "comment": "Minus sign is the unary negation operator, applied to Long literal"
     },
     {
       "_section": "=== TYPE IDENTITY ==="
@@ -280,7 +304,8 @@
       "name": "Long: addition",
       "expr": "10L + 5L",
       "input": {},
-      "expect": [{"type": "Long", "value": 15}]
+      "expect": [{"type": "Long", "value": 15}],
+      "comment": "SPEC AMBIGUITY: + is defined for Integer/Decimal/Quantity, not Long. We assume Long+Long=Long"
     },
     {
       "name": "Long: subtraction",
@@ -298,13 +323,15 @@
       "name": "Long: integer division (div)",
       "expr": "17L div 5L",
       "input": {},
-      "expect": [{"type": "Long", "value": 3}]
+      "expect": [{"type": "Long", "value": 3}],
+      "comment": "SPEC AMBIGUITY: div is defined for Integer/Decimal only. We assume Long div Long=Long"
     },
     {
       "name": "Long: modulo",
       "expr": "17L mod 5L",
       "input": {},
-      "expect": [{"type": "Long", "value": 2}]
+      "expect": [{"type": "Long", "value": 2}],
+      "comment": "SPEC AMBIGUITY: mod is defined for Integer/Decimal only. We assume Long mod Long=Long"
     },
     {
       "_section": "=== OFTYPE FILTERING ==="

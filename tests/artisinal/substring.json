@@ -114,7 +114,19 @@
           "type": "string",
           "value": ""
         }
-      ]
+      ],
+      "_adjudicated": {
+        "fhirpath_js": [
+          {
+            "type": "string",
+            "value": "c"
+          }
+        ],
+        "our_old_value": null,
+        "verdict": "ours_correct",
+        "reason": "Spec says a negative or zero length returns an empty string, and the example explicitly shows substring(3, -1) -> ''.",
+        "spec_ref": "substring(start : Integer [, length : Integer])"
+      }
     },
     {
       "name": "substring - negative start with negative length",

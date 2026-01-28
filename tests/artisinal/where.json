@@ -140,7 +140,27 @@
           "type": "boolean",
           "value": true
         }
-      ]
+      ],
+      "_adjudicated": {
+        "fhirpath_js": [
+          {
+            "type": "boolean",
+            "value": true
+          },
+          {
+            "type": "boolean",
+            "value": false
+          },
+          {
+            "type": "boolean",
+            "value": true
+          }
+        ],
+        "our_old_value": null,
+        "verdict": "ours_correct",
+        "reason": "Spec says where includes only items where the criteria evaluates to true; false or empty are excluded. Here $this is a boolean, so false items must be filtered out.",
+        "spec_ref": "where(criteria : expression)"
+      }
     }
   ]
 }

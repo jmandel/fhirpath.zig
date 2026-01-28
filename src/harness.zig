@@ -277,7 +277,7 @@ fn runTestFile(
     };
     defer allocator.free(data);
 
-    var parsed = std.json.parseFromSlice(std.json.Value, allocator, data, .{}) catch {
+    var parsed = std.json.parseFromSlice(std.json.Value, allocator, data, .{ .parse_numbers = false }) catch {
         result.failed = 1;
         result.parse_errors = 1;
         return result;

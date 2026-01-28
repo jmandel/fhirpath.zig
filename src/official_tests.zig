@@ -58,7 +58,7 @@ pub fn main() !void {
     const tests_json = try std.fs.cwd().readFileAlloc(allocator, tests_path, 50 * 1024 * 1024);
     defer allocator.free(tests_json);
 
-    var parsed = try std.json.parseFromSlice(std.json.Value, allocator, tests_json, .{});
+    var parsed = try std.json.parseFromSlice(std.json.Value, allocator, tests_json, .{ .parse_numbers = false });
     defer parsed.deinit();
 
     const root = parsed.value;
@@ -321,7 +321,7 @@ fn itemString(doc: *jsondoc.JsonDoc, it: item.Item) ?[]const u8 {
             else => null,
         };
     }
-    if (it.data_kind == .json_span and it.node != null) {
+    if (it.data_kind == .node_ref and it.node != null) {
         const node = doc.node(@intCast(it.node.?)).*;
         if (node.kind == .string) return node.data.string;
         if (node.kind == .number) return node.data.number;
@@ -331,7 +331,7 @@ fn itemString(doc: *jsondoc.JsonDoc, it: item.Item) ?[]const u8 {
 
 fn itemBool(doc: *jsondoc.JsonDoc, it: item.Item) ?bool {
     if (it.data_kind == .value and it.value != null and it.value.? == .boolean) return it.value.?.boolean;
-    if (it.data_kind == .json_span and it.node != null) {
+    if (it.data_kind == .node_ref and it.node != null) {
         const node = doc.node(@intCast(it.node.?)).*;
         if (node.kind == .bool) return node.data.bool;
     }
@@ -340,7 +340,7 @@ fn itemBool(doc: *jsondoc.JsonDoc, it: item.Item) ?bool {
 
 fn itemInteger(doc: *jsondoc.JsonDoc, it: item.Item) ?i64 {
     if (it.data_kind == .value and it.value != null and it.value.? == .integer) return it.value.?.integer;
-    if (it.data_kind == .json_span and it.node != null) {
+    if (it.data_kind == .node_ref and it.node != null) {
         const node = doc.node(@intCast(it.node.?)).*;
         if (node.kind == .number) return std.fmt.parseInt(i64, node.data.number, 10) catch null;
     }
@@ -355,7 +355,7 @@ fn itemDecimal(doc: *jsondoc.JsonDoc, it: item.Item) ?f64 {
             else => null,
         };
     }
-    if (it.data_kind == .json_span and it.node != null) {
+    if (it.data_kind == .node_ref and it.node != null) {
         const node = doc.node(@intCast(it.node.?)).*;
         if (node.kind == .number) return std.fmt.parseFloat(f64, node.data.number) catch null;
     }

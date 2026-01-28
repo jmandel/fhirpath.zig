@@ -537,7 +537,7 @@ fn benchJsonDoc_BundleTraversalParseEach(allocator: std.mem.Allocator, json_text
 fn benchStdJson_SimpleNestedParseEach(allocator: std.mem.Allocator, json_text: []const u8, iterations: usize) !u64 {
     const start = std.time.nanoTimestamp();
     for (0..iterations) |_| {
-        const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_text, .{});
+        const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_text, .{ .parse_numbers = false });
         defer parsed.deinit();
         var adapter = StdJsonAdapter.init(allocator);
         runStdJson_SimpleNested(&adapter, &parsed.value);
@@ -548,7 +548,7 @@ fn benchStdJson_SimpleNestedParseEach(allocator: std.mem.Allocator, json_text: [
 fn benchStdJson_ArrayTraversalParseEach(allocator: std.mem.Allocator, json_text: []const u8, iterations: usize) !u64 {
     const start = std.time.nanoTimestamp();
     for (0..iterations) |_| {
-        const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_text, .{});
+        const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_text, .{ .parse_numbers = false });
         defer parsed.deinit();
         var adapter = StdJsonAdapter.init(allocator);
         runStdJson_ArrayTraversal(&adapter, &parsed.value);
@@ -559,7 +559,7 @@ fn benchStdJson_ArrayTraversalParseEach(allocator: std.mem.Allocator, json_text:
 fn benchStdJson_DeepComponentParseEach(allocator: std.mem.Allocator, json_text: []const u8, iterations: usize) !u64 {
     const start = std.time.nanoTimestamp();
     for (0..iterations) |_| {
-        const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_text, .{});
+        const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_text, .{ .parse_numbers = false });
         defer parsed.deinit();
         var adapter = StdJsonAdapter.init(allocator);
         runStdJson_DeepComponent(&adapter, &parsed.value);
@@ -570,7 +570,7 @@ fn benchStdJson_DeepComponentParseEach(allocator: std.mem.Allocator, json_text: 
 fn benchStdJson_WhereFilterParseEach(allocator: std.mem.Allocator, json_text: []const u8, iterations: usize) !u64 {
     const start = std.time.nanoTimestamp();
     for (0..iterations) |_| {
-        const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_text, .{});
+        const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_text, .{ .parse_numbers = false });
         defer parsed.deinit();
         var adapter = StdJsonAdapter.init(allocator);
         runStdJson_WhereFilter(&adapter, &parsed.value);
@@ -581,7 +581,7 @@ fn benchStdJson_WhereFilterParseEach(allocator: std.mem.Allocator, json_text: []
 fn benchStdJson_CountParseEach(allocator: std.mem.Allocator, json_text: []const u8, iterations: usize) !u64 {
     const start = std.time.nanoTimestamp();
     for (0..iterations) |_| {
-        const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_text, .{});
+        const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_text, .{ .parse_numbers = false });
         defer parsed.deinit();
         var adapter = StdJsonAdapter.init(allocator);
         runStdJson_Count(&adapter, &parsed.value);
@@ -592,7 +592,7 @@ fn benchStdJson_CountParseEach(allocator: std.mem.Allocator, json_text: []const 
 fn benchStdJson_BundleTraversalParseEach(allocator: std.mem.Allocator, json_text: []const u8, iterations: usize) !u64 {
     const start = std.time.nanoTimestamp();
     for (0..iterations) |_| {
-        const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_text, .{});
+        const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_text, .{ .parse_numbers = false });
         defer parsed.deinit();
         var adapter = StdJsonAdapter.init(allocator);
         runStdJson_BundleTraversal(&adapter, &parsed.value);
@@ -724,7 +724,7 @@ pub fn main() !void {
         defer patient_jdoc.deinit();
         var patient_jdoc_adapter = JsonDocAdapter.init(&patient_jdoc);
         
-        const patient_stdjson = try std.json.parseFromSlice(std.json.Value, allocator, PATIENT_JSON, .{});
+        const patient_stdjson = try std.json.parseFromSlice(std.json.Value, allocator, PATIENT_JSON, .{ .parse_numbers = false });
         defer patient_stdjson.deinit();
         var patient_stdjson_adapter = StdJsonAdapter.init(allocator);
 
@@ -732,7 +732,7 @@ pub fn main() !void {
         defer obs_jdoc.deinit();
         var obs_jdoc_adapter = JsonDocAdapter.init(&obs_jdoc);
         
-        const obs_stdjson = try std.json.parseFromSlice(std.json.Value, allocator, OBSERVATION_JSON, .{});
+        const obs_stdjson = try std.json.parseFromSlice(std.json.Value, allocator, OBSERVATION_JSON, .{ .parse_numbers = false });
         defer obs_stdjson.deinit();
         var obs_stdjson_adapter = StdJsonAdapter.init(allocator);
 
@@ -740,7 +740,7 @@ pub fn main() !void {
         defer bundle_jdoc.deinit();
         var bundle_jdoc_adapter = JsonDocAdapter.init(&bundle_jdoc);
         
-        const bundle_stdjson = try std.json.parseFromSlice(std.json.Value, allocator, bundle_json, .{});
+        const bundle_stdjson = try std.json.parseFromSlice(std.json.Value, allocator, bundle_json, .{ .parse_numbers = false });
         defer bundle_stdjson.deinit();
         var bundle_stdjson_adapter = StdJsonAdapter.init(allocator);
 

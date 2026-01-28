@@ -15,7 +15,7 @@ This doc is split into two parts:
 ### Design goals
 - Iterator-only results (no output modes).
 - Zero JSON materialization unless the caller requests `node.data`.
-- Zero-copy JSON spans when results point into the input buffer.
+- Zero-copy JSON text slices when the adapter can expose them.
 - Custom functions (including `trace`) provided by host as name -> host_id map.
 - Schemas registered by (name, prefix); optional default schema.
 - All non-System types are schema-defined at runtime (no hardcoded FHIR enums).
@@ -49,7 +49,7 @@ pub const Error = extern struct {
 
 pub const DataKind = enum(u32) {
     none = 0,
-    json_span = 1, // span into input buffer
+    node_ref = 1, // node-backed item; adapter decides how to resolve data
     value = 2,     // arena-owned value payload (synthetic or literal)
 };
 
@@ -64,7 +64,7 @@ pub const ValueKind = enum(u32) {
     time = 7,
     dateTime = 8,
     quantity = 9,
-    json_span = 10, // ABI-only: payload is a JsonSpan
+    json_text = 10, // ABI-only: payload is a Slice to JSON text
 };
 ```
 
@@ -146,9 +146,10 @@ export fn fhirpath_item_type_id(ctx: u32, item: u32) u32;
 export fn fhirpath_item_source_pos(ctx: u32, item: u32) u32; // 0 if none
 export fn fhirpath_item_source_end(ctx: u32, item: u32) u32;
 
-// JSON span access (valid only for DataKind.json_span)
-export fn fhirpath_item_json_pos(ctx: u32, item: u32) u32;
-export fn fhirpath_item_json_end(ctx: u32, item: u32) u32;
+// Node-backed data access (valid only for DataKind.node_ref)
+// Returns a pointer+len to JSON text (may point into input buffer or engine-owned scratch).
+export fn fhirpath_item_data_ptr(ctx: u32, item: u32) u32;
+export fn fhirpath_item_data_len(ctx: u32, item: u32) u32;
 
 // Scalar accessors (valid only for DataKind.value)
 export fn fhirpath_item_bool(ctx: u32, item: u32) u32;
@@ -157,7 +158,20 @@ export fn fhirpath_item_str_ptr(ctx: u32, item: u32) u32;
 export fn fhirpath_item_str_len(ctx: u32, item: u32) u32;
 export fn fhirpath_item_decimal(ctx: u32, item: u32, out_ptr: u32) Status;
 export fn fhirpath_item_quantity(ctx: u32, item: u32, out_ptr: u32) Status;
+
+// Type name lookup (returns UTF-8 slice; empty if unknown)
+export fn fhirpath_type_name_ptr(ctx: u32, type_id: u32) u32;
+export fn fhirpath_type_name_len(ctx: u32, type_id: u32) u32;
 ```
+
+Notes:
+- For wasm, `data_ptr` is a linear-memory offset. The buffer is valid until results
+  are cleared (next eval or context reset).
+- `data_len=0` means the adapter cannot provide JSON text; callers should not assume
+  JSON is always materializable from a node reference.
+- `type_name_ptr/len` returns `System.*` for system types and schema-qualified names
+  (e.g., `FHIR.Patient`) for model types. The name is resolved against the schema
+  used in the most recent `eval` (or default schema if used).
 
 ### Item layout (conceptual, internal)
 Items are internal and not part of the ABI. We use named fields rather than
@@ -166,20 +180,21 @@ generic `a/b/c` payloads.
 ```
 Item
 +-------------------+
-| data_kind (u32)   |  0=none 1=json_span 2=value
+| data_kind (u32)   |  0=none 1=node_ref 2=value
 | value_kind (u32)  |  ValueKind for data_kind=value
 | type_id (u32)     |
 | source_pos (u32)  |
 | source_end (u32)  |
-| data_pos (u32)    |  json_span: pos
-| data_end (u32)    |  json_span: end
+| node_ref (usize)  |  adapter-opaque node handle (index or pointer)
 | value_ptr (u32)   |  value: ptr to Value (only valid if data_kind=value)
 +-------------------+
 ```
 
 Notes:
-- For `json_span`, `data_pos` and `data_end` are set; `value_ptr` is unused.
-- For `value`, `value_ptr` is set; `data_pos/data_end` are unused.
+- For `node_ref`, the handle is adapter-defined; the engine uses the adapter to
+  resolve data or metadata. `value_ptr` is unused.
+- For `value`, `value_ptr` is set; JSON text access is unsupported (data_len=0).
+- `source_pos/source_end` are optional and derived from `adapter.span()` when available.
 
 Accessor output structs:
 ```zig
@@ -216,7 +231,7 @@ const Value = union(enum) {
     time: Slice,     // ISO-8601, preserves precision
     dateTime: Slice, // ISO-8601, preserves precision
     quantity: Quantity,
-    json_span: JsonSpan,
+    json_text: Slice, // ABI-only: raw JSON text passed via env/host
 };
 
 const Decimal = struct {
@@ -232,7 +247,6 @@ const Quantity = struct {
 };
 
 const Slice = struct { ptr: u32, len: u32 };
-const JsonSpan = struct { pos: u32, end: u32 };
 ```
 
 ### ABI value blob (extern, stable layout)
@@ -253,12 +267,11 @@ const ValuePayload = extern union {
     slice: Slice,
     dec_ptr: u32,          // Decimal payload pointer
     qty: QuantityBlob,     // value + unit
-    json: JsonSpan,        // input span
+    json: Slice,           // raw JSON text
 };
 
 const I64Parts = extern struct { lo: u32, hi: u32 };
 const Slice = extern struct { ptr: u32, len: u32 };
-const JsonSpan = extern struct { pos: u32, end: u32 };
 const QuantityBlob = extern struct {
     dec_ptr: u32,
     unit_ptr: u32,
@@ -283,7 +296,7 @@ pub const Options = extern struct {
 ```
 
 ### Env blob
-Env variables are passed as explicit values or JSON spans. The JS wrapper will
+Env variables are passed as explicit values or JSON text. The JS wrapper will
 build this blob automatically. Names are bare (no `%`).
 
 ```zig
@@ -291,7 +304,7 @@ pub const EnvHeader = extern struct { count: u32 };
 
 pub const EnvValueKind = enum(u32) {
     scalar = 1,
-    json_span = 2,
+    json_text = 2,
     collection = 3,
 };
 
@@ -309,9 +322,11 @@ pub const CollectionValue = extern struct {
 ```
 
 Notes:
-- If `value_kind` is scalar or json_span, `value_off` points to a `ValueBlob`.
+- If `value_kind` is scalar or json_text, `value_off` points to a `ValueBlob`.
 - If `value_kind` is collection, `value_off` points to `CollectionValue`, which
-  references an array of `ValueBlob` offsets (each item can be scalar or json_span).
+  references an array of `ValueBlob` offsets (each item can be scalar or json_text).
+- `json_text` values are parsed by the engine’s JSON backend (JsonDoc for wasm)
+  into node references before evaluation.
 
 ### Custom functions
 Host provides a name -> host_id table. `trace` is just another custom function.
@@ -393,9 +408,14 @@ class FhirPathNode {
     if (this._data !== undefined) return this._data;
     const kind = this.engine._itemDataKind(this.item);
 
-    if (kind === 1) { // json_span
-      const { pos, end } = this.engine._itemJsonSpan(this.item);
-      const bytes = this.engine._mem.subarray(pos, end);
+    if (kind === 1) { // node_ref
+      const ptr = this.engine._itemDataPtr(this.item);
+      const len = this.engine._itemDataLen(this.item);
+      if (len === 0) {
+        this._data = null;
+        return this._data;
+      }
+      const bytes = this.engine._mem.subarray(ptr, ptr + len);
       const text = this.engine._decoder.decode(bytes);
       this._data = JSON.parse(text); // cost only on access
       return this._data;
@@ -423,18 +443,27 @@ class FhirPathNode {
 }
 ```
 
+`_typeNameFromId(id)` is a thin wrapper over the ABI functions
+`fhirpath_type_name_ptr/len`. It resolves `System.*` or schema-qualified
+names (e.g., `FHIR.Patient`) using the schema active in the most recent eval.
+
+Note: the `node_ref` path assumes the adapter can provide JSON text (via span
+or stringify). If it cannot, `data_len` will be `0` and the wrapper should
+fallback to a host-specific materialization path or throw.
+
 ### Memory layout diagrams (conceptual)
 
-Input-backed JSON span (zero-copy):
+Input-backed node (JSON text optional, zero-copy when available):
 ```
 WASM memory
 +---------------------------------------------------------+
 | input JSON buffer ... "dateTime":"2020-01-01T..."      |
 +----------------------------^----------------------------+
                              |
-Item.data_kind = json_span   |
-Item.data_pos  = pos --------+
-Item.data_end  = end
+Item.data_kind = node_ref    |
+item_data_ptr = ptr ---------+   (0 if adapter has no text)
+item_data_len = len              (0 if adapter has no text)
+Item.source_pos/source_end = span (optional)
 ```
 
 Synthetic dateTime (arena value):
@@ -473,8 +502,10 @@ Synthetic value (e.g., `toQuantity()`):
 - Engine returns DataKind.value with ValueKind.quantity and arena payload.
 - `node.data` decodes the payload into `{ value, unit }`.
 
-Input-backed JSON span:
-- Engine returns DataKind.json_span pointing to the input buffer.
+Input-backed node:
+- Engine returns DataKind.node_ref for node-backed results.
+- If the adapter provides JSON text, data_ptr/data_len reference the input buffer
+  or an engine-owned scratch slice.
 - `node.data` decodes only when accessed.
 
 ---
@@ -707,6 +738,20 @@ Optional capabilities (detected via `@hasDecl`):
 pub fn span(self: *Adapter, ref: NodeRef) node.Span;      // zero-copy source positions
 pub fn stringify(self: *Adapter, ref: NodeRef) []const u8; // original JSON text
 ```
+
+Spans are optional metadata. When an adapter supports `span()`, the evaluator
+records the span into the item (`source_pos/source_end`) for debugging and trace
+metadata. JSON text access for `node.data` uses either `stringify()` or an
+adapter-provided span-backed slice.
+
+Example uses:
+- zero-copy slicing of the original JSON text for `node.data`
+- trace/debug output that references source offsets
+- host-side extraction without materializing full JSON values
+
+Pure Zig usage can bypass JSON serialization entirely: iterate results, keep the
+`node_ref` handle, and call adapter methods directly for traversal or scalar reads.
+Only `item_data_ptr/len` (or JS `node.data`) triggers JSON materialization.
 
 ### Implementations
 

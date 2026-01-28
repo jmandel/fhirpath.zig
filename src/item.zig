@@ -2,7 +2,8 @@ const std = @import("std");
 
 pub const DataKind = enum(u32) {
     none = 0,
-    json_span = 1,
+    // Node-backed item. Spans are optional and depend on adapter support.
+    node_ref = 1,
     value = 2,
 };
 
@@ -41,8 +42,8 @@ pub const Item = struct {
     type_id: u32,
     source_pos: u32,
     source_end: u32,
-    data_pos: u32,
-    data_end: u32,
+    // Adapter-opaque node reference (index or pointer encoded as usize).
+    // If the adapter supports spans, source_pos/source_end may be populated.
     node: ?usize,
     value: ?Value,
 };

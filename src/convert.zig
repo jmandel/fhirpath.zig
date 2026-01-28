@@ -10,7 +10,7 @@ pub fn itemToJsonValue(
     if (it.data_kind == .value and it.value != null) {
         return valueToJson(allocator, it.value.?);
     }
-    if (it.data_kind == .json_span and it.node != null) {
+    if (it.data_kind == .node_ref and it.node != null) {
         return nodeToJsonValue(allocator, doc, @intCast(it.node.?));
     }
     return std.json.Value{ .null = {} };

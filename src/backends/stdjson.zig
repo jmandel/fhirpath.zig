@@ -8,6 +8,8 @@
 //! Limitations:
 //! - No span support (std.json doesn't preserve source positions)
 //! - Strings are always allocated/unescaped
+//! - To preserve exact decimal text, parse std.json.Value with `parse_numbers = false`
+//!   so numbers stay as `number_string` rather than lossy floats.
 
 const std = @import("std");
 const node = @import("../node.zig");

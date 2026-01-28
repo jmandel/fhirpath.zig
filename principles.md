@@ -95,7 +95,7 @@ Zig FHIRPath engine. It is intentionally independent of the legacy WAT codebase.
 ### Eval
 - Evaluate into collections of `Item` handles.
 - `Item` holds `DataKind` + metadata + data descriptor.
-- Use `json_span` for input-backed values whenever possible.
+- Use `node_ref` for input-backed values whenever possible.
 
 ### Custom Functions
 - Name -> host_id lookup table in opts.
@@ -114,4 +114,3 @@ Zig FHIRPath engine. It is intentionally independent of the legacy WAT codebase.
 ### Debug / Trace
 - Debug flags enable extra checks.
 - Trace is implemented as custom function for flexibility.
-

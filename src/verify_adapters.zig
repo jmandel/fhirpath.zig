@@ -34,7 +34,7 @@ pub fn main() !void {
     defer jdoc.deinit();
     var jdoc_adapter = JsonDocAdapter.init(&jdoc);
 
-    const stdjson_parsed = try std.json.parseFromSlice(std.json.Value, allocator, TEST_JSON, .{});
+    const stdjson_parsed = try std.json.parseFromSlice(std.json.Value, allocator, TEST_JSON, .{ .parse_numbers = false });
     defer stdjson_parsed.deinit();
     var stdjson_adapter = StdJsonAdapter.init(allocator);
 

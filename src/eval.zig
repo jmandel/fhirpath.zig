@@ -41,7 +41,7 @@ pub const EvalResult = struct {
     doc: jsondoc.JsonDoc,
 
     pub fn deinit(self: *EvalResult) void {
-        self.items.deinit();
+        self.items.deinit(self.doc.allocator);
         self.doc.deinit();
     }
 };
@@ -780,8 +780,8 @@ fn itemIsType(ctx: anytype, it: item.Item, type_name: []const u8) bool {
         };
     }
 
-    // For JSON spans, check the underlying JSON type
-    if (it.data_kind == .json_span and it.node != null) {
+    // For node-backed values, check the underlying JSON type
+    if (it.data_kind == .node_ref and it.node != null) {
         const A = @TypeOf(ctx.adapter.*);
         const ref = nodeRefFromRaw(A, it.node.?);
         return switch (A.kind(ctx.adapter, ref)) {
@@ -1211,8 +1211,6 @@ fn evalFunction(
             .type_id = 0,
             .source_pos = 0,
             .source_end = 0,
-            .data_pos = 0,
-            .data_end = 0,
             .node = null,
             .value = .{ .empty = {} },
         };
@@ -1623,7 +1621,7 @@ fn itemsEqual(ctx: anytype, a: item.Item, b: item.Item) bool {
     if (a.data_kind == .value and b.data_kind == .value) {
         return valueEqual(a.value.?, b.value.?);
     }
-    if (a.data_kind == .json_span and b.data_kind == .json_span and a.node != null and b.node != null) {
+    if (a.data_kind == .node_ref and b.data_kind == .node_ref and a.node != null and b.node != null) {
         const A = @TypeOf(ctx.adapter.*);
         const a_ref = nodeRefFromRaw(A, a.node.?);
         const b_ref = nodeRefFromRaw(A, b.node.?);
@@ -1718,21 +1716,19 @@ fn literalToItem(ctx: anytype, lit: ast.Literal) item.Item {
 fn makeNodeItem(ctx: anytype, node_ref: @TypeOf(ctx.adapter.*).NodeRef, type_id_override: u32) !item.Item {
     const A = @TypeOf(ctx.adapter.*);
     const type_id = if (type_id_override != 0) type_id_override else try typeIdForNode(ctx, node_ref);
-    var data_pos: u32 = 0;
-    var data_end: u32 = 0;
+    var source_pos: u32 = 0;
+    var source_end: u32 = 0;
     if (node.hasSpanSupport(A)) {
         const span = A.span(ctx.adapter, node_ref);
-        data_pos = span.pos;
-        data_end = span.end;
+        source_pos = span.pos;
+        source_end = span.end;
     }
     return .{
-        .data_kind = .json_span,
+        .data_kind = .node_ref,
         .value_kind = .empty,
         .type_id = type_id,
-        .source_pos = 0,
-        .source_end = 0,
-        .data_pos = data_pos,
-        .data_end = data_end,
+        .source_pos = source_pos,
+        .source_end = source_end,
         .node = rawFromNodeRef(A, node_ref),
         .value = null,
     };
@@ -1754,8 +1750,6 @@ fn makeEmptyItem(ctx: anytype) item.Item {
         .type_id = 0,
         .source_pos = 0,
         .source_end = 0,
-        .data_pos = 0,
-        .data_end = 0,
         .node = null,
         .value = .{ .empty = {} },
     };
@@ -1769,8 +1763,6 @@ fn makeBoolItem(ctx: anytype, v: bool) item.Item {
         .type_id = type_id,
         .source_pos = 0,
         .source_end = 0,
-        .data_pos = 0,
-        .data_end = 0,
         .node = null,
         .value = .{ .boolean = v },
     };
@@ -1784,8 +1776,6 @@ fn makeIntegerItem(ctx: anytype, v: i64) item.Item {
         .type_id = type_id,
         .source_pos = 0,
         .source_end = 0,
-        .data_pos = 0,
-        .data_end = 0,
         .node = null,
         .value = .{ .integer = v },
     };
@@ -1803,8 +1793,6 @@ fn makeNumberItem(ctx: anytype, raw: []const u8) item.Item {
         .type_id = type_id,
         .source_pos = 0,
         .source_end = 0,
-        .data_pos = 0,
-        .data_end = 0,
         .node = null,
         .value = .{ .decimal = raw },
     };
@@ -1818,8 +1806,6 @@ fn makeStringItem(ctx: anytype, s: []const u8) item.Item {
         .type_id = type_id,
         .source_pos = 0,
         .source_end = 0,
-        .data_pos = 0,
-        .data_end = 0,
         .node = null,
         .value = .{ .string = s },
     };
@@ -1833,8 +1819,6 @@ fn makeDateItem(ctx: anytype, s: []const u8) item.Item {
         .type_id = type_id,
         .source_pos = 0,
         .source_end = 0,
-        .data_pos = 0,
-        .data_end = 0,
         .node = null,
         .value = .{ .date = s },
     };
@@ -1848,8 +1832,6 @@ fn makeDateTimeItem(ctx: anytype, s: []const u8) item.Item {
         .type_id = type_id,
         .source_pos = 0,
         .source_end = 0,
-        .data_pos = 0,
-        .data_end = 0,
         .node = null,
         .value = .{ .dateTime = s },
     };
@@ -1863,8 +1845,6 @@ fn makeTimeItem(ctx: anytype, s: []const u8) item.Item {
         .type_id = type_id,
         .source_pos = 0,
         .source_end = 0,
-        .data_pos = 0,
-        .data_end = 0,
         .node = null,
         .value = .{ .time = s },
     };
@@ -1878,8 +1858,6 @@ fn makeQuantityItem(ctx: anytype, value: []const u8, unit: []const u8) item.Item
         .type_id = type_id,
         .source_pos = 0,
         .source_end = 0,
-        .data_pos = 0,
-        .data_end = 0,
         .node = null,
         .value = .{ .quantity = .{ .value = value, .unit = unit } },
     };
@@ -1887,7 +1865,7 @@ fn makeQuantityItem(ctx: anytype, value: []const u8, unit: []const u8) item.Item
 
 fn itemIsBool(ctx: anytype, it: item.Item) bool {
     if (it.data_kind == .value and it.value != null and it.value.? == .boolean) return true;
-    if (it.data_kind == .json_span and it.node != null) {
+    if (it.data_kind == .node_ref and it.node != null) {
         const A = @TypeOf(ctx.adapter.*);
         const ref = nodeRefFromRaw(A, it.node.?);
         return A.kind(ctx.adapter, ref) == .bool;
@@ -1897,7 +1875,7 @@ fn itemIsBool(ctx: anytype, it: item.Item) bool {
 
 fn itemBoolValue(ctx: anytype, it: item.Item) bool {
     if (it.data_kind == .value and it.value != null and it.value.? == .boolean) return it.value.?.boolean;
-    if (it.data_kind == .json_span and it.node != null) {
+    if (it.data_kind == .node_ref and it.node != null) {
         const A = @TypeOf(ctx.adapter.*);
         const ref = nodeRefFromRaw(A, it.node.?);
         return A.boolean(ctx.adapter, ref);
@@ -1907,7 +1885,7 @@ fn itemBoolValue(ctx: anytype, it: item.Item) bool {
 
 fn itemToValue(ctx: anytype, it: item.Item) item.Value {
     if (it.data_kind == .value and it.value != null) return it.value.?;
-    if (it.data_kind == .json_span and it.node != null) {
+    if (it.data_kind == .node_ref and it.node != null) {
         const A = @TypeOf(ctx.adapter.*);
         const ref = nodeRefFromRaw(A, it.node.?);
         return switch (A.kind(ctx.adapter, ref)) {
@@ -2012,8 +1990,6 @@ fn makeDecimalItem(ctx: anytype, v: f64) EvalError!item.Item {
         .type_id = type_id,
         .source_pos = 0,
         .source_end = 0,
-        .data_pos = 0,
-        .data_end = 0,
         .node = null,
         .value = .{ .decimal = owned },
     };

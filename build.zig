@@ -119,4 +119,24 @@ pub fn build(b: *std.Build) void {
     b.installArtifact(overhead);
     const run_overhead = b.addRunArtifact(overhead);
     b.step("bench-overhead", "Benchmark adapter overhead vs direct access").dependOn(&run_overhead.step);
+
+    // WebAssembly build (ABI exports)
+    const wasm_target = b.resolveTargetQuery(.{
+        .cpu_arch = .wasm32,
+        .os_tag = .freestanding,
+    });
+    const wasm_module = b.createModule(.{
+        .root_source_file = b.path("src/wasm.zig"),
+        .target = wasm_target,
+        .optimize = optimize,
+    });
+    const wasm = b.addExecutable(.{
+        .name = "fhirpath",
+        .root_module = wasm_module,
+    });
+    wasm.export_memory = true;
+    wasm.rdynamic = true;
+    wasm.entry = .disabled;
+    const wasm_install = b.addInstallArtifact(wasm, .{});
+    b.step("wasm", "Build WebAssembly module").dependOn(&wasm_install.step);
 }

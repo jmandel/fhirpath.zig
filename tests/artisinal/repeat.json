@@ -7,6 +7,7 @@
     "- Output starts empty; input items seed the work queue but are not included unless produced by projection.",
     "- Processing continues until no new items are produced.",
     "- repeatAll(projection) behaves like repeat but allows duplicates; results from every iteration are included.",
+    "- repeatAll uses per-iteration queues: each iteration processes only the prior iteration's results.",
     "",
     "=== TYPE HANDLING ===",
     "- projection is evaluated in the context of each item; it can return any type.",
@@ -35,7 +36,7 @@
     "[ ] Add tests for unsafe repeatAll expressions and loop protection (MAY error)"
   ],
   "meta": {
-    "status": "drafted",
+    "status": "reviewed",
     "feature": "repeat",
     "source": "spec/index.md#repeat"
   },

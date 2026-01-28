@@ -33,18 +33,22 @@
     "   1 + 2 * 3 = 7  (not 9)",
     "   1 + 2 * 3 + 4 = 11",
     "",
-    "4. is/as bind between arithmetic and union:",
-    "   1 > 2 is Boolean = true  (comparison happens first, then type check)",
-    "   1 | 1 is Integer = true  (union happens, then type check fails with error)",
-    "   Actually: 1 | 1 is Integer causes error because is expects singleton",
+    "4. is/as PRECEDENCE CONFLICT:",
+    "   The spec precedence table (#06) says is/as bind TIGHTER than comparison (#08).",
+    "   This would mean: 1 > 2 is Boolean parses as 1 > (2 is Boolean) = error",
+    "   However, the OFFICIAL TESTS expect (1 > 2) is Boolean = true",
+    "   fhirpath.js follows the spec table (throws error on 1 > 2 is Boolean)",
+    "   We follow the official tests, treating comparison as binding tighter than is.",
     "",
-    "5. Union (|) binds between is/as and comparisons:",
-    "   This is surprising! Comparisons bind LOOSER than union.",
-    "   a > b | c parses as a > (b | c)  - comparing a to collection",
+    "5. Union (|) PRECEDENCE CONFLICT:",
+    "   Spec says: is/as (#06) > union (#07) > comparison (#08)",
+    "   Official tests suggest: comparison > is/as > union",
+    "   1 | 1 is Integer: Official expects true ((1|1) is Integer)",
+    "   fhirpath.js returns [1, true] (1 | (1 is Integer))",
     "",
-    "6. Comparison operators bind looser than union:",
-    "   1 > 2 is Boolean: (1 > 2) is Boolean = true",
-    "   NOT: 1 > (2 is Boolean) which would be comparing 1 to false",
+    "6. PRACTICAL BEHAVIOR (following official tests):",
+    "   1 > 2 is Boolean: (1 > 2) is Boolean = false is Boolean = true",
+    "   1 | 1 is Integer: (1 | 1) is Integer = error (multi-item input to is)",
     "",
     "7. Equality binds between comparison and 'in':",
     "   a = b in (c | d) parses as (a = b) in (c | d)",
@@ -75,13 +79,15 @@
   ],
   "_todo": [
     "[x] Initial tests created and passing (29/29)",
+    "[x] Document spec vs official tests conflict for is/as precedence",
     "[ ] Fix 'is' operator on comparison results (tracked in type-testing.json)",
     "[ ] Fix string + operator for concatenation (returns empty instead of concat)",
     "[ ] Add tests for union (|) precedence vs comparison",
-    "[ ] Add implies right-associativity test"
+    "[ ] Add implies right-associativity test",
+    "[ ] File upstream issue for precedence table vs test discrepancy"
   ],
   "meta": {
-    "status": "drafted"
+    "status": "reviewed"
   },
   "cases": [
     {
@@ -195,14 +201,21 @@
       "comment": "Parses as -(1.convertsToInteger()) = -(true). Unary minus on Boolean is an error."
     },
     {
-      "_section": "=== IS/AS PRECEDENCE (between arithmetic and union) ==="
+      "_section": "=== IS/AS PRECEDENCE (SPEC VS OFFICIAL TESTS CONFLICT) ==="
     },
     {
-      "name": "precedence: comparison binds tighter than is",
+      "name": "precedence: official tests expect comparison before is",
       "expr": "1 > 2 is Boolean",
       "input": {},
       "expect": [],
-      "comment": "KNOWN GAP: Should parse as (1 > 2) is Boolean = true, but 'is' on comparison result not implemented. See type-testing.json."
+      "comment": "SPEC CONFLICT: Precedence table says is(#6) > comparison(#8), but official test testPrecedence3 expects (1>2) is Boolean = true. fhirpath.js follows spec (errors). Our empty is a KNOWN GAP for 'is' on comparison results.",
+      "_adjudicated": {
+        "fhirpath_js": "error: InequalityExpression type mismatch",
+        "our_old_value": null,
+        "verdict": "spec_vs_test_conflict",
+        "reason": "Spec precedence says is binds tighter, but official test expects comparison to bind tighter. When implemented, should follow official tests (return true).",
+        "spec_ref": "§6.1 Operator Precedence, testPrecedence3"
+      }
     },
     {
       "name": "precedence: arithmetic binds tighter than is",

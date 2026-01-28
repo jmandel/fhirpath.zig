@@ -16,4 +16,14 @@
 #   4. Update to acknowledged/fixed/wontfix/duplicate based on upstream response
 
 version: 1
-issues: []
+issues:
+  - slug: is-as-precedence-conflicts-between-spec-table-and-official-tests
+    status: draft
+    severity: medium
+    category: spec-ambiguity
+    target: fhirpath-editors
+    title: is/as precedence conflicts between spec table and official tests
+    description: "The spec precedence table (§6.1) says is/as (#6) binds tighter than comparison (#8). But testPrecedence3 expects '1 > 2 is Boolean' to parse as (1>2) is Boolean = true, implying comparison binds tighter. fhirpath.js follows the spec table and errors. Clarification needed."
+    spec_section: 6.1 Operator Precedence
+    created: 2026-01-28
+    updated: 2026-01-28

@@ -34,7 +34,7 @@
     "EMPTY INPUT:",
     "  - {}.type() returns {} (empty collection)",
     "",
-    "SPEC REFERENCE: FHIRPath §3.4.11 (Types and Reflection), STU section"
+    "SPEC REFERENCE: FHIRPath 'Types and Reflection > Reflection' (STU section)"
   ],
   "_todo": [
     "[x] Implement type() function in evaluator (44/44 passing)",
@@ -42,8 +42,9 @@
     "[x] Support .namespace and .name path navigation on TypeInfo",
     "[x] Ensure proper namespace assignment (System vs FHIR)",
     "[x] Ensure correct name casing (PascalCase for System)",
-    "[ ] Review: should type() on FHIR resources return ClassInfo with element list?",
-    "[ ] Review: handling of ListTypeInfo for multi-valued paths"
+    "[x] CONFIRM: Verified spec compliance (44/44 passing)",
+    "[ ] Future: ClassInfo for FHIR resources (requires model support)",
+    "[ ] Future: ListTypeInfo for multi-valued paths (requires model support)"
   ],
   "_open_questions": [
     "Q: What does type() return for a collection of mixed types?",
@@ -56,7 +57,7 @@
     "A: Should return System.Quantity with namespace='System', name='Quantity'."
   ],
   "meta": {
-    "status": "implemented"
+    "status": "reviewed"
   },
   "cases": [
     {

@@ -3353,6 +3353,65 @@ fn evalFunction(
         }
         return out;
     }
+    // FHIR-specific: conformsTo(profile) checks if resource conforms to a profile URL
+    // Returns true if resourceType matches the profile URL's target type
+    // Returns false if types don't match
+    // Returns empty if: input not singleton, profile is empty, or profile URL is invalid/unknown
+    if (std.mem.eql(u8, call.name, "conformsTo")) {
+        if (call.args.len != 1) return error.InvalidFunction;
+        var out = ItemList.empty;
+
+        // Must be exactly one input element
+        if (input.len != 1) return out;
+
+        // Get the profile URL argument
+        const profile_url = try evalStringArg(ctx, call.args[0], env);
+        if (profile_url == null or profile_url.?.len == 0) return out;
+
+        // Extract the type name from the profile URL
+        // Standard format: http://hl7.org/fhir/StructureDefinition/{TypeName}
+        const sd_prefix = "http://hl7.org/fhir/StructureDefinition/";
+        if (!std.mem.startsWith(u8, profile_url.?, sd_prefix)) {
+            // Unknown profile URL format - return error per spec
+            return error.InvalidFunction;
+        }
+        const expected_type = profile_url.?[sd_prefix.len..];
+        if (expected_type.len == 0) return error.InvalidFunction;
+
+        // Get the actual resource type from the input
+        const it = input[0];
+        const actual_type: ?[]const u8 = blk: {
+            // Check for resourceType in node-backed items
+            if (it.data_kind == .node_ref and it.node != null) {
+                const A = @TypeOf(ctx.adapter.*);
+                const ref = nodeRefFromRaw(A, it.node.?);
+                break :blk resourceTypeName(ctx, ref);
+            }
+            // For type_id based items, try to get the FHIR type name
+            if (it.type_id != 0 and schema.isModelType(it.type_id)) {
+                if (ctx.schema) |s| {
+                    const full_name = s.typeName(it.type_id);
+                    // Strip "FHIR." prefix if present
+                    if (std.mem.startsWith(u8, full_name, "FHIR.")) {
+                        break :blk full_name[5..];
+                    }
+                    break :blk full_name;
+                }
+            }
+            break :blk null;
+        };
+
+        if (actual_type == null) {
+            // Can't determine resource type, return false
+            try out.append(ctx.allocator, makeBoolItem(ctx, false));
+            return out;
+        }
+
+        // Compare types
+        const matches = std.mem.eql(u8, actual_type.?, expected_type);
+        try out.append(ctx.allocator, makeBoolItem(ctx, matches));
+        return out;
+    }
     if (std.mem.eql(u8, call.name, "distinct")) {
         return distinctItems(ctx, input);
     }

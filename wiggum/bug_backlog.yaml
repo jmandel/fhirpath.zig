@@ -153,7 +153,7 @@ bugs:
     updated: 2026-01-28
     tags: [functions]
   - slug: conforms-to-function
-    status: open
+    status: resolved
     severity: low
     title: Implement conformsTo() for profile validation
     description: conformsTo(url) checks if resource conforms to a profile. ~2 R5 failures. FHIR-specific.

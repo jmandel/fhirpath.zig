@@ -1,0 +1,380 @@
+{
+  "_spec_summary": [
+    "=== Reflection: type(), .namespace, .name ===",
+    "",
+    "FHIRPath supports reflection to access type information describing the structure of values.",
+    "The type() function returns TypeInfo for each element in the input collection.",
+    "",
+    "TYPE INFO SUBTYPES:",
+    "  - SimpleTypeInfo { namespace, name, baseType } - for primitive types (String, Integer, etc.)",
+    "  - ClassInfo { namespace, name, baseType, element } - for class types (Patient, CodeableConcept)",
+    "  - ListTypeInfo { elementType } - for collection types",
+    "  - TupleTypeInfo { element } - for anonymous/backbone element types",
+    "",
+    "NAMESPACE VALUES:",
+    "  - 'System' - for FHIRPath built-in types (System.String, System.Integer, System.Boolean, etc.)",
+    "  - 'FHIR' - for FHIR model types (FHIR.Patient, FHIR.boolean, FHIR.string, etc.)",
+    "",
+    "CRITICAL DISTINCTION (FHIR vs System):",
+    "  - System.Boolean is the FHIRPath primitive boolean literal type",
+    "  - FHIR.boolean is the FHIR data type element (which wraps a boolean value)",
+    "  - true.type().name = 'Boolean' (System type from literal)",
+    "  - Patient.active.type().name = 'boolean' (FHIR type from resource field)",
+    "",
+    "NAME CASING:",
+    "  - System types use PascalCase: 'String', 'Integer', 'Boolean', 'Decimal', 'Date', 'Time', 'DateTime'",
+    "  - FHIR primitive types use lowercase: 'string', 'integer', 'boolean', 'decimal', etc.",
+    "  - FHIR resource types use PascalCase: 'Patient', 'Observation', 'CodeableConcept'",
+    "",
+    "ACCESSING TYPE PROPERTIES:",
+    "  - .namespace returns the namespace string ('System' or 'FHIR')",
+    "  - .name returns the type name string",
+    "  - These are regular path navigation on the returned TypeInfo object",
+    "",
+    "EMPTY INPUT:",
+    "  - {}.type() returns {} (empty collection)",
+    "",
+    "SPEC REFERENCE: FHIRPath §3.4.11 (Types and Reflection), STU section"
+  ],
+  "_todo": [
+    "[ ] Implement type() function in evaluator",
+    "[ ] Implement TypeInfo structures (SimpleTypeInfo, ClassInfo, etc.)",
+    "[ ] Support .namespace and .name path navigation on TypeInfo",
+    "[ ] Ensure proper namespace assignment (System vs FHIR)",
+    "[ ] Ensure correct name casing (PascalCase for System, lowercase for FHIR primitives)",
+    "[ ] Review: should type() on FHIR resources return ClassInfo with element list?",
+    "[ ] Review: handling of ListTypeInfo for multi-valued paths"
+  ],
+  "_open_questions": [
+    "Q: What does type() return for a collection of mixed types?",
+    "A: It returns a collection of TypeInfo objects, one per element.",
+    "",
+    "Q: Is .namespace always 'System' for literals and 'FHIR' for resource fields?",
+    "A: Yes, per spec examples. System.* for built-in types, FHIR.* for FHIR model types.",
+    "",
+    "Q: What about Quantity literals like 10 'mg'?",
+    "A: Should return System.Quantity with namespace='System', name='Quantity'."
+  ],
+  "meta": {
+    "status": "written"
+  },
+  "cases": [
+    {
+      "_section": "=== SYSTEM TYPE PRIMITIVES ==="
+    },
+    {
+      "name": "type: integer literal namespace is System",
+      "expr": "1.type().namespace",
+      "input": {},
+      "expect": [{"type": "string", "value": "System"}]
+    },
+    {
+      "name": "type: integer literal name is Integer",
+      "expr": "1.type().name",
+      "input": {},
+      "expect": [{"type": "string", "value": "Integer"}]
+    },
+    {
+      "name": "type: string literal namespace is System",
+      "expr": "'hello'.type().namespace",
+      "input": {},
+      "expect": [{"type": "string", "value": "System"}]
+    },
+    {
+      "name": "type: string literal name is String",
+      "expr": "'hello'.type().name",
+      "input": {},
+      "expect": [{"type": "string", "value": "String"}]
+    },
+    {
+      "name": "type: boolean true namespace is System",
+      "expr": "true.type().namespace",
+      "input": {},
+      "expect": [{"type": "string", "value": "System"}]
+    },
+    {
+      "name": "type: boolean true name is Boolean",
+      "expr": "true.type().name",
+      "input": {},
+      "expect": [{"type": "string", "value": "Boolean"}]
+    },
+    {
+      "name": "type: boolean false name is Boolean",
+      "expr": "false.type().name",
+      "input": {},
+      "expect": [{"type": "string", "value": "Boolean"}]
+    },
+    {
+      "name": "type: decimal literal namespace is System",
+      "expr": "3.14.type().namespace",
+      "input": {},
+      "expect": [{"type": "string", "value": "System"}]
+    },
+    {
+      "name": "type: decimal literal name is Decimal",
+      "expr": "3.14.type().name",
+      "input": {},
+      "expect": [{"type": "string", "value": "Decimal"}]
+    },
+    {
+      "_section": "=== DATE/TIME LITERALS ==="
+    },
+    {
+      "name": "type: date literal namespace is System",
+      "expr": "@2020-01-01.type().namespace",
+      "input": {},
+      "expect": [{"type": "string", "value": "System"}]
+    },
+    {
+      "name": "type: date literal name is Date",
+      "expr": "@2020-01-01.type().name",
+      "input": {},
+      "expect": [{"type": "string", "value": "Date"}]
+    },
+    {
+      "name": "type: dateTime literal namespace is System",
+      "expr": "@2020-01-01T10:30:00.type().namespace",
+      "input": {},
+      "expect": [{"type": "string", "value": "System"}]
+    },
+    {
+      "name": "type: dateTime literal name is DateTime",
+      "expr": "@2020-01-01T10:30:00.type().name",
+      "input": {},
+      "expect": [{"type": "string", "value": "DateTime"}]
+    },
+    {
+      "name": "type: time literal namespace is System",
+      "expr": "@T14:30:00.type().namespace",
+      "input": {},
+      "expect": [{"type": "string", "value": "System"}]
+    },
+    {
+      "name": "type: time literal name is Time",
+      "expr": "@T14:30:00.type().name",
+      "input": {},
+      "expect": [{"type": "string", "value": "Time"}]
+    },
+    {
+      "_section": "=== QUANTITY LITERALS ==="
+    },
+    {
+      "name": "type: quantity literal namespace is System",
+      "expr": "(10 'mg').type().namespace",
+      "input": {},
+      "expect": [{"type": "string", "value": "System"}]
+    },
+    {
+      "name": "type: quantity literal name is Quantity",
+      "expr": "(10 'mg').type().name",
+      "input": {},
+      "expect": [{"type": "string", "value": "Quantity"}]
+    },
+    {
+      "_section": "=== EMPTY INPUT ==="
+    },
+    {
+      "name": "type: empty collection returns empty",
+      "expr": "{}.type()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "type: missing path returns empty",
+      "expr": "missing.type()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "_section": "=== COLLECTION OF VALUES ==="
+    },
+    {
+      "name": "type: multiple integers all have same type name",
+      "expr": "(1 | 2 | 3).type().name",
+      "input": {},
+      "expect": [
+        {"type": "string", "value": "Integer"},
+        {"type": "string", "value": "Integer"},
+        {"type": "string", "value": "Integer"}
+      ]
+    },
+    {
+      "name": "type: multiple strings return multiple String names",
+      "expr": "('a' | 'b').type().name",
+      "input": {},
+      "expect": [
+        {"type": "string", "value": "String"},
+        {"type": "string", "value": "String"}
+      ]
+    },
+    {
+      "name": "type: distinct on type names for homogeneous collection",
+      "expr": "(1 | 2 | 3).type().name.distinct()",
+      "input": {},
+      "expect": [{"type": "string", "value": "Integer"}]
+    },
+    {
+      "_section": "=== MIXED TYPE COLLECTIONS ==="
+    },
+    {
+      "name": "type: mixed integer and string collection",
+      "expr": "(1 | 'hello').type().name",
+      "input": {},
+      "expect": [
+        {"type": "string", "value": "Integer"},
+        {"type": "string", "value": "String"}
+      ]
+    },
+    {
+      "name": "type: mixed boolean and integer",
+      "expr": "(true | 42).type().name",
+      "input": {},
+      "expect": [
+        {"type": "string", "value": "Boolean"},
+        {"type": "string", "value": "Integer"}
+      ]
+    },
+    {
+      "name": "type: all System namespace for mixed literals",
+      "expr": "(1 | 'x' | true).type().namespace.distinct()",
+      "input": {},
+      "expect": [{"type": "string", "value": "System"}]
+    },
+    {
+      "_section": "=== EQUALITY COMPARISONS (as in R5 tests) ==="
+    },
+    {
+      "name": "type: integer namespace equals System",
+      "expr": "1.type().namespace = 'System'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "type: integer name equals Integer",
+      "expr": "1.type().name = 'Integer'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "type: string namespace equals System",
+      "expr": "'hello'.type().namespace = 'System'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "type: string name equals String",
+      "expr": "'hello'.type().name = 'String'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "type: boolean namespace equals System",
+      "expr": "true.type().namespace = 'System'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "type: boolean name equals Boolean",
+      "expr": "true.type().name = 'Boolean'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "_section": "=== NEGATIVE COMPARISONS ==="
+    },
+    {
+      "name": "type: integer name is not String",
+      "expr": "1.type().name = 'String'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}]
+    },
+    {
+      "name": "type: string name is not Integer",
+      "expr": "'hello'.type().name = 'Integer'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}]
+    },
+    {
+      "name": "type: integer namespace is not FHIR",
+      "expr": "1.type().namespace = 'FHIR'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}]
+    },
+    {
+      "_section": "=== CHAINED OPERATIONS ==="
+    },
+    {
+      "name": "type: first of collection type name",
+      "expr": "(1 | 2 | 3).type().name.first()",
+      "input": {},
+      "expect": [{"type": "string", "value": "Integer"}]
+    },
+    {
+      "name": "type: count of type names",
+      "expr": "(1 | 2 | 3).type().name.count()",
+      "input": {},
+      "expect": [{"type": "integer", "value": 3}]
+    },
+    {
+      "name": "type: all elements have System namespace",
+      "expr": "(1 | 'x' | true).type().all(namespace = 'System')",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "type: exists element with name Integer",
+      "expr": "(1 | 'x').type().exists(name = 'Integer')",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "type: where name is String",
+      "expr": "(1 | 'x' | 2).type().where(name = 'String').count()",
+      "input": {},
+      "expect": [{"type": "integer", "value": 1}]
+    },
+    {
+      "_section": "=== PATH FROM INPUT DOCUMENT ==="
+    },
+    {
+      "name": "type: integer from input document",
+      "expr": "value.type().name",
+      "input": {"value": 42},
+      "expect": [{"type": "string", "value": "Integer"}]
+    },
+    {
+      "name": "type: string from input document",
+      "expr": "name.type().name",
+      "input": {"name": "John"},
+      "expect": [{"type": "string", "value": "String"}]
+    },
+    {
+      "name": "type: boolean from input document",
+      "expr": "active.type().name",
+      "input": {"active": true},
+      "expect": [{"type": "string", "value": "Boolean"}]
+    },
+    {
+      "name": "type: array of integers from input",
+      "expr": "values.type().name.distinct()",
+      "input": {"values": [1, 2, 3]},
+      "expect": [{"type": "string", "value": "Integer"}]
+    },
+    {
+      "name": "type: array of strings from input",
+      "expr": "names.type().name.distinct()",
+      "input": {"names": ["Alice", "Bob"]},
+      "expect": [{"type": "string", "value": "String"}]
+    },
+    {
+      "_section": "=== NOTES ON FHIR TYPES (for reference) ==="
+    },
+    {
+      "_comment": "The following tests would apply in a FHIR context with actual FHIR resources.",
+      "_comment2": "In a FHIR context, Patient.active.type().namespace would be 'FHIR' not 'System'.",
+      "_comment3": "And Patient.active.type().name would be 'boolean' (lowercase FHIR primitive).",
+      "_comment4": "We cannot easily test FHIR model types without actual FHIR resource context.",
+      "_comment5": "See R5 tests: testType9-14 for FHIR.boolean vs System.Boolean distinction."
+    }
+  ]
+}

@@ -21,6 +21,7 @@ fn valueToJson(allocator: std.mem.Allocator, v: item.Value) !std.json.Value {
         .empty => std.json.Value{ .null = {} },
         .boolean => |b| std.json.Value{ .bool = b },
         .integer => |i| std.json.Value{ .integer = i },
+        .long => |i| std.json.Value{ .integer = i },
         .decimal => |s| std.json.Value{ .number_string = s },
         .string => |s| std.json.Value{ .string = s },
         .date => |s| std.json.Value{ .string = s },

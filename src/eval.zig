@@ -2009,6 +2009,7 @@ fn itemIsType(ctx: anytype, it: item.Item, type_name: []const u8) bool {
         return switch (it.value.?) {
             .boolean => std.mem.eql(u8, normalized, "Boolean"),
             .integer => std.mem.eql(u8, normalized, "Integer"),
+            .long => std.mem.eql(u8, normalized, "Long"),
             .decimal => std.mem.eql(u8, normalized, "Decimal"),
             .string => std.mem.eql(u8, normalized, "String"),
             .date => std.mem.eql(u8, normalized, "Date"),
@@ -2060,6 +2061,9 @@ fn evalUnary(
                     .integer => |val| {
                         try out.append(ctx.allocator, makeIntegerItem(ctx, -val));
                     },
+                    .long => |val| {
+                        try out.append(ctx.allocator, makeLongItemFromValue(ctx, -val));
+                    },
                     .decimal => |val| {
                         const f = std.fmt.parseFloat(f64, val) catch return error.InvalidOperand;
                         try out.append(ctx.allocator, try makeDecimalItem(ctx, -f));
@@ -2074,6 +2078,7 @@ fn evalUnary(
                 const val = itemToValue(ctx, it);
                 switch (val) {
                     .integer => |v| try out.append(ctx.allocator, makeIntegerItem(ctx, -v)),
+                    .long => |v| try out.append(ctx.allocator, makeLongItemFromValue(ctx, -v)),
                     .decimal => |v| {
                         const f = std.fmt.parseFloat(f64, v) catch return error.InvalidOperand;
                         try out.append(ctx.allocator, try makeDecimalItem(ctx, -f));
@@ -4523,6 +4528,7 @@ fn valueEqual(a: item.Value, b: item.Value) bool {
         .empty => return true,
         .boolean => |v| return v == b.boolean,
         .integer => |v| return v == b.integer,
+        .long => |v| return v == b.long,
         .decimal => |v| return std.mem.eql(u8, v, b.decimal),
         .string => |v| return std.mem.eql(u8, v, b.string),
         .date => |v| return std.mem.eql(u8, v, b.date),
@@ -4535,6 +4541,7 @@ fn valueEqual(a: item.Value, b: item.Value) bool {
 fn valueToNumber(v: item.Value) ?f64 {
     return switch (v) {
         .integer => |i| @floatFromInt(i),
+        .long => |i| @floatFromInt(i),
         .decimal => |s| std.fmt.parseFloat(f64, s) catch null,
         else => null,
     };
@@ -4588,6 +4595,7 @@ fn literalToItem(ctx: anytype, lit: ast.Literal) item.Item {
         .Bool => |b| makeBoolItem(ctx, b),
         .String => |s| makeStringItem(ctx, s),
         .Number => |n| makeNumberItem(ctx, n),
+        .Long => |n| makeLongItem(ctx, n),
         .Quantity => |q| makeQuantityItem(ctx, q.value, q.unit),
         // Strip @ prefix from date/datetime literals (lexer captures @YYYY-MM-DD)
         .Date => |d| makeDateItem(ctx, if (d.len > 0 and d[0] == '@') d[1..] else d),
@@ -4662,6 +4670,24 @@ fn makeIntegerItem(ctx: anytype, v: i64) item.Item {
         .source_end = 0,
         .node = null,
         .value = .{ .integer = v },
+    };
+}
+
+fn makeLongItem(ctx: anytype, raw: []const u8) item.Item {
+    const parsed = std.fmt.parseInt(i64, raw, 10) catch 0;
+    return makeLongItemFromValue(ctx, parsed);
+}
+
+fn makeLongItemFromValue(ctx: anytype, v: i64) item.Item {
+    const type_id = ctx.types.getOrAdd("System.Long") catch 0;
+    return .{
+        .data_kind = .value,
+        .value_kind = .long,
+        .type_id = type_id,
+        .source_pos = 0,
+        .source_end = 0,
+        .node = null,
+        .value = .{ .long = v },
     };
 }
 

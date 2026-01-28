@@ -77,8 +77,8 @@
     "There is no null literal in FHIRPath."
   ],
   "_todo": [
-    "[ ] Improve passing rate (39/54 passing)",
-    "[ ] Implement Long literal parsing (0L, 45L, etc.)",
+    "[ ] Improve passing rate (44/54 passing)",
+    "[x] Implement Long literal parsing (0L, 45L, etc.)",
     "[ ] Fix string escape sequences (\\t, \\n, \\r, \\f not expanding)",
     "[ ] Implement Unicode escape (\\uXXXX) processing",
     "[ ] Implement calendar duration keyword parsing (1 year, 4 days)"

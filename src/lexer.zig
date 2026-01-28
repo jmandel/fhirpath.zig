@@ -11,6 +11,7 @@ pub const TokenKind = enum {
 
     String,
     Number,
+    Long, // Integer literal with 'L' suffix (e.g., 45L)
     Date,
     DateTime,
     Time,
@@ -211,6 +212,11 @@ pub const Lexer = struct {
         const start = self.index;
         while (self.index < self.input.len and isDigit(self.input[self.index])) {
             self.index += 1;
+        }
+        // Check for Long suffix 'L' (only for integers, not decimals)
+        if (self.index < self.input.len and self.input[self.index] == 'L') {
+            self.index += 1; // consume 'L'
+            return self.token(.Long, start, self.index);
         }
         if (self.index < self.input.len and self.input[self.index] == '.') {
             if (self.index + 1 < self.input.len and isDigit(self.input[self.index + 1])) {

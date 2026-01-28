@@ -109,6 +109,7 @@ pub const Literal = union(enum) {
     Bool: bool,
     String: []const u8,
     Number: []const u8,
+    Long: []const u8, // Long integer (45L syntax)
     Quantity: QuantityLiteral,
     Date: []const u8,
     DateTime: []const u8,
@@ -138,6 +139,7 @@ pub fn formatExpr(expr: Expr, writer: anytype) !void {
                         .Bool => |b| try writer.print("{}", .{b}),
                         .String => |s| try writer.print("'{s}'", .{s}),
                         .Number => |n| try writer.print("{s}", .{n}),
+                        .Long => |n| try writer.print("{s}L", .{n}),
                         .Quantity => |q| try writer.print("{s} '{s}'", .{ q.value, q.unit }),
                         .Date => |d| try writer.print("@{s}", .{d}),
                         .DateTime => |d| try writer.print("@{s}", .{d}),
@@ -207,6 +209,7 @@ pub fn formatExpr(expr: Expr, writer: anytype) !void {
                 .Bool => |b| try writer.print("Bool({})", .{b}),
                 .String => |s| try writer.print("String('{s}')", .{s}),
                 .Number => |n| try writer.print("Number({s})", .{n}),
+                .Long => |n| try writer.print("Long({s}L)", .{n}),
                 .Quantity => |q| try writer.print("Quantity({s} '{s}')", .{ q.value, q.unit }),
                 .Date => |d| try writer.print("Date({s})", .{d}),
                 .DateTime => |d| try writer.print("DateTime({s})", .{d}),
@@ -278,6 +281,7 @@ pub fn deinitExpr(allocator: std.mem.Allocator, expr: Expr) void {
                     switch (lit) {
                         .String => |s| allocator.free(s),
                         .Number => |n| allocator.free(n),
+                        .Long => |n| allocator.free(n),
                         .Quantity => |q| {
                             allocator.free(q.value);
                             allocator.free(q.unit);
@@ -314,6 +318,7 @@ pub fn deinitExpr(allocator: std.mem.Allocator, expr: Expr) void {
             switch (lit) {
                 .String => |s| allocator.free(s),
                 .Number => |n| allocator.free(n),
+                .Long => |n| allocator.free(n),
                 .Quantity => |q| {
                     allocator.free(q.value);
                     allocator.free(q.unit);

@@ -203,6 +203,13 @@ pub const Parser = struct {
                 }
                 return self.parseTailSteps(.{ .Literal = .{ .Number = value } });
             },
+            .Long => {
+                // Long literal: strip the 'L' suffix and store the numeric part
+                const lexeme = self.current.lexeme;
+                const value = try self.allocator.dupe(u8, lexeme[0 .. lexeme.len - 1]); // strip 'L'
+                _ = try self.advance();
+                return self.parseTailSteps(.{ .Literal = .{ .Long = value } });
+            },
             .Date => {
                 const value = try self.allocator.dupe(u8, self.current.lexeme);
                 _ = try self.advance();

@@ -11,6 +11,7 @@ pub const ValueKind = enum(u32) {
     empty,
     boolean,
     integer,
+    long, // System.Long (64-bit integer with 'L' suffix)
     decimal,
     string,
     date,
@@ -28,6 +29,7 @@ pub const Value = union(ValueKind) {
     empty: void,
     boolean: bool,
     integer: i64,
+    long: i64, // System.Long (64-bit integer)
     decimal: []const u8,
     string: []const u8,
     date: []const u8,
@@ -61,6 +63,7 @@ pub const TypeTable = struct {
         _ = try table.getOrAdd("System.Any");
         _ = try table.getOrAdd("System.Boolean");
         _ = try table.getOrAdd("System.Integer");
+        _ = try table.getOrAdd("System.Long");
         _ = try table.getOrAdd("System.Decimal");
         _ = try table.getOrAdd("System.String");
         _ = try table.getOrAdd("System.Date");

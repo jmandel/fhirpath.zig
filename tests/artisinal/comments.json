@@ -1,0 +1,298 @@
+{
+  "_spec_summary": [
+    "FHIRPATH COMMENT SYNTAX",
+    "",
+    "FHIRPath defines two styles of comments that are ignored by the evaluator:",
+    "",
+    "=== SINGLE-LINE COMMENTS ===",
+    "A single-line comment begins with two forward slashes (//) and extends to the end of the line.",
+    "Everything after // on that line is ignored.",
+    "",
+    "Syntax: // comment text until newline",
+    "",
+    "Examples:",
+    "  2 + 2 // This is a single-line comment",
+    "  // This entire line is a comment",
+    "",
+    "=== MULTI-LINE COMMENTS ===",
+    "A multi-line comment begins with /* and ends with */.",
+    "Everything between these delimiters is ignored, including newlines.",
+    "",
+    "Syntax: /* comment text */",
+    "",
+    "Examples:",
+    "  /* This is a comment */",
+    "  /*",
+    "  This spans",
+    "  multiple lines",
+    "  */",
+    "",
+    "=== PLACEMENT RULES ===",
+    "- Comments can appear anywhere whitespace is valid",
+    "- Single-line comments consume the rest of the line",
+    "- Multi-line comments can span across lines or be inline",
+    "- Comments do NOT nest (/* inside /* */ is not special)",
+    "",
+    "=== EDGE CASES ===",
+    "- A / not followed by / or * is the division operator",
+    "- A /* not closed by */ is typically an error (unterminated comment)",
+    "- Empty comment // (nothing after) is valid",
+    "- Empty multi-line /* */ is valid",
+    "",
+    "=== BEHAVIOR IN EXPRESSIONS ===",
+    "Comments are stripped during lexing, so:",
+    "  2 + 2 // + 4  evaluates to 4 (the + 4 is in the comment)",
+    "  2 + /* inline */ 2  evaluates to 4",
+    "  2 // comment \\n + 2  evaluates to 4 (newline ends // comment)"
+  ],
+  "_todo": [
+    "[x] Improve passing rate (20/20 passing)",
+    "[x] Verify single-line comment at end of expression",
+    "[x] Verify multi-line comment inline",
+    "[x] Verify comment between operators",
+    "[x] Test unterminated multi-line comment behavior"
+  ],
+  "meta": {
+    "status": "reviewed"
+  },
+  "cases": [
+    {
+      "_section": "=== SINGLE-LINE COMMENTS ==="
+    },
+    {
+      "name": "single-line comment at end of expression",
+      "expr": "2 + 2 // This is a single-line comment + 4",
+      "input": {},
+      "expect": [
+        {
+          "type": "integer",
+          "value": 4
+        }
+      ],
+      "comment": "The + 4 after // is ignored, so result is 2+2=4"
+    },
+    {
+      "name": "multiple single-line comments on separate lines",
+      "expr": "// This is a multi line comment using // that\n// should not fail during parsing\n2+2",
+      "input": {},
+      "expect": [
+        {
+          "type": "integer",
+          "value": 4
+        }
+      ],
+      "comment": "Each // consumes only its own line"
+    },
+    {
+      "name": "single-line comment between expression parts",
+      "expr": "2 // comment\n/ 2",
+      "input": {},
+      "expect": [
+        {
+          "type": "decimal",
+          "value": 1.0
+        }
+      ],
+      "comment": "The newline ends the comment, allowing / 2 to be parsed. Division always returns decimal."
+    },
+    {
+      "name": "empty single-line comment",
+      "expr": "3 //\n+ 1",
+      "input": {},
+      "expect": [
+        {
+          "type": "integer",
+          "value": 4
+        }
+      ],
+      "comment": "Empty // comment is valid"
+    },
+    {
+      "name": "single-line comment with special characters",
+      "expr": "5 // !@#$%^&*() are allowed in comments\n+ 5",
+      "input": {},
+      "expect": [
+        {
+          "type": "integer",
+          "value": 10
+        }
+      ]
+    },
+    {
+      "name": "only single-line comment before expression",
+      "expr": "// comment first\n42",
+      "input": {},
+      "expect": [
+        {
+          "type": "integer",
+          "value": 42
+        }
+      ]
+    },
+    {
+      "_section": "=== MULTI-LINE COMMENTS ==="
+    },
+    {
+      "name": "multi-line comment spanning lines",
+      "expr": "2 + 2 \n/*\nThis is a multi-line comment\nAny text enclosed within is ignored\n+2\n*/",
+      "input": {},
+      "expect": [
+        {
+          "type": "integer",
+          "value": 4
+        }
+      ],
+      "comment": "The +2 inside the comment is ignored"
+    },
+    {
+      "name": "multi-line comment followed by continuation",
+      "expr": "2 + 2 \n/*\nThis is a multi-line comment\nAny text enclosed within is ignored\n*/\n+2",
+      "input": {},
+      "expect": [
+        {
+          "type": "integer",
+          "value": 6
+        }
+      ],
+      "comment": "The +2 after */ is NOT in the comment"
+    },
+    {
+      "name": "multi-line comment at start",
+      "expr": "/*\nThis is a multi-line comment\nAny text enclosed within is ignored\n*/\n2+2",
+      "input": {},
+      "expect": [
+        {
+          "type": "integer",
+          "value": 4
+        }
+      ]
+    },
+    {
+      "name": "inline multi-line comment",
+      "expr": "2 + /* inline $@%^+ * */ 2 = 4",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ],
+      "comment": "Multi-line comment used inline between operands"
+    },
+    {
+      "name": "multi-line comment with operators inside",
+      "expr": "10 /* + - * / */ - 5",
+      "input": {},
+      "expect": [
+        {
+          "type": "integer",
+          "value": 5
+        }
+      ],
+      "comment": "Operators inside comments are ignored"
+    },
+    {
+      "name": "empty multi-line comment",
+      "expr": "/**/3 + 2",
+      "input": {},
+      "expect": [
+        {
+          "type": "integer",
+          "value": 5
+        }
+      ]
+    },
+    {
+      "name": "multi-line comment with asterisks inside",
+      "expr": "4 /* * * * */ + 1",
+      "input": {},
+      "expect": [
+        {
+          "type": "integer",
+          "value": 5
+        }
+      ],
+      "comment": "Asterisks not followed by / don't end the comment"
+    },
+    {
+      "_section": "=== COMBINED COMMENT STYLES ==="
+    },
+    {
+      "name": "both comment styles in one expression",
+      "expr": "1 /* multi */ + // single\n2",
+      "input": {},
+      "expect": [
+        {
+          "type": "integer",
+          "value": 3
+        }
+      ]
+    },
+    {
+      "name": "single-line comment inside multi-line has no effect",
+      "expr": "5 /* // ignored */ + 5",
+      "input": {},
+      "expect": [
+        {
+          "type": "integer",
+          "value": 10
+        }
+      ],
+      "comment": "// inside /* */ is just comment text"
+    },
+    {
+      "_section": "=== COMMENTS WITH FUNCTION CALLS ==="
+    },
+    {
+      "name": "comment between function name and parens",
+      "expr": "(1 | 2 | 3).count /* this is allowed */ ()",
+      "input": {},
+      "expect": [
+        {
+          "type": "integer",
+          "value": 3
+        }
+      ],
+      "comment": "Comment between identifier and () in function call"
+    },
+    {
+      "name": "comment inside function arguments",
+      "expr": "iif(true /* always */, 1, 2)",
+      "input": {},
+      "expect": [
+        {
+          "type": "integer",
+          "value": 1
+        }
+      ]
+    },
+    {
+      "name": "comment after dot before member",
+      "expr": "'hello'./* method */length()",
+      "input": {},
+      "expect": [
+        {
+          "type": "integer",
+          "value": 5
+        }
+      ]
+    },
+    {
+      "_section": "=== ERROR CASES (may differ by implementation) ==="
+    },
+    {
+      "name": "unterminated multi-line comment - incomplete expression",
+      "expr": "2 + 2 /* not finished",
+      "input": {},
+      "expect_error": true,
+      "comment": "Unterminated /* should result in parse error"
+    },
+    {
+      "name": "trailing forward slash - incomplete division",
+      "expr": "2 + 2 /",
+      "input": {},
+      "expect_error": true,
+      "comment": "Single / at end is incomplete division, not a comment"
+    }
+  ]
+}

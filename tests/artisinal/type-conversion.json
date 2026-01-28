@@ -1,6 +1,6 @@
 {
   "meta": {
-    "status": "reviewed",
+    "status": "implemented",
     "_spec_summary": [
       "=== OVERVIEW ===",
       "Type conversion functions transform values between FHIRPath types.",
@@ -750,10 +750,27 @@
       "input": {},
       "expect": [
         {
-          "type": "integer",
-          "value": 42
+          "type": "string",
+          "value": "42"
         }
-      ]
+      ],
+      "_adjudicated": {
+        "fhirpath_js": [
+          {
+            "type": "string",
+            "value": "42"
+          }
+        ],
+        "our_old_value": [
+          {
+            "type": "integer",
+            "value": 42
+          }
+        ],
+        "verdict": "theirs_correct",
+        "reason": "toString() returns a String type, not the original type. The value is the string representation of the integer.",
+        "spec_ref": "\u00a75.4.4 toString() - Integer representation"
+      }
     },
     {
       "name": "toString: negative integer",
@@ -765,13 +782,22 @@
           "value": "-1"
         }
       ],
-      "comment": "Blocked: parser doesn't yet support parenthesized expressions",
       "_adjudicated": {
-        "fhirpath_js": [{"type": "string", "value": "-1"}],
-        "our_old_value": [{"type": "integer", "value": -1}],
+        "fhirpath_js": [
+          {
+            "type": "string",
+            "value": "-1"
+          }
+        ],
+        "our_old_value": [
+          {
+            "type": "integer",
+            "value": -1
+          }
+        ],
         "verdict": "theirs_correct",
         "reason": "The toString() function returns a String, not the original type. Spec says Integer representation is (-)?#0, but the output type is String. Fixed expected type.",
-        "spec_ref": "§5.4.4 toString() - Integer representation"
+        "spec_ref": "\u00a75.4.4 toString() - Integer representation"
       }
     },
     {
@@ -780,10 +806,27 @@
       "input": {},
       "expect": [
         {
-          "type": "decimal",
-          "value": 3.14
+          "type": "string",
+          "value": "3.14"
         }
-      ]
+      ],
+      "_adjudicated": {
+        "fhirpath_js": [
+          {
+            "type": "string",
+            "value": "3.14"
+          }
+        ],
+        "our_old_value": [
+          {
+            "type": "decimal",
+            "value": 3.14
+          }
+        ],
+        "verdict": "theirs_correct",
+        "reason": "toString() returns a String type, not the original type. The value preserves the original precision.",
+        "spec_ref": "\u00a75.4.4 toString() - Decimal representation"
+      }
     },
     {
       "name": "toString: decimal 1.0 preserves precision",
@@ -810,7 +853,7 @@
         ],
         "verdict": "ours_correct",
         "reason": "The toString() specification defines the Decimal representation as (-)?#0.0#, and the official R5 tests assert 1.0.toString() yields \"1.0\". This preserves at least one fractional digit; dropping the trailing zero (\"1\") is not spec-conformant.",
-        "spec_ref": "String Conversion Functions — toString()"
+        "spec_ref": "String Conversion Functions \u2014 toString()"
       }
     },
     {
@@ -819,10 +862,27 @@
       "input": {},
       "expect": [
         {
-          "type": "boolean",
-          "value": true
+          "type": "string",
+          "value": "true"
         }
-      ]
+      ],
+      "_adjudicated": {
+        "fhirpath_js": [
+          {
+            "type": "string",
+            "value": "true"
+          }
+        ],
+        "our_old_value": [
+          {
+            "type": "boolean",
+            "value": true
+          }
+        ],
+        "verdict": "theirs_correct",
+        "reason": "toString() returns a String type. Spec says Boolean converts to 'true' or 'false' strings.",
+        "spec_ref": "\u00a75.4.4 toString() - Boolean representation"
+      }
     },
     {
       "name": "toString: boolean false",
@@ -849,7 +909,7 @@
         ],
         "verdict": "theirs_correct",
         "reason": "The toString() spec states Boolean values convert to the strings \"true\" and \"false\"; therefore the result is a string, not a Boolean.",
-        "spec_ref": "String Conversion Functions — toString()"
+        "spec_ref": "String Conversion Functions \u2014 toString()"
       }
     },
     {
@@ -1003,11 +1063,27 @@
         }
       ],
       "_adjudicated": {
-        "fhirpath_js": [{"type": "Quantity", "value": {"value": 0, "unit": "1"}}],
-        "our_old_value": [{"type": "unknown", "value": {"value": 0.0, "unit": "1"}}],
+        "fhirpath_js": [
+          {
+            "type": "Quantity",
+            "value": {
+              "value": 0,
+              "unit": "1"
+            }
+          }
+        ],
+        "our_old_value": [
+          {
+            "type": "unknown",
+            "value": {
+              "value": 0.0,
+              "unit": "1"
+            }
+          }
+        ],
         "verdict": "theirs_correct",
         "reason": "The toQuantity() spec states Boolean converts to a Quantity. The result type should be Quantity, not unknown. Fixed expected type.",
-        "spec_ref": "§5.4.3 toQuantity() - Boolean conversion"
+        "spec_ref": "\u00a75.4.3 toQuantity() - Boolean conversion"
       }
     },
     {
@@ -1102,8 +1178,8 @@
         ],
         "our_old_value": null,
         "verdict": "ours_correct",
-        "reason": "The toDate() function returns a Date when given a Date, DateTime, or a string in YYYY-MM-DD format. The spec’s toDate() definition and example show the result is a Date, not a DateTime, so a dateTime-typed result is incorrect here.",
-        "spec_ref": "§5.4.1 toDate()"
+        "reason": "The toDate() function returns a Date when given a Date, DateTime, or a string in YYYY-MM-DD format. The spec\u2019s toDate() definition and example show the result is a Date, not a DateTime, so a dateTime-typed result is incorrect here.",
+        "spec_ref": "\u00a75.4.1 toDate()"
       }
     },
     {
@@ -1128,11 +1204,16 @@
         }
       ],
       "_adjudicated": {
-        "fhirpath_js": [{"type": "dateTime", "value": "2024"}],
+        "fhirpath_js": [
+          {
+            "type": "dateTime",
+            "value": "2024"
+          }
+        ],
         "our_old_value": null,
         "verdict": "ours_correct",
-        "reason": "Spec §5.4 toDate() explicitly states 'this function will return a single date' with return type 'toDate() : Date'. Official test testStringYearConvertsToDate confirms year-only strings are valid date inputs. The Date type (§5.1.4) supports partial dates with optional month/day. fhirpath.js returning DateTime instead of Date is incorrect per the function signature.",
-        "spec_ref": "§5.4 toDate(), §5.1.4 Date literal definition, official test testStringYearConvertsToDate"
+        "reason": "Spec \u00a75.4 toDate() explicitly states 'this function will return a single date' with return type 'toDate() : Date'. Official test testStringYearConvertsToDate confirms year-only strings are valid date inputs. The Date type (\u00a75.1.4) supports partial dates with optional month/day. fhirpath.js returning DateTime instead of Date is incorrect per the function signature.",
+        "spec_ref": "\u00a75.4 toDate(), \u00a75.1.4 Date literal definition, official test testStringYearConvertsToDate"
       }
     },
     {
@@ -1351,8 +1432,8 @@
         "fhirpath_js": [],
         "our_old_value": null,
         "verdict": "ours_correct",
-        "reason": "Spec §5.7.10 toDate() explicitly provides this exact example: '@2024-01-15T23:30:00-05:00.toDate() returns @2024-01-15'. The spec states DateTime input extracts year, month, day components directly without timezone conversion. fhirpath.js returning empty is incorrect; likely a parsing limitation with timezone-offset DateTime literals.",
-        "spec_ref": "§5.7.10 toDate()"
+        "reason": "Spec \u00a75.7.10 toDate() explicitly provides this exact example: '@2024-01-15T23:30:00-05:00.toDate() returns @2024-01-15'. The spec states DateTime input extracts year, month, day components directly without timezone conversion. fhirpath.js returning empty is incorrect; likely a parsing limitation with timezone-offset DateTime literals.",
+        "spec_ref": "\u00a75.7.10 toDate()"
       }
     },
     {
@@ -1400,7 +1481,7 @@
         "our_old_value": null,
         "verdict": "ours_correct",
         "reason": "convertsToDateTime() returns true for Date, DateTime, or string values convertible to DateTime. A Date literal is explicitly included, so @2024-01-15 should yield true.",
-        "spec_ref": "DateTime Conversion Functions — convertsToDateTime()"
+        "spec_ref": "DateTime Conversion Functions \u2014 convertsToDateTime()"
       },
       "comment": "Blocked: parser doesn't yet support method calls on date/time literals"
     },
@@ -1463,8 +1544,7 @@
           "value": "2024-01-15"
         }
       ],
-      "_note": "Spec example: @2020-01-01.toString() returns '2020-01-01' (no @)",
-      "comment": "Blocked: parser doesn't yet support method calls on date/time literals"
+      "_note": "Spec example: @2020-01-01.toString() returns '2020-01-01' (no @)"
     },
     {
       "name": "toString: DateTime removes @ prefix",
@@ -1476,8 +1556,7 @@
           "value": "2024-01-15T10:30:00"
         }
       ],
-      "_note": "Spec: output is ISO format without @ prefix",
-      "comment": "Blocked: parser doesn't yet support method calls on date/time literals"
+      "_note": "Spec: output is ISO format without @ prefix"
     },
     {
       "name": "toString: Time removes @T prefix",
@@ -1489,8 +1568,7 @@
           "value": "10:30:00"
         }
       ],
-      "_note": "Spec example: @T10:30:00.000.toString() returns '10:30:00.000'",
-      "comment": "Blocked: parser doesn't yet support method calls on date/time literals"
+      "_note": "Spec example: @T10:30:00.000.toString() returns '10:30:00.000'"
     },
     {
       "name": "toString: quantity UCUM unit with quotes",
@@ -1498,15 +1576,31 @@
       "input": {},
       "expect": [
         {
-          "type": "Quantity",
-          "value": {
-            "value": 53,
-            "unit": "km"
-          }
+          "type": "string",
+          "value": "53 'km'"
         }
       ],
       "_note": "Spec: UCUM units include quotes in string representation",
-      "comment": "Blocked: parser doesn't yet support parenthesized expressions"
+      "_adjudicated": {
+        "fhirpath_js": [
+          {
+            "type": "string",
+            "value": "53 'km'"
+          }
+        ],
+        "our_old_value": [
+          {
+            "type": "Quantity",
+            "value": {
+              "value": 53,
+              "unit": "km"
+            }
+          }
+        ],
+        "verdict": "theirs_correct",
+        "reason": "toString() returns a String type. Spec says Quantity converts to 'value unit' with UCUM units single-quoted.",
+        "spec_ref": "\u00a75.4.4 toString() - Quantity representation"
+      }
     },
     {
       "name": "toString: quantity calendar duration without quotes",
@@ -1518,8 +1612,7 @@
           "value": "4 days"
         }
       ],
-      "_note": "Spec: calendar duration units don't include quotes",
-      "comment": "Blocked: parser doesn't yet support parenthesized expressions"
+      "_note": "Spec: calendar duration units don't include quotes"
     },
     {
       "name": "convertsToString: quantity always true",
@@ -1638,5 +1731,11 @@
       ],
       "_note": "Official test confirms: '1 wk'.convertsToQuantity().not() is true"
     }
+  ],
+  "_todo": [
+    "[x] All 135/135 tests passing",
+    "[x] toString() implemented",
+    "[x] Fix wrong toString expected types (integer, decimal, boolean, quantity)",
+    "[ ] Add convertsToDate/convertsToTime/convertsToDateTime edge cases"
   ]
 }

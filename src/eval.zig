@@ -2431,6 +2431,16 @@ fn evalFunction(
         try out.append(ctx.allocator, makeBoolItem(ctx, convertible));
         return out;
     }
+    if (std.mem.eql(u8, call.name, "toString")) {
+        if (call.args.len != 0) return error.InvalidFunction;
+        var out = ItemList.empty;
+        if (input.len == 0) return out;
+        if (input.len != 1) return error.SingletonRequired;
+        if (convertToString(ctx, input[0])) |str| {
+            try out.append(ctx.allocator, makeStringItem(ctx, str));
+        }
+        return out;
+    }
     if (std.mem.eql(u8, call.name, "convertsToString")) {
         if (call.args.len != 0) return error.InvalidFunction;
         var out = ItemList.empty;
@@ -5365,6 +5375,28 @@ fn canConvertToDecimal(ctx: anytype, it: item.Item) bool {
         .integer, .decimal, .boolean => true,
         .string => |s| isDecimalString(s),
         else => false,
+    };
+}
+
+fn convertToString(ctx: anytype, it: item.Item) ?[]const u8 {
+    const val = itemToValue(ctx, it);
+    return switch (val) {
+        .string => |s| s,
+        .boolean => |v| if (v) "true" else "false",
+        .integer => |v| std.fmt.allocPrint(ctx.allocator, "{d}", .{v}) catch null,
+        .decimal => |s| s, // preserves original precision
+        .date => |s| s, // already without @ prefix
+        .time => |s| s, // already without @T prefix
+        .dateTime => |s| s, // already without @ prefix
+        .quantity => |q| blk: {
+            // Calendar duration units are unquoted, UCUM units are quoted
+            if (isCalendarDurationKeyword(q.unit)) {
+                break :blk std.fmt.allocPrint(ctx.allocator, "{s} {s}", .{ q.value, q.unit }) catch null;
+            } else {
+                break :blk std.fmt.allocPrint(ctx.allocator, "{s} '{s}'", .{ q.value, q.unit }) catch null;
+            }
+        },
+        else => null,
     };
 }
 

@@ -1,0 +1,242 @@
+{
+  "_spec_summary": [
+    "String Equivalence - Whitespace Normalization and Case Insensitivity",
+    "",
+    "=== CORE BEHAVIOR ===",
+    "String equivalence (~) is less strict than string equality (=):",
+    "1. Case insensitive: 'ABC' ~ 'abc' is true",
+    "2. Locale independent: comparison ignores locale-specific rules",
+    "3. Whitespace normalization: all whitespace characters treated as equivalent",
+    "",
+    "=== WHITESPACE NORMALIZATION ===",
+    "Per spec section 'String Equivalence':",
+    "  'For strings, equivalence returns true if the strings are the same value",
+    "   while ignoring case and locale, and normalizing whitespace.'",
+    "",
+    "Whitespace characters (from spec 'Whitespace' lexical category):",
+    "  - tab (\\t)",
+    "  - space ( )",
+    "  - line feed (\\n)",
+    "  - carriage return (\\r)",
+    "",
+    "=== INTERPRETATION QUESTION ===",
+    "Spec is ambiguous on whether 'normalizing whitespace' means:",
+    "  (a) TYPE EQUIVALENCE: All whitespace types are interchangeable (tab = space = newline)",
+    "  (b) QUANTITY NORMALIZATION: Multiple whitespace chars collapse to single",
+    "  (c) Both (a) and (b)",
+    "",
+    "Current implementation does (a) only - whitespace types are equivalent,",
+    "but quantity matters: 'a  b' !~ 'a b' (different number of whitespace chars).",
+    "",
+    "The spec phrase 'treated as equivalent' most naturally reads as (a).",
+    "Tests for (b) are marked with _spec_ambiguous to document this open question.",
+    "",
+    "=== COMPARISON WITH EQUALITY ===",
+    "  - 'HELLO' = 'hello' is FALSE (case sensitive)",
+    "  - 'HELLO' ~ 'hello' is TRUE (case insensitive)",
+    "  - 'a b' = 'a\\tb' is FALSE (exact match required)",
+    "  - 'a b' ~ 'a\\tb' is TRUE (whitespace types equivalent)",
+    "",
+    "Spec refs: spec/index.md §5.6.2 ~ (Equivalent), String Equivalence, Whitespace lexical category"
+  ],
+  "_todo": [
+    "[x] Verify whitespace TYPE normalization (20/20 passing)",
+    "[ ] Clarify spec interpretation: does normalization collapse multiple spaces?",
+    "[ ] Test Unicode whitespace characters (if supported beyond ASCII whitespace)"
+  ],
+  "_open_questions": [
+    "Does 'normalizing whitespace' collapse multiple whitespace to single?",
+    "The spec says whitespace chars are 'treated as equivalent' - this could mean",
+    "type equivalence only (tab=space) or full sequence normalization (collapse runs).",
+    "fhirpath.js appears to do full normalization. Our impl does type-only.",
+    "No official R5 tests cover this edge case."
+  ],
+  "meta": {
+    "status": "written"
+  },
+  "cases": [
+    {
+      "_section": "=== CASE INSENSITIVITY ==="
+    },
+    {
+      "name": "string equivalence: case insensitive (already tested in comparison.json)",
+      "expr": "'hello' ~ 'HELLO'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "string equivalence: mixed case",
+      "expr": "'HeLLo WoRLd' ~ 'hello world'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "string equivalence: exact match is still equivalent",
+      "expr": "'hello' ~ 'hello'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "string equivalence: different content is not equivalent",
+      "expr": "'hello' ~ 'world'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}]
+    },
+    {
+      "_section": "=== WHITESPACE TYPE EQUIVALENCE (confirmed behavior) ==="
+    },
+    {
+      "name": "string equivalence: space equals tab",
+      "expr": "'a b' ~ 'a\tb'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Tab character should be equivalent to space"
+    },
+    {
+      "name": "string equivalence: space equals newline",
+      "expr": "'a b' ~ 'a\nb'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Newline character should be equivalent to space"
+    },
+    {
+      "name": "string equivalence: space equals carriage return",
+      "expr": "'a b' ~ 'a\rb'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Carriage return should be equivalent to space"
+    },
+    {
+      "name": "string equivalence: tab equals newline",
+      "expr": "'a\tb' ~ 'a\nb'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "All whitespace types are interchangeable"
+    },
+    {
+      "_section": "=== LEADING/TRAILING WHITESPACE ==="
+    },
+    {
+      "name": "string equivalence: leading space vs no leading space",
+      "expr": "' hello' ~ 'hello'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}],
+      "comment": "Leading whitespace is significant - normalization doesn't mean trimming"
+    },
+    {
+      "name": "string equivalence: trailing space vs no trailing space",
+      "expr": "'hello ' ~ 'hello'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}],
+      "comment": "Trailing whitespace is significant - normalization doesn't mean trimming"
+    },
+    {
+      "name": "string equivalence: leading tab equals leading space",
+      "expr": "'\thello' ~ ' hello'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Leading whitespace type doesn't matter, only presence"
+    },
+    {
+      "_section": "=== COMBINED CASE AND WHITESPACE TYPE ==="
+    },
+    {
+      "name": "string equivalence: case and tab type combined",
+      "expr": "'HELLO\tWORLD' ~ 'hello world'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Case folding and whitespace type normalization together"
+    },
+    {
+      "_section": "=== EMPTY STRINGS AND WHITESPACE-ONLY ==="
+    },
+    {
+      "name": "string equivalence: empty strings",
+      "expr": "'' ~ ''",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "string equivalence: whitespace-only strings same type",
+      "expr": "' ' ~ '\t'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Single space equivalent to single tab"
+    },
+    {
+      "name": "string equivalence: whitespace-only vs empty",
+      "expr": "' ' ~ ''",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}],
+      "comment": "Whitespace is not equivalent to empty - presence is significant"
+    },
+    {
+      "_section": "=== NOT EQUIVALENT (!~) ==="
+    },
+    {
+      "name": "string not equivalent: different content",
+      "expr": "'abc' !~ 'xyz'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "string not equivalent: same with different whitespace type is false",
+      "expr": "'a b' !~ 'a\tb'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}],
+      "comment": "Not equivalent returns false because they ARE equivalent"
+    },
+    {
+      "_section": "=== CONTRAST WITH EQUALITY ==="
+    },
+    {
+      "name": "equality: case sensitive (for contrast)",
+      "expr": "'hello' = 'HELLO'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}],
+      "comment": "Equality is case sensitive, unlike equivalence"
+    },
+    {
+      "name": "equality: whitespace type sensitive (for contrast)",
+      "expr": "'a b' = 'a\tb'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}],
+      "comment": "Equality distinguishes whitespace types, unlike equivalence"
+    },
+    {
+      "_section": "=== SPEC AMBIGUITY: WHITESPACE QUANTITY (our impl says NO) ==="
+    },
+    {
+      "name": "spec ambiguous: multiple spaces vs single space",
+      "expr": "'a  b' ~ 'a b'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}],
+      "_spec_ambiguous": true,
+      "comment": "OPEN QUESTION: Does normalization collapse multiple whitespace? Our impl: NO"
+    },
+    {
+      "name": "spec ambiguous: CRLF vs single space",
+      "expr": "'a b' ~ 'a\r\nb'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}],
+      "_spec_ambiguous": true,
+      "comment": "CRLF is two chars; our impl treats as two whitespace chars, not one"
+    },
+    {
+      "name": "spec ambiguous: many spaces vs single",
+      "expr": "'a    b' ~ 'a b'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}],
+      "_spec_ambiguous": true,
+      "comment": "Our implementation does not collapse whitespace runs"
+    },
+    {
+      "name": "spec ambiguous: multiple whitespace-only",
+      "expr": "'   ' ~ '\t'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}],
+      "_spec_ambiguous": true,
+      "comment": "3 spaces vs 1 tab - not equivalent in our impl"
+    }
+  ]
+}

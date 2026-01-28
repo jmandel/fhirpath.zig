@@ -160,3 +160,19 @@ bugs:
     created: 2026-01-28
     updated: 2026-01-28
     tags: [functions, fhir]
+  - slug: children-descendants-return-wrong-types-no-schema-traversal
+    status: open
+    severity: high
+    title: children()/descendants() return wrong types (no schema traversal)
+    description: "children() and descendants() call itemFromNode with type_id=0, falling to typeIdForNode heuristic that guesses types from string content. All strings get wrong System.Date/DateTime/Time types instead of FHIR schema types. Fix: use parent type_id + entry.key with schema.childTypeForField, mirroring applySegment."
+    created: 2026-01-28
+    updated: 2026-01-28
+    tags: [types, eval, schema]
+  - slug: typeidfornode-string-heuristics-are-too-loose
+    status: open
+    severity: low
+    title: typeIdForNode string heuristics are too loose
+    description: typeIdForNode guesses string types via isDate (has dash), isDateTime (has T), isTime (has colon). These match normal strings like PleasantVille, VT, 555-1234. Should use proper date/time patterns. Secondary to schema-aware traversal fix but affects no-schema fallback.
+    created: 2026-01-28
+    updated: 2026-01-28
+    tags: [types, eval]

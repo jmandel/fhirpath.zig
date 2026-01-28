@@ -73,7 +73,7 @@ bugs:
     updated: 2026-01-28
     tags: [types, functions]
   - slug: type-introspection
-    status: open
+    status: resolved
     severity: medium
     title: Implement type() function returning namespace/name
     description: type() should return object with .namespace and .name fields. ~7 R5 failures. Spec §5.1.

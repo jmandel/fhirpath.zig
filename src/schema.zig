@@ -284,6 +284,39 @@ pub const Schema = struct {
         return 0x8000_0000 | (idx + 1);
     }
 
+    /// Find type by qualified name (e.g., "FHIR.Patient")
+    /// Only matches if the prefix matches this schema's prefix (e.g., "FHIR")
+    pub fn typeIdByQualifiedName(self: *Schema, name: []const u8) ?u32 {
+        if (std.mem.indexOf(u8, name, ".")) |dot| {
+            const prefix = name[0..dot];
+            const local_name = name[dot + 1 ..];
+            // Only match if the prefix matches our schema's prefix
+            if (std.mem.eql(u8, prefix, self.prefix)) {
+                return self.typeIdByLocalName(local_name);
+            }
+            // Different namespace prefix - no match
+            return null;
+        }
+        // No prefix - just look up by local name
+        return self.typeIdByLocalName(name);
+    }
+
+    /// Check if type_id is a subtype of target_type_id (walks inheritance chain)
+    pub fn isSubtype(self: *Schema, type_id: u32, target_type_id: u32) bool {
+        if (type_id == target_type_id) return true;
+        if (!isModelType(type_id)) return false;
+
+        var current = type_id;
+        while (true) {
+            const idx = modelIndex(current);
+            if (idx >= self.model.header.types_count) return false;
+            const t = self.model.typeEntry(idx);
+            if (t.base_type_id == 0) return false;
+            if (t.base_type_id == target_type_id) return true;
+            current = t.base_type_id;
+        }
+    }
+
     pub fn fieldForType(self: *Schema, type_id: u32, field_name: []const u8) ?FieldEntry {
         if (!isModelType(type_id)) return null;
         var current = type_id;

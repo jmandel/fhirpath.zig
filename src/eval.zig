@@ -249,6 +249,7 @@ fn applySegment(
     }
     switch (A.kind(ctx.adapter, ref)) {
         .object => {
+            // First try to get a child property with the given name
             if (A.objectGet(ctx.adapter, ref, name)) |child_ref| {
                 if (A.kind(ctx.adapter, child_ref) == .array) {
                     const len = A.arrayLen(ctx.adapter, child_ref);
@@ -260,6 +261,15 @@ fn applySegment(
                 } else {
                     const child = try itemFromNodeWithType(ctx, child_ref, child_type_id);
                     try out.append(ctx.allocator, child);
+                }
+            } else {
+                // Property not found - check if name is a type that matches this item's type.
+                // Per FHIRPath spec: "When resolving an identifier that is also the root of a
+                // FHIRPath expression, it is resolved as a type name first, and if it resolves
+                // to a type, it must resolve to the type of the context (or a supertype)."
+                // This applies to the first identifier in a path like "Patient.active".
+                if (itemMatchesType(ctx, it, name)) {
+                    try out.append(ctx.allocator, it);
                 }
             }
         },
@@ -2430,9 +2440,32 @@ fn evalTypeExpr(
 }
 
 fn itemIsType(ctx: anytype, it: item.Item, type_name: []const u8) bool {
-    // Normalize type name (remove System. prefix if present)
+    // Check if we have a model type match first (for FHIR types like Patient, boolean, etc.)
+    if (it.type_id != 0 and ctx.schema != null) {
+        const s = ctx.schema.?;
+        // Check if the item has a model type - if so, use strict model type matching
+        if (schema.isModelType(it.type_id)) {
+            // Get the target type_id for the requested type name
+            const target_type_id = s.typeIdByLocalName(type_name) orelse
+                s.typeIdByQualifiedName(type_name);
+            if (target_type_id) |tid| {
+                // Check if item's type matches or is a subtype
+                if (it.type_id == tid) return true;
+                // Check inheritance chain
+                if (s.isSubtype(it.type_id, tid)) return true;
+            }
+            // If item has a model type but target type is not in schema,
+            // do NOT fall back to JSON-based matching (strict type checking)
+            return false;
+        }
+    }
+
+    // For non-model items, use value-kind or JSON-type based checking
+    // Normalize type name (remove System. prefix if present) for System type checks
     const normalized = if (std.mem.startsWith(u8, type_name, "System."))
         type_name[7..]
+    else if (std.mem.startsWith(u8, type_name, "FHIR."))
+        type_name[5..] // Also strip FHIR. prefix
     else
         type_name;
 
@@ -2453,7 +2486,7 @@ fn itemIsType(ctx: anytype, it: item.Item, type_name: []const u8) bool {
         };
     }
 
-    // For node-backed values, check the underlying JSON type
+    // For node-backed values without a model type, check the underlying JSON type
     if (it.data_kind == .node_ref and it.node != null) {
         const A = @TypeOf(ctx.adapter.*);
         const ref = nodeRefFromRaw(A, it.node.?);
@@ -2463,6 +2496,46 @@ fn itemIsType(ctx: anytype, it: item.Item, type_name: []const u8) bool {
             .string => std.mem.eql(u8, normalized, "String"),
             else => false,
         };
+    }
+
+    return false;
+}
+
+/// Check if an item matches a type name (for path resolution)
+/// This is used when the first identifier in a path might be a type name.
+fn itemMatchesType(ctx: anytype, it: item.Item, type_name: []const u8) bool {
+    // For model types, check the type_id
+    if (it.type_id != 0 and ctx.schema != null) {
+        const s = ctx.schema.?;
+        // Get the type name for this item - use schema for model types
+        const item_type_name: []const u8 = if (schema.isModelType(it.type_id))
+            s.typeName(it.type_id)
+        else
+            ctx.types.name(it.type_id);
+
+        if (item_type_name.len > 0) {
+            // Compare local names (e.g., "Patient" matches "FHIR.Patient")
+            // Extract local name from qualified name
+            const item_local = if (std.mem.indexOf(u8, item_type_name, ".")) |dot|
+                item_type_name[dot + 1 ..]
+            else
+                item_type_name;
+
+            // The type_name might be qualified (FHIR.Patient) or just local (Patient)
+            const check_local = if (std.mem.indexOf(u8, type_name, ".")) |dot|
+                type_name[dot + 1 ..]
+            else
+                type_name;
+
+            if (std.mem.eql(u8, item_local, check_local)) return true;
+
+            // Check inheritance chain
+            const target_type_id = s.typeIdByLocalName(type_name) orelse
+                s.typeIdByQualifiedName(type_name);
+            if (target_type_id) |tid| {
+                if (s.isSubtype(it.type_id, tid)) return true;
+            }
+        }
     }
 
     return false;
@@ -5707,7 +5780,29 @@ fn makeTypeInfoItem(_: anytype, namespace: []const u8, name: []const u8) item.It
 /// Get namespace and name for an item's type.
 /// Returns namespace and name strings.
 fn getTypeInfoForItem(ctx: anytype, it: item.Item) struct { namespace: []const u8, name: []const u8 } {
-    // For value items, use value_kind to determine type
+    // Check if we have an explicit type_id (from model/schema navigation)
+    // This takes precedence over inferred types
+    if (it.type_id != 0) {
+        // For model types, use schema.typeName; for others use types.name
+        const type_name: []const u8 = if (schema.isModelType(it.type_id))
+            if (ctx.schema) |s| s.typeName(it.type_id) else ""
+        else
+            ctx.types.name(it.type_id);
+
+        if (type_name.len > 0) {
+            // Parse "Namespace.Name" format
+            if (std.mem.indexOf(u8, type_name, ".")) |dot_pos| {
+                return .{
+                    .namespace = type_name[0..dot_pos],
+                    .name = type_name[dot_pos + 1 ..],
+                };
+            }
+            // No namespace prefix - could be a bare System type
+            return .{ .namespace = "System", .name = type_name };
+        }
+    }
+
+    // For value items without type_id, use value_kind to determine type
     if (it.data_kind == .value and it.value != null) {
         return switch (it.value.?) {
             .empty => .{ .namespace = "System", .name = "Any" },
@@ -5724,7 +5819,7 @@ fn getTypeInfoForItem(ctx: anytype, it: item.Item) struct { namespace: []const u
         };
     }
 
-    // For node-backed items, determine from JSON type
+    // For node-backed items without type_id, infer from JSON type
     if (it.data_kind == .node_ref and it.node != null) {
         const A = @TypeOf(ctx.adapter.*);
         const ref = nodeRefFromRaw(A, it.node.?);
@@ -5739,24 +5834,7 @@ fn getTypeInfoForItem(ctx: anytype, it: item.Item) struct { namespace: []const u
                 break :blk .{ .namespace = "System", .name = "Decimal" };
             },
             .string => .{ .namespace = "System", .name = "String" },
-            .object, .array => blk: {
-                // For objects/arrays, check if we have a type_id that provides more info
-                if (it.type_id != 0) {
-                    const type_name = ctx.types.name(it.type_id);
-                    if (type_name.len > 0) {
-                        // Parse "Namespace.Name" format
-                        if (std.mem.indexOf(u8, type_name, ".")) |dot_pos| {
-                            break :blk .{
-                                .namespace = type_name[0..dot_pos],
-                                .name = type_name[dot_pos + 1 ..],
-                            };
-                        }
-                        // No namespace prefix, assume System
-                        break :blk .{ .namespace = "System", .name = type_name };
-                    }
-                }
-                break :blk .{ .namespace = "System", .name = "Any" };
-            },
+            .object, .array => .{ .namespace = "System", .name = "Any" },
             .null => .{ .namespace = "System", .name = "Any" },
         };
     }

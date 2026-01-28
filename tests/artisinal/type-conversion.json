@@ -103,9 +103,11 @@
       "6. convertsToX returns empty (not false) when input is empty"
     ],
     "_todo": [
-      "[ ] Improve passing rate (0/135 passing, 16 blocked by parser)",
-      "[ ] Implement conversion functions (toBoolean, toInteger, toDecimal, toString, toQuantity, toDate, toDateTime, toTime)",
-      "[ ] Implement convertsToX boolean checker functions",
+      "[ ] Improve passing rate (47/119 passing, 16 blocked by parser)",
+      "[x] Implement toBoolean/toInteger conversion functions",
+      "[ ] Implement conversion functions (toDecimal, toString, toQuantity, toDate, toDateTime, toTime)",
+      "[x] Implement convertsToBoolean/convertsToInteger",
+      "[ ] Implement remaining convertsToX boolean checker functions",
       "[ ] Parser: support parenthesized expressions like (-1)",
       "[ ] Parser: support method calls on date/time literals like @2024-01-15.toString()",
       "[ ] Parser: support method calls on quantity literals like (10 'mg').toString()",

@@ -933,12 +933,31 @@ fn evalFunction(
         }
         return out;
     }
+    if (std.mem.eql(u8, call.name, "toBoolean")) {
+        if (call.args.len != 0) return error.InvalidFunction;
+        var out = ItemList.empty;
+        if (input.len == 0) return out;
+        if (input.len != 1) return error.SingletonRequired;
+        if (convertToBoolean(ctx, input[0])) |val| {
+            try out.append(ctx.allocator, makeBoolItem(ctx, val));
+        }
+        return out;
+    }
     if (std.mem.eql(u8, call.name, "convertsToInteger")) {
         if (call.args.len != 0) return error.InvalidFunction;
         var out = ItemList.empty;
         if (input.len == 0) return out;
         if (input.len != 1) return error.SingletonRequired;
         const convertible = convertToInteger(ctx, input[0]) != null;
+        try out.append(ctx.allocator, makeBoolItem(ctx, convertible));
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "convertsToBoolean")) {
+        if (call.args.len != 0) return error.InvalidFunction;
+        var out = ItemList.empty;
+        if (input.len == 0) return out;
+        if (input.len != 1) return error.SingletonRequired;
+        const convertible = convertToBoolean(ctx, input[0]) != null;
         try out.append(ctx.allocator, makeBoolItem(ctx, convertible));
         return out;
     }
@@ -2044,6 +2063,24 @@ fn convertToInteger(ctx: anytype, it: item.Item) ?i64 {
     }
 }
 
+fn convertToBoolean(ctx: anytype, it: item.Item) ?bool {
+    const val = itemToValue(ctx, it);
+    const integer_type_id = ctx.types.getOrAdd("System.Integer") catch 0;
+    switch (val) {
+        .boolean => |v| return v,
+        .integer => |v| return if (v == 1) true else if (v == 0) false else null,
+        .string => |s| return parseBooleanString(s),
+        .decimal => |s| {
+            if (it.type_id == integer_type_id) {
+                const parsed = std.fmt.parseInt(i64, s, 10) catch return null;
+                return if (parsed == 1) true else if (parsed == 0) false else null;
+            }
+            return parseBooleanDecimal(s);
+        },
+        else => return null,
+    }
+}
+
 fn parseIntegerString(s: []const u8) ?i64 {
     if (s.len == 0) return null;
     var start: usize = 0;
@@ -2060,6 +2097,45 @@ fn parseIntegerString(s: []const u8) ?i64 {
     }
     const magnitude = std.fmt.parseInt(i64, s[start..], 10) catch return null;
     return magnitude * sign;
+}
+
+fn parseBooleanString(s: []const u8) ?bool {
+    if (eqIgnoreCase(s, "true") or eqIgnoreCase(s, "t") or eqIgnoreCase(s, "yes") or eqIgnoreCase(s, "y") or eqIgnoreCase(s, "1") or eqIgnoreCase(s, "1.0")) {
+        return true;
+    }
+    if (eqIgnoreCase(s, "false") or eqIgnoreCase(s, "f") or eqIgnoreCase(s, "no") or eqIgnoreCase(s, "n") or eqIgnoreCase(s, "0") or eqIgnoreCase(s, "0.0")) {
+        return false;
+    }
+    return null;
+}
+
+fn parseBooleanDecimal(text: []const u8) ?bool {
+    if (decimalEquivalentTo(text, 1)) return true;
+    if (decimalEquivalentTo(text, 0)) return false;
+    return null;
+}
+
+fn decimalEquivalentTo(text: []const u8, target: i128) bool {
+    const scale = decimalScale(text) orelse return false;
+    const scaled = parseDecimalScaled(text, scale) orelse return false;
+    if (target == 0) return scaled == 0;
+    var expected = target;
+    var idx: u32 = 0;
+    while (idx < scale) : (idx += 1) {
+        const mul = @mulWithOverflow(expected, 10);
+        if (mul[1] != 0) return false;
+        expected = mul[0];
+    }
+    return scaled == expected;
+}
+
+fn eqIgnoreCase(a: []const u8, b: []const u8) bool {
+    if (a.len != b.len) return false;
+    var idx: usize = 0;
+    while (idx < a.len) : (idx += 1) {
+        if (std.ascii.toLower(a[idx]) != std.ascii.toLower(b[idx])) return false;
+    }
+    return true;
 }
 
 fn typeIdForNode(ctx: anytype, node_ref: @TypeOf(ctx.adapter.*).NodeRef) !u32 {

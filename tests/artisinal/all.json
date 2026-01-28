@@ -1,0 +1,271 @@
+{
+  "_spec_summary": [
+    "=== all(criteria : expression) : Boolean ===",
+    "",
+    "Returns true if for EVERY element in the input collection, the criteria expression",
+    "evaluates to true. Otherwise, the result is false.",
+    "",
+    "CRITICAL BEHAVIOR:",
+    "  - Empty input collection returns TRUE (vacuous truth)",
+    "    This is the 'for all x in empty set, P(x)' logic - vacuously true",
+    "  - The criteria is evaluated for EACH element in the collection",
+    "  - Within the criteria expression, $this refers to the current element",
+    "  - Within the criteria expression, $index refers to the 0-based index",
+    "",
+    "RETURN VALUE SEMANTICS:",
+    "  - Returns true if ALL elements pass the criteria",
+    "  - Returns false if ANY element fails the criteria (criteria evaluates to false)",
+    "  - What happens when criteria returns empty for an element is subtle:",
+    "    * The spec says 'criteria evaluates to true' - empty is NOT true",
+    "    * So if any element yields empty from criteria, the result should be false",
+    "    * This matches exists(criteria) which treats empty as non-matching",
+    "",
+    "RELATIONSHIP TO OTHER FUNCTIONS:",
+    "  - all(criteria) is conceptually: not exists(criteria.not())",
+    "    'All pass' means 'none fail'",
+    "  - all(criteria) is NOT the same as where(criteria).count() = count()",
+    "    Because where treats empty as non-matching while all needs all-true",
+    "  - allTrue() is related but different:",
+    "    * allTrue() takes a collection of booleans",
+    "    * all(criteria) takes any collection and evaluates criteria on each",
+    "",
+    "SPEC EXAMPLES:",
+    "  - generalPractitioner.all($this.resolve() is Practitioner)",
+    "    Returns true if all generalPractitioner elements resolve to Practitioner type",
+    "",
+    "EDGE CASES:",
+    "  - Single element: all() returns result of single criteria evaluation",
+    "  - All same values: e.g., (true | true | true).all($this) = true",
+    "  - Mixed boolean values: (true | false).all($this) = false",
+    "",
+    "ERROR CONDITIONS:",
+    "  - If criteria returns non-boolean single value, behavior is like where() - treat as error",
+    "  - Multi-item result from criteria is an error (criteria must be singleton boolean)",
+    "",
+    "Note: The function name 'all' is sometimes also called 'every' in other languages."
+  ],
+  "_todo": [
+    "[ ] Improve passing rate (0/27 passing) - pending all() implementation",
+    "[ ] Verify empty input returns true per spec",
+    "[ ] Verify criteria using $this and $index work correctly",
+    "[ ] Test with complex criteria expressions",
+    "[ ] Test behavior when criteria returns empty (should that mean false?)"
+  ],
+  "_open_questions": [
+    "Q: What happens if criteria returns empty for some element?",
+    "A: The spec says 'evaluates to true' - empty is not true, so this should return false.",
+    "",
+    "Q: Does all(criteria) short-circuit (stop evaluating on first false)?",
+    "A: Implementation detail; spec doesn't mandate this but it's a reasonable optimization."
+  ],
+  "meta": {
+    "status": "drafted"
+  },
+  "cases": [
+    {
+      "_section": "=== BASIC BEHAVIOR ==="
+    },
+    {
+      "name": "all: empty collection returns true",
+      "expr": "{}.all($this > 0)",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Vacuous truth: for all x in empty set, any predicate is vacuously true"
+    },
+    {
+      "name": "all: single element passes",
+      "expr": "(5).all($this > 0)",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "all: single element fails",
+      "expr": "(-1).all($this > 0)",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}]
+    },
+    {
+      "name": "all: multiple elements all pass",
+      "expr": "(1 | 2 | 3 | 4).all($this > 0)",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "all: multiple elements one fails",
+      "expr": "(1 | 2 | -1 | 4).all($this > 0)",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}]
+    },
+    {
+      "name": "all: multiple elements all fail",
+      "expr": "(-1 | -2 | -3).all($this > 0)",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}]
+    },
+    {
+      "_section": "=== BOOLEAN COLLECTION TESTS ==="
+    },
+    {
+      "name": "all: collection of true values with identity predicate",
+      "expr": "(true | true | true).all($this)",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "all: collection with one false value",
+      "expr": "(true | false | true).all($this)",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}]
+    },
+    {
+      "name": "all: collection of false values",
+      "expr": "(false | false).all($this)",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}]
+    },
+    {
+      "_section": "=== STRING COMPARISON TESTS ==="
+    },
+    {
+      "name": "all: all strings pass length check",
+      "expr": "('hello' | 'world').all($this.length() > 3)",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "all: one string fails length check",
+      "expr": "('hello' | 'hi' | 'world').all($this.length() > 3)",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}]
+    },
+    {
+      "name": "all: all strings contain substring",
+      "expr": "('apple' | 'application' | 'approx').all($this.startsWith('app'))",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "_section": "=== PATH-BASED TESTS ==="
+    },
+    {
+      "name": "all: field values all positive",
+      "expr": "items.value.all($this > 0)",
+      "input": {
+        "items": [
+          {"value": 10},
+          {"value": 20},
+          {"value": 30}
+        ]
+      },
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "all: field values mixed positive and negative",
+      "expr": "items.value.all($this > 0)",
+      "input": {
+        "items": [
+          {"value": 10},
+          {"value": -5},
+          {"value": 30}
+        ]
+      },
+      "expect": [{"type": "boolean", "value": false}]
+    },
+    {
+      "name": "all: empty field returns true",
+      "expr": "missing.all($this > 0)",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Missing/empty field is empty collection, so vacuously true"
+    },
+    {
+      "_section": "=== $INDEX TESTS ==="
+    },
+    {
+      "name": "all: use $index in criteria - all indices >= 0",
+      "expr": "('a' | 'b' | 'c').all($index >= 0)",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "all: use $index in criteria - check index < 3",
+      "expr": "('a' | 'b' | 'c').all($index < 3)",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "all: use $index in criteria - not all indices < 2",
+      "expr": "('a' | 'b' | 'c').all($index < 2)",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}],
+      "comment": "Third element has $index=2 which is not < 2"
+    },
+    {
+      "_section": "=== COMPLEX CRITERIA ==="
+    },
+    {
+      "name": "all: combined criteria with and",
+      "expr": "(5 | 10 | 15).all($this > 0 and $this < 100)",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "all: combined criteria fails on one condition",
+      "expr": "(5 | 10 | 150).all($this > 0 and $this < 100)",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}]
+    },
+    {
+      "name": "all: criteria using or",
+      "expr": "(1 | 0 | -1).all($this > 0 or $this < 0)",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}],
+      "comment": "The zero element is neither > 0 nor < 0"
+    },
+    {
+      "_section": "=== TYPE CHECKING CRITERIA ==="
+    },
+    {
+      "name": "all: all elements are integers",
+      "expr": "(1 | 2 | 3).all($this.is(Integer))",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "all: mixed types not all integers",
+      "expr": "(1 | 'two' | 3).all($this.is(Integer))",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}]
+    },
+    {
+      "name": "all: all elements are strings",
+      "expr": "('a' | 'b' | 'c').all($this.is(String))",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "_section": "=== RELATIONSHIP TO EXISTS ==="
+    },
+    {
+      "name": "all vs exists: all pass vs any pass",
+      "expr": "(1 | 2 | 3).all($this > 0) = (1 | 2 | 3).exists($this > 0)",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "When all pass, both all() and exists() return true"
+    },
+    {
+      "name": "all vs exists: none pass",
+      "expr": "(-1 | -2).all($this > 0) = (-1 | -2).exists($this > 0).not()",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "When none pass, all() returns false and exists() returns false"
+    },
+    {
+      "name": "all: some pass but not all",
+      "expr": "(1 | -2 | 3).all($this > 0)",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}],
+      "comment": "exists() would return true here since some pass, but all() returns false"
+    }
+  ]
+}

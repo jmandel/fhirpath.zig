@@ -5,6 +5,7 @@
 
 # Scratch/work dirs
 /build/
+/dist/
 
 # FHIR models (download with scripts/fetch_models.sh)
 /models/

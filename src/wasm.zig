@@ -329,11 +329,22 @@ pub export fn fhirpath_eval(
     };
     defer ast.deinitExpr(ctx.allocator, expr);
 
-    const result = eval.evalWithJson(ctx.allocator, expr, json_text, null, &ctx.types, schema_ptr) catch |err| {
+    var doc = jsondoc.JsonDoc.init(ctx.allocator, json_text) catch |err| {
         return statusFromError(err);
     };
-
-    ctx.result = result;
+    var adapter = @import("backends/jsondoc.zig").JsonDocAdapter.init(&doc);
+    var eval_ctx = eval.EvalContext(@TypeOf(adapter)){
+        .allocator = doc.arena.allocator(),
+        .adapter = &adapter,
+        .types = &ctx.types,
+        .schema = schema_ptr,
+        .timestamp = 0,
+    };
+    const items = eval.evalExpression(&eval_ctx, expr, adapter.root(), null) catch |err| {
+        doc.deinit();
+        return statusFromError(err);
+    };
+    ctx.result = .{ .items = items, .doc = doc };
     ctx.last_schema = schema_ptr;
     return .ok;
 }

@@ -1,0 +1,352 @@
+{
+  "_spec_summary": [
+    "=== String Concatenation: + and & operators ===",
+    "",
+    "FHIRPath has two string concatenation operators with different empty-collection semantics.",
+    "",
+    "=== + (addition/concatenation) ===",
+    "From spec section 5.8 Math:",
+    "  - For strings, concatenates the right operand to the left operand",
+    "  - Returns EMPTY COLLECTION if one or both operands are empty",
+    "  - This follows the general math operator rule: empty propagates to empty",
+    "  - Requires singleton operands (multiple items is an error)",
+    "",
+    "Example: 'ABC' + 'DEF' => 'ABCDEF'",
+    "Example: 'ABC' + {} => {} (empty propagates)",
+    "Example: {} + 'DEF' => {} (empty propagates)",
+    "",
+    "=== & (string concatenation) ===",
+    "From spec section 5.8.7 & (String concatenation):",
+    "  - For strings, concatenates the strings",
+    "  - Treats empty operand as EMPTY STRING (not empty collection)",
+    "  - Specifically included to simplify treating empty as empty string",
+    "  - This is the key difference from + on strings",
+    "  - Returns a string, never empty (unless both operands are collections with no strings)",
+    "",
+    "Example: 'ABC' & 'DEF' => 'ABCDEF'",
+    "Example: 'ABC' & {} => 'ABC' (empty treated as '')",
+    "Example: {} & 'DEF' => 'DEF' (empty treated as '')",
+    "Example: 'ABC' & {} & 'DEF' => 'ABCDEF' (empty treated as '')",
+    "",
+    "=== OPERATOR PRECEDENCE ===",
+    "Both + and & are at precedence level 5 (after *, /, div, mod at level 4).",
+    "They are left-to-right associative: 'a' & 'b' & 'c' => 'abc'",
+    "",
+    "=== ERROR CONDITIONS ===",
+    "Multiple items: (1 | 2 | 3) & 'b' => error (per R5 test testConcatenate4)",
+    "  - The & operator requires singleton operands for strings",
+    "  - This differs from + on numbers which also requires singletons",
+    "",
+    "=== IMPLICIT TYPE HANDLING ===",
+    "Both operators work with string operands. The + operator also works with",
+    "Integer, Decimal, and Quantity for addition. When types are incompatible,",
+    "behavior depends on type coercion rules.",
+    "",
+    "SPEC REFERENCES:",
+    "  - Section 5.8 Math - general operator rules",
+    "  - Section 5.8.3 + (addition) - string concatenation with +",
+    "  - Section 5.8.7 & (String concatenation) - string concatenation with &"
+  ],
+  "_todo": [
+    "[ ] Improve passing rate (31/39 passing)",
+    "[x] Verify & treats empty as empty string",
+    "[ ] Implement + string concatenation (currently returns empty for strings)",
+    "[ ] Implement error signaling for multiple items with & (currently accepts them)",
+    "[ ] Verify + propagates empty to empty (blocked by + string impl)"
+  ],
+  "meta": {
+    "status": "drafted"
+  },
+  "cases": [
+    {
+      "_section": "=== BASIC & CONCATENATION ==="
+    },
+    {
+      "name": "& basic: two strings",
+      "expr": "'a' & 'b'",
+      "input": {},
+      "expect": [{"type": "string", "value": "ab"}]
+    },
+    {
+      "name": "& basic: three strings",
+      "expr": "'a' & 'b' & 'c'",
+      "input": {},
+      "expect": [{"type": "string", "value": "abc"}]
+    },
+    {
+      "name": "& basic: longer strings",
+      "expr": "'ABC' & 'DEF'",
+      "input": {},
+      "expect": [{"type": "string", "value": "ABCDEF"}]
+    },
+    {
+      "name": "& basic: with spaces",
+      "expr": "'hello' & ' ' & 'world'",
+      "input": {},
+      "expect": [{"type": "string", "value": "hello world"}]
+    },
+    {
+      "name": "& basic: empty strings concatenate",
+      "expr": "'' & ''",
+      "input": {},
+      "expect": [{"type": "string", "value": ""}]
+    },
+    {
+      "name": "& basic: empty string with non-empty",
+      "expr": "'' & 'hello'",
+      "input": {},
+      "expect": [{"type": "string", "value": "hello"}]
+    },
+    {
+      "_section": "=== & WITH EMPTY COLLECTION (KEY BEHAVIOR) ==="
+    },
+    {
+      "name": "& empty: right operand empty collection",
+      "expr": "'ABC' & {}",
+      "input": {},
+      "expect": [{"type": "string", "value": "ABC"}],
+      "comment": "Empty collection treated as empty string, per spec"
+    },
+    {
+      "name": "& empty: left operand empty collection",
+      "expr": "{} & 'DEF'",
+      "input": {},
+      "expect": [{"type": "string", "value": "DEF"}],
+      "comment": "Empty collection treated as empty string, per spec"
+    },
+    {
+      "name": "& empty: middle operand empty collection",
+      "expr": "'ABC' & {} & 'DEF'",
+      "input": {},
+      "expect": [{"type": "string", "value": "ABCDEF"}],
+      "comment": "Empty collection treated as empty string in the middle"
+    },
+    {
+      "name": "& empty: both operands empty collection",
+      "expr": "{} & {}",
+      "input": {},
+      "expect": [{"type": "string", "value": ""}],
+      "comment": "Both empty collections become empty strings, result is empty string"
+    },
+    {
+      "name": "& empty: missing path treated as empty",
+      "expr": "'prefix-' & missing & '-suffix'",
+      "input": {},
+      "expect": [{"type": "string", "value": "prefix--suffix"}],
+      "comment": "Missing path returns empty collection, treated as empty string"
+    },
+    {
+      "_section": "=== BASIC + STRING CONCATENATION (NOT YET IMPLEMENTED) ==="
+    },
+    {
+      "name": "+ string: two strings",
+      "expr": "'a' + 'b'",
+      "input": {},
+      "expect": [{"type": "string", "value": "ab"}],
+      "comment": "Blocked: + operator doesn't handle strings yet - returns empty"
+    },
+    {
+      "name": "+ string: three strings",
+      "expr": "'a' + 'b' + 'c'",
+      "input": {},
+      "expect": [{"type": "string", "value": "abc"}],
+      "comment": "Blocked: + operator doesn't handle strings yet - returns empty"
+    },
+    {
+      "name": "+ string: longer strings",
+      "expr": "'ABC' + 'DEF'",
+      "input": {},
+      "expect": [{"type": "string", "value": "ABCDEF"}],
+      "comment": "Blocked: + operator doesn't handle strings yet - returns empty"
+    },
+    {
+      "name": "+ string: with spaces",
+      "expr": "'hello' + ' ' + 'world'",
+      "input": {},
+      "expect": [{"type": "string", "value": "hello world"}],
+      "comment": "Blocked: + operator doesn't handle strings yet - returns empty"
+    },
+    {
+      "_section": "=== + WITH EMPTY COLLECTION (KEY DIFFERENCE FROM &) ==="
+    },
+    {
+      "name": "+ empty: right operand empty returns empty",
+      "expr": "('ABC' + {}).empty()",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Empty propagates: 'ABC' + {} => {} (DIFFERENT from &)"
+    },
+    {
+      "name": "+ empty: left operand empty returns empty",
+      "expr": "({} + 'DEF').empty()",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Empty propagates: {} + 'DEF' => {} (DIFFERENT from &)"
+    },
+    {
+      "name": "+ empty: chain with empty in middle returns empty",
+      "expr": "('ABC' + {} + 'DEF').empty()",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Empty propagates through chain (DIFFERENT from &)"
+    },
+    {
+      "name": "+ empty: both operands empty returns empty",
+      "expr": "({} + {}).empty()",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Empty + empty = empty"
+    },
+    {
+      "_section": "=== COMPARISON: + vs & WITH EMPTY ==="
+    },
+    {
+      "name": "& returns result, + returns empty",
+      "expr": "('1' & {}) != ({} + '1')",
+      "input": {},
+      "expect": [],
+      "comment": "Left side is '1', right side is {}, comparing string to empty returns empty"
+    },
+    {
+      "name": "& with empty equals string",
+      "expr": "'1' & {} = '1'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "From R5 testConcatenate2: '1' & {} = '1'"
+    },
+    {
+      "name": "& empty then string equals string",
+      "expr": "{} & 'b' = 'b'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "From R5 testConcatenate3: {} & 'b' = 'b'"
+    },
+    {
+      "name": "& basic equality",
+      "expr": "'a' & 'b' = 'ab'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "From R5 testConcatenate1"
+    },
+    {
+      "_section": "=== PATH-BASED CONCATENATION ==="
+    },
+    {
+      "name": "& with path values",
+      "expr": "first & '-' & last",
+      "input": {"first": "John", "last": "Doe"},
+      "expect": [{"type": "string", "value": "John-Doe"}]
+    },
+    {
+      "name": "& with one missing path",
+      "expr": "first & '-' & middle & '-' & last",
+      "input": {"first": "John", "last": "Doe"},
+      "expect": [{"type": "string", "value": "John--Doe"}],
+      "comment": "Missing middle treated as empty string"
+    },
+    {
+      "name": "+ with path values",
+      "expr": "first + '-' + last",
+      "input": {"first": "John", "last": "Doe"},
+      "expect": [{"type": "string", "value": "John-Doe"}],
+      "comment": "Blocked: + operator doesn't handle strings yet - returns empty"
+    },
+    {
+      "name": "+ with one missing path returns empty",
+      "expr": "(first + '-' + middle + '-' + last).empty()",
+      "input": {"first": "John", "last": "Doe"},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Missing middle causes entire expression to be empty"
+    },
+    {
+      "_section": "=== COMPLEX EXPRESSIONS ==="
+    },
+    {
+      "name": "& in parenthesized expression",
+      "expr": "('A' & 'B') & ('C' & 'D')",
+      "input": {},
+      "expect": [{"type": "string", "value": "ABCD"}]
+    },
+    {
+      "name": "& result used in comparison",
+      "expr": "('hello' & ' ' & 'world').length()",
+      "input": {},
+      "expect": [{"type": "integer", "value": 11}]
+    },
+    {
+      "name": "& result used in startsWith",
+      "expr": "('hello' & ' ' & 'world').startsWith('hello')",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "& result used in contains",
+      "expr": "('hello' & ' ' & 'world').contains(' ')",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "_section": "=== ERROR CONDITIONS (spec requires error, impl differs) ==="
+    },
+    {
+      "name": "& with multiple items on left is error",
+      "expr": "('a' | 'b') & 'c'",
+      "input": {},
+      "expect_error": true,
+      "comment": "Per spec/R5: multiple items should signal error. Implementation currently accepts."
+    },
+    {
+      "name": "& with multiple items on right is error",
+      "expr": "'a' & ('b' | 'c')",
+      "input": {},
+      "expect_error": true,
+      "comment": "Per spec/R5: multiple items should signal error. Implementation currently accepts."
+    },
+    {
+      "name": "+ string with multiple items is error",
+      "expr": "('a' | 'b') + 'c'",
+      "input": {},
+      "expect_error": true,
+      "comment": "Per spec: multiple items should signal error. Blocked by + string impl."
+    },
+    {
+      "_section": "=== SPECIAL CHARACTERS ==="
+    },
+    {
+      "name": "& with newlines",
+      "expr": "'line1' & '\n' & 'line2'",
+      "input": {},
+      "expect": [{"type": "string", "value": "line1\nline2"}]
+    },
+    {
+      "name": "& with escaped characters",
+      "expr": "'a\\tb' & '-' & 'c\\nd'",
+      "input": {},
+      "expect": [{"type": "string", "value": "a\tb-c\nd"}]
+    },
+    {
+      "_section": "=== MIXED WITH OTHER OPERATIONS ==="
+    },
+    {
+      "name": "& with upper()",
+      "expr": "('hello' & ' ' & 'world').upper()",
+      "input": {},
+      "expect": [{"type": "string", "value": "HELLO WORLD"}]
+    },
+    {
+      "name": "& with trim()",
+      "expr": "('  hello  ' & ' ' & '  world  ').trim()",
+      "input": {},
+      "expect": [{"type": "string", "value": "hello     world"}]
+    },
+    {
+      "name": "& building path for select",
+      "expr": "items.select(name & ': ' & value)",
+      "input": {"items": [{"name": "a", "value": "1"}, {"name": "b", "value": "2"}]},
+      "expect": [
+        {"type": "string", "value": "a: 1"},
+        {"type": "string", "value": "b: 2"}
+      ]
+    }
+  ]
+}

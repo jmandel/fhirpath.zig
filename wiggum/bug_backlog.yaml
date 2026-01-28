@@ -137,7 +137,7 @@ bugs:
     updated: 2026-01-28
     tags: [functions]
   - slug: to-quantity-function
-    status: open
+    status: resolved
     severity: low
     title: Implement toQuantity() conversion function
     description: toQuantity() for converting strings/numbers to Quantity. ~4 R5 failures.

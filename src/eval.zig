@@ -1098,7 +1098,8 @@ fn valueEquivalent(ctx: anytype, a_val: item.Value, a_type: u32, b_val: item.Val
 
     if (a_val == .boolean and b_val == .boolean) return a_val.boolean == b_val.boolean;
     if (a_val == .quantity and b_val == .quantity) {
-        if (!quantityUnitsCompatible(a_val.quantity.unit, b_val.quantity.unit)) return false;
+        // For equivalence, use the equivalence check which includes year/month mappings
+        if (!quantityUnitsEquivalent(a_val.quantity.unit, b_val.quantity.unit)) return false;
         // Use numeric comparison for quantity values (not string comparison)
         const fa = std.fmt.parseFloat(f64, a_val.quantity.value) catch return false;
         const fb = std.fmt.parseFloat(f64, b_val.quantity.value) catch return false;
@@ -2046,13 +2047,128 @@ fn normalizeCalendarUnit(unit: []const u8) []const u8 {
     return unit;
 }
 
-// Check if two quantity units are compatible (same unit, accounting for singular/plural)
-fn quantityUnitsCompatible(unit_a: []const u8, unit_b: []const u8) bool {
-    if (std.mem.eql(u8, unit_a, unit_b)) return true;
-    // Normalize calendar duration units to singular for comparison
+// Map UCUM time units to calendar duration keywords
+// Returns the calendar equivalent, or null if not a UCUM time unit
+fn ucumToCalendar(unit: []const u8) ?[]const u8 {
+    const mappings = [_]struct { ucum: []const u8, calendar: []const u8 }{
+        .{ .ucum = "d", .calendar = "day" },
+        .{ .ucum = "wk", .calendar = "week" },
+        .{ .ucum = "h", .calendar = "hour" },
+        .{ .ucum = "min", .calendar = "minute" },
+        .{ .ucum = "s", .calendar = "second" },
+        .{ .ucum = "ms", .calendar = "millisecond" },
+    };
+    for (mappings) |m| {
+        if (std.mem.eql(u8, unit, m.ucum)) return m.calendar;
+    }
+    return null;
+}
+
+// Check if unit is a calendar duration (after normalization to singular)
+fn isCalendarUnit(unit: []const u8) bool {
+    const calendar_units = [_][]const u8{
+        "year", "month", "week", "day",
+        "hour", "minute", "second", "millisecond",
+    };
+    for (calendar_units) |cu| {
+        if (std.mem.eql(u8, unit, cu)) return true;
+    }
+    return false;
+}
+
+// Check if this is a UCUM month or year (which are uncomparable with calendar months/years)
+fn isUcumMonthOrYear(unit: []const u8) bool {
+    return std.mem.eql(u8, unit, "mo") or std.mem.eql(u8, unit, "a");
+}
+
+// Check if this is a calendar month or year
+fn isCalendarMonthOrYear(unit: []const u8) bool {
+    return std.mem.eql(u8, unit, "month") or std.mem.eql(u8, unit, "year");
+}
+
+/// Result of unit compatibility check for quantity comparison
+const UnitCompatibility = enum {
+    compatible, // Units are the same or convertible (comparison proceeds)
+    incompatible, // Units are different types (comparison returns false)
+    uncomparable, // Units are time-valued but above days/weeks (comparison returns empty)
+};
+
+// Check if two quantity units are compatible (same unit, accounting for singular/plural and UCUM)
+// Returns tri-state: compatible (proceed), incompatible (false), uncomparable (empty)
+fn checkQuantityUnitCompatibility(unit_a: []const u8, unit_b: []const u8) UnitCompatibility {
+    // Exact match
+    if (std.mem.eql(u8, unit_a, unit_b)) return .compatible;
+
+    // Normalize calendar duration units to singular
     const na = normalizeCalendarUnit(unit_a);
     const nb = normalizeCalendarUnit(unit_b);
-    return std.mem.eql(u8, na, nb);
+
+    // Check after normalization
+    if (std.mem.eql(u8, na, nb)) return .compatible;
+
+    // Check UCUM to calendar mappings for comparable time units
+    // (d <-> day, wk <-> week, h <-> hour, min <-> minute, s <-> second, ms <-> millisecond)
+    if (ucumToCalendar(na)) |cal_a| {
+        if (std.mem.eql(u8, cal_a, nb)) return .compatible;
+    }
+    if (ucumToCalendar(nb)) |cal_b| {
+        if (std.mem.eql(u8, na, cal_b)) return .compatible;
+    }
+
+    // Special case: UCUM month/year ('mo'/'a') vs calendar month/year
+    // Per spec: "calendar durations and definite quantity durations above days (and weeks)
+    // are considered un-comparable" - returns empty, not false
+    if ((isUcumMonthOrYear(na) and isCalendarMonthOrYear(nb)) or
+        (isCalendarMonthOrYear(na) and isUcumMonthOrYear(nb)))
+    {
+        return .uncomparable;
+    }
+
+    // Different units
+    return .incompatible;
+}
+
+// Simple boolean compatibility check (for cases where we don't need tri-state)
+fn quantityUnitsCompatible(unit_a: []const u8, unit_b: []const u8) bool {
+    return checkQuantityUnitCompatibility(unit_a, unit_b) == .compatible;
+}
+
+// Check if two quantity units are equivalent for the ~ operator.
+// For equivalence, calendar durations and UCUM durations ARE equivalent per spec:
+// "1 year ~ 1 'a' // true"
+// "1 second ~ 1 's' // true"
+fn quantityUnitsEquivalent(unit_a: []const u8, unit_b: []const u8) bool {
+    // Exact match
+    if (std.mem.eql(u8, unit_a, unit_b)) return true;
+
+    // Normalize calendar duration units to singular
+    const na = normalizeCalendarUnit(unit_a);
+    const nb = normalizeCalendarUnit(unit_b);
+
+    // Check after normalization
+    if (std.mem.eql(u8, na, nb)) return true;
+
+    // Check UCUM to calendar mappings for time units
+    // These are equivalent for the ~ operator per spec
+    if (ucumToCalendar(na)) |cal_a| {
+        if (std.mem.eql(u8, cal_a, nb)) return true;
+    }
+    if (ucumToCalendar(nb)) |cal_b| {
+        if (std.mem.eql(u8, na, cal_b)) return true;
+    }
+
+    // For equivalence, also map year/month UCUM to calendar
+    // 'a' <-> year, 'mo' <-> month (equivalence only, not equality)
+    const ucum_to_cal_large = [_]struct { ucum: []const u8, calendar: []const u8 }{
+        .{ .ucum = "a", .calendar = "year" },
+        .{ .ucum = "mo", .calendar = "month" },
+    };
+    for (ucum_to_cal_large) |m| {
+        if (std.mem.eql(u8, na, m.ucum) and std.mem.eql(u8, nb, m.calendar)) return true;
+        if (std.mem.eql(u8, na, m.calendar) and std.mem.eql(u8, nb, m.ucum)) return true;
+    }
+
+    return false;
 }
 
 // Quantity arithmetic: quantity+quantity, quantity*number, quantity/number, etc.
@@ -5961,8 +6077,12 @@ fn valueEqualTriState(a: item.Value, b: item.Value) ?bool {
             return compareDateTimeStrings(v, b.dateTime) == 0;
         },
         .quantity => |v| {
-            if (!quantityUnitsCompatible(v.unit, b.quantity.unit)) return false;
-            return compareDecimalStrings(v.value, b.quantity.value) == 0;
+            const compat = checkQuantityUnitCompatibility(v.unit, b.quantity.unit);
+            switch (compat) {
+                .compatible => return compareDecimalStrings(v.value, b.quantity.value) == 0,
+                .incompatible => return false,
+                .uncomparable => return null, // empty for month/year calendar vs UCUM
+            }
         },
         .typeInfo => |v| {
             return std.mem.eql(u8, v.namespace, b.typeInfo.namespace) and

@@ -92,7 +92,14 @@
           "type": "boolean",
           "value": false
         }
-      ]
+      ],
+      "_adjudicated": {
+        "fhirpath_js": [],
+        "our_old_value": null,
+        "verdict": "ours_correct",
+        "reason": "Spec §5.6.2 states: 'if one input is a value and the other is empty ({ }), the result will be false'. fhirpath.js returning empty is incorrect; equivalence with one empty operand yields false, not empty.",
+        "spec_ref": "§5.6.2 ~ (Equivalent)"
+      }
     },
     {
       "name": "not equivalent: empty !~ empty yields false",

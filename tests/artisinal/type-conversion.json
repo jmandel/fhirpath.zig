@@ -761,11 +761,18 @@
       "input": {},
       "expect": [
         {
-          "type": "integer",
-          "value": -1
+          "type": "string",
+          "value": "-1"
         }
       ],
-      "comment": "Blocked: parser doesn't yet support parenthesized expressions"
+      "comment": "Blocked: parser doesn't yet support parenthesized expressions",
+      "_adjudicated": {
+        "fhirpath_js": [{"type": "string", "value": "-1"}],
+        "our_old_value": [{"type": "integer", "value": -1}],
+        "verdict": "theirs_correct",
+        "reason": "The toString() function returns a String, not the original type. Spec says Integer representation is (-)?#0, but the output type is String. Fixed expected type.",
+        "spec_ref": "§5.4.4 toString() - Integer representation"
+      }
     },
     {
       "name": "toString: decimal",
@@ -918,7 +925,7 @@
       "input": {},
       "expect": [
         {
-          "type": "unknown",
+          "type": "Quantity",
           "value": {
             "value": 42,
             "unit": "1"
@@ -932,7 +939,7 @@
       "input": {},
       "expect": [
         {
-          "type": "unknown",
+          "type": "Quantity",
           "value": {
             "value": 3.14,
             "unit": "1"
@@ -946,7 +953,7 @@
       "input": {},
       "expect": [
         {
-          "type": "unknown",
+          "type": "Quantity",
           "value": {
             "value": 10,
             "unit": "kg"
@@ -960,7 +967,7 @@
       "input": {},
       "expect": [
         {
-          "type": "unknown",
+          "type": "Quantity",
           "value": {
             "value": 4,
             "unit": "days"
@@ -974,7 +981,7 @@
       "input": {},
       "expect": [
         {
-          "type": "unknown",
+          "type": "Quantity",
           "value": {
             "value": 1.0,
             "unit": "1"
@@ -988,13 +995,20 @@
       "input": {},
       "expect": [
         {
-          "type": "unknown",
+          "type": "Quantity",
           "value": {
             "value": 0.0,
             "unit": "1"
           }
         }
-      ]
+      ],
+      "_adjudicated": {
+        "fhirpath_js": [{"type": "Quantity", "value": {"value": 0, "unit": "1"}}],
+        "our_old_value": [{"type": "unknown", "value": {"value": 0.0, "unit": "1"}}],
+        "verdict": "theirs_correct",
+        "reason": "The toQuantity() spec states Boolean converts to a Quantity. The result type should be Quantity, not unknown. Fixed expected type.",
+        "spec_ref": "§5.4.3 toQuantity() - Boolean conversion"
+      }
     },
     {
       "name": "toQuantity: string 'abc' returns empty",
@@ -1416,7 +1430,7 @@
       "input": {},
       "expect": [
         {
-          "type": "unknown",
+          "type": "Quantity",
           "value": {
             "value": 10,
             "unit": "mg"

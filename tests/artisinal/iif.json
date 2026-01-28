@@ -396,7 +396,14 @@
       "name": "multi-item collection criterion is error",
       "expr": "iif(1 | 2 | 3, 'yes', 'no')",
       "input": null,
-      "expect_error": true
+      "expect_error": true,
+      "_adjudicated": {
+        "fhirpath_js": [{"type": "string", "value": "no"}],
+        "our_old_value": null,
+        "verdict": "ours_correct",
+        "reason": "Spec line 1003 states: 'The functions in this section operate on collections with a single item. If there is more than one item, the evaluation of the expression will end and signal an error.' The criterion (1 | 2 | 3) produces a 3-item collection of integers (not booleans), which must signal an error. fhirpath.js appears to use truthy/falsy coercion instead of enforcing the singleton Boolean requirement.",
+        "spec_ref": "§5.4.1 iif(), preamble at line 1003"
+      }
     },
     {
       "group": "error cases",

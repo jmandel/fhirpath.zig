@@ -283,7 +283,14 @@
       "expr": "(@2012-01 | @2012-02) = (@2012 | @2012-02)",
       "input": {},
       "expect": [],
-      "comment": "Pairwise: @2012-01=@2012 -> empty (precision mismatch), @2012-02=@2012-02 -> true. No false, has empty -> empty. Note: original used (@2012|@2012) but union deduplicates, making RHS length 1."
+      "comment": "Pairwise: @2012-01=@2012 -> empty (precision mismatch), @2012-02=@2012-02 -> true. No false, has empty -> empty. Note: original used (@2012|@2012) but union deduplicates, making RHS length 1.",
+      "_adjudicated": {
+        "fhirpath_js": [{"type": "boolean", "value": false}],
+        "our_old_value": null,
+        "verdict": "ours_correct",
+        "reason": "Spec §5.6.1 defines multi-item equality as pairwise comparison: 'if the result is false for any pair, returns false; if the result is true for all pairs, returns true; otherwise returns empty'. Here pair 0 is @2012-01=@2012 which yields empty (different precision per date equality rules), and pair 1 is @2012-02=@2012-02 which yields true. Since there is no false result but not all are true (one is empty), the overall result is empty. fhirpath.js appears to short-circuit or use different multi-item semantics.",
+        "spec_ref": "§5.6.1 = (Equals), multi-item collections"
+      }
     },
     {
       "_section": "=== NOT EQUALS (!=) ==="

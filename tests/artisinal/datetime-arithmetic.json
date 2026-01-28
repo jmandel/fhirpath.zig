@@ -303,7 +303,14 @@
       "name": "date - 1 day",
       "expr": "@2025-01-15 - 1 day",
       "input": {},
-      "expect": [{"type": "date", "value": "2025-01-14"}]
+      "expect": [{"type": "date", "value": "2025-01-14"}],
+      "_adjudicated": {
+        "fhirpath_js": [{"type": "dateTime", "value": "2025-01-14"}],
+        "our_old_value": null,
+        "verdict": "ours_correct",
+        "reason": "Spec §6.5 states arithmetic returns the same type as the input. Since @2025-01-15 is a Date literal (no T component), the return type must be Date, not DateTime. This is the same fhirpath.js bug already adjudicated for other date arithmetic tests in this file (date + 12 months, day crossing year boundary, date - 1 year, month underflow, day underflow).",
+        "spec_ref": "§6.5 Date/Time Arithmetic, - (subtraction)"
+      }
     },
     {
       "name": "day underflow: first of month - 1 day",

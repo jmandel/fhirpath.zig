@@ -231,7 +231,14 @@
       "name": "day crossing year boundary",
       "expr": "@2025-12-31 + 1 day",
       "input": {},
-      "expect": [{"type": "date", "value": "2026-01-01"}]
+      "expect": [{"type": "date", "value": "2026-01-01"}],
+      "_adjudicated": {
+        "fhirpath_js": [{"type": "dateTime", "value": "2026-01-01"}],
+        "our_old_value": null,
+        "verdict": "ours_correct",
+        "reason": "Spec §6.5 states 'Returns the value of the given Date, DateTime, or Time, incremented by the time-valued quantity.' Since @2025-12-31 is a Date literal (no T suffix), the return type must be Date. fhirpath.js incorrectly returns dateTime, violating type preservation.",
+        "spec_ref": "§6.5 Date/Time Arithmetic, + (addition)"
+      }
     },
     {
       "name": "partial date (year) + 365 days (spec example)",
@@ -281,7 +288,14 @@
       "expr": "@2025-03-31 - 1 month",
       "input": {},
       "expect": [{"type": "date", "value": "2025-02-28"}],
-      "_note": "Feb 31 doesn't exist; use last day of Feb"
+      "_note": "Feb 31 doesn't exist; use last day of Feb",
+      "_adjudicated": {
+        "fhirpath_js": [{"type": "dateTime", "value": "2025-02-28"}],
+        "our_old_value": null,
+        "verdict": "ours_correct",
+        "reason": "Spec §6.5 states 'Returns the value of the given Date, DateTime, or Time, decremented by the time-valued quantity.' Since @2025-03-31 is a Date literal (no T suffix), the return type must be Date. fhirpath.js incorrectly returns dateTime, violating type preservation.",
+        "spec_ref": "§6.5 Date/Time Arithmetic, - (subtraction)"
+      }
     },
 
     {"_section": "=== SUBTRACTION: DATE - DAYS ==="},

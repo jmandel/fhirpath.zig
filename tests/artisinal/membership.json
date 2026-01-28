@@ -298,9 +298,9 @@
         "items": [{"value": 1}, {"value": 2}, {"value": 5}],
         "allowed": [1, 2, 3]
       },
-      "expect": [{"type": "integer", "value": 2}],
-      "comment": "Blocked: requires outer context access in where() - allowed not visible inside where scope",
-      "_note": "Filter items where value is in allowed list"
+      "expect": [{"type": "integer", "value": 0}],
+      "comment": "Inside where(), context is each item, so 'allowed' resolves on item (not found). Use %context.allowed to access outer context.",
+      "_note": "Per spec, bare paths inside where() resolve on current item, not outer context"
     },
     {
       "name": "contains: chained with where",
@@ -309,8 +309,15 @@
         "items": [{"value": 1}, {"value": 2}, {"value": 5}],
         "allowed": [1, 2, 3]
       },
-      "expect": [{"type": "integer", "value": 2}],
-      "comment": "Blocked: requires outer context access in where() - allowed not visible inside where scope"
+      "expect": [{"type": "integer", "value": 0}],
+      "comment": "Inside where(), context is each item, so 'allowed' resolves on item (not found). Use %context.allowed to access outer context.",
+      "_adjudicated": {
+        "fhirpath_js": [{"type": "number", "value": 0}],
+        "our_old_value": [{"type": "integer", "value": 2}],
+        "verdict": "theirs_correct",
+        "reason": "Spec §3.4.2 states paths are resolved on the current context. Inside where(), the context is each item being evaluated, not the original input. 'allowed' would need to be written as '%context.allowed' to access the outer context. Since items don't have an 'allowed' field, 'allowed' evaluates to empty, so no items match.",
+        "spec_ref": "§3.4.2 Environment variables, §5.2.1 where()"
+      }
     },
     {
       "name": "in: with select result",

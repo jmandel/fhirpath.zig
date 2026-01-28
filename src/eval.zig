@@ -3153,6 +3153,85 @@ fn evalFunction(
             },
         }
     }
+    if (std.mem.eql(u8, call.name, "avg")) {
+        if (call.args.len != 0) return error.InvalidFunction;
+        if (input.len == 0) return ItemList.empty;
+
+        const integer_type_id = ctx.types.getOrAdd("System.Integer") catch 0;
+        const decimal_type_id = ctx.types.getOrAdd("System.Decimal") catch 0;
+        const quantity_type_id = ctx.types.getOrAdd("System.Quantity") catch 0;
+
+        const first_kind = sumKindForItem(input[0], integer_type_id, decimal_type_id, quantity_type_id) orelse return error.InvalidOperand;
+
+        var out = ItemList.empty;
+        const count: f64 = @floatFromInt(input.len);
+
+        switch (first_kind) {
+            .integer => {
+                // Integer inputs are implicitly converted to Decimal for avg()
+                var total: f64 = 0;
+                for (input) |it| {
+                    if (sumKindForItem(it, integer_type_id, decimal_type_id, quantity_type_id) != .integer) {
+                        return error.InvalidOperand;
+                    }
+                    if (it.data_kind == .value and it.value != null and it.value.? == .integer) {
+                        total += @floatFromInt(it.value.?.integer);
+                    } else if (it.data_kind == .node_ref and it.node != null) {
+                        const A = @TypeOf(ctx.adapter.*);
+                        const ref = nodeRefFromRaw(A, it.node.?);
+                        if (A.kind(ctx.adapter, ref) != .number) return error.InvalidOperand;
+                        const text = A.numberText(ctx.adapter, ref);
+                        const parsed = parseIntegerString(text) orelse return error.InvalidOperand;
+                        total += @floatFromInt(parsed);
+                    } else {
+                        return error.InvalidOperand;
+                    }
+                }
+                try out.append(ctx.allocator, try makeDecimalItem(ctx, total / count));
+                return out;
+            },
+            .decimal => {
+                var total: f64 = 0;
+                for (input) |it| {
+                    if (sumKindForItem(it, integer_type_id, decimal_type_id, quantity_type_id) != .decimal) {
+                        return error.InvalidOperand;
+                    }
+                    const text = decimalTextFromItem(ctx, it) orelse return error.InvalidOperand;
+                    const val = std.fmt.parseFloat(f64, text) catch return error.InvalidOperand;
+                    total += val;
+                }
+                try out.append(ctx.allocator, try makeDecimalItem(ctx, total / count));
+                return out;
+            },
+            .quantity => {
+                var unit: ?[]const u8 = null;
+                var total: f64 = 0;
+                for (input) |it| {
+                    if (sumKindForItem(it, integer_type_id, decimal_type_id, quantity_type_id) != .quantity) {
+                        return error.InvalidOperand;
+                    }
+                    if (it.data_kind != .value or it.value == null or it.value.? != .quantity) {
+                        return error.InvalidOperand;
+                    }
+                    const q = it.value.?.quantity;
+                    if (unit == null) {
+                        unit = q.unit;
+                    } else if (!std.mem.eql(u8, unit.?, q.unit)) {
+                        return error.InvalidOperand;
+                    }
+                    const val = std.fmt.parseFloat(f64, q.value) catch return error.InvalidOperand;
+                    total += val;
+                }
+
+                const avg_val = total / count;
+                var buf: [64]u8 = undefined;
+                const avg_str = formatDecimal(&buf, avg_val);
+                const owned = try ctx.allocator.dupe(u8, avg_str);
+                try out.append(ctx.allocator, makeQuantityItem(ctx, owned, unit.?));
+                return out;
+            },
+        }
+    }
     if (std.mem.eql(u8, call.name, "min") or std.mem.eql(u8, call.name, "max")) {
         if (call.args.len != 0) return error.InvalidFunction;
         if (input.len == 0) return ItemList.empty;

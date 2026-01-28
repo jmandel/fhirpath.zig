@@ -217,5 +217,6 @@ PY
     fi
   fi
   
-  echo "$(date -Is) Step $ID complete, looping" >> "$ERROR_LOG"
+  echo "$(date -Is) Step $ID complete, sleeping 5s" >> "$ERROR_LOG"
+  sleep 5
 done

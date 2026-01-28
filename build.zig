@@ -120,7 +120,7 @@ pub fn build(b: *std.Build) void {
         .root_module = wasm_module,
     });
     wasm.export_memory = true;
-    // Keep exports minimal; Zig will still export pub export functions.
+    wasm.rdynamic = true;
     wasm.entry = .disabled;
     const wasm_install = b.addInstallArtifact(wasm, .{});
     b.step("wasm", "Build WebAssembly module").dependOn(&wasm_install.step);

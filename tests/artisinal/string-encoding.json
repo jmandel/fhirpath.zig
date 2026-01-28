@@ -1,0 +1,445 @@
+{
+  "_spec_summary": [
+    "Additional String Functions: encode(), decode(), escape(), unescape()",
+    "",
+    "These are STU (Standard for Trial Use) functions for encoding/decoding string data.",
+    "",
+    "=== ENCODE ===",
+    "encode(format: String) : String",
+    "  - Takes a singleton string and encodes it in the given format",
+    "  - Supported formats:",
+    "    - 'hex': Hexadecimal encoding (base 16), lowercase output",
+    "    - 'base64': Standard base64 per RFC4648, A-Z, a-z, 0-9, +, /, padded with =",
+    "    - 'urlbase64': URL-safe base64 per RFC4648, A-Z, a-z, 0-9, -, _, padded with =",
+    "  - If input is empty, result is empty",
+    "  - If format is not specified, result is empty",
+    "",
+    "Examples:",
+    "  - 'hello'.encode('hex') -> '68656c6c6f'",
+    "  - 'hello'.encode('base64') -> 'aGVsbG8='",
+    "  - 'hello'.encode('urlbase64') -> 'aGVsbG8='",
+    "",
+    "=== DECODE ===",
+    "decode(format: String) : String",
+    "  - Takes an encoded string and decodes it using the specified format",
+    "  - Supported formats are the same as encode()",
+    "  - If input is empty, result is empty",
+    "  - If format is not specified, result is empty",
+    "  - Invalid encoded strings may produce empty or error (implementation-specific)",
+    "",
+    "Examples:",
+    "  - '68656c6c6f'.decode('hex') -> 'hello'",
+    "  - 'aGVsbG8='.decode('base64') -> 'hello'",
+    "",
+    "=== ESCAPE ===",
+    "escape(target: String) : String",
+    "  - Escapes a string for use in the given target format",
+    "  - Supported targets:",
+    "    - 'html': Escapes <, &, \" and optionally high chars (>127)",
+    "              < becomes &lt;, & becomes &amp;, \" becomes &quot;",
+    "    - 'json': Escapes for JSON string context",
+    "              \" becomes \\\", \\ becomes \\\\, control chars escaped",
+    "  - If input is empty, result is empty",
+    "  - If target is not specified, result is empty",
+    "",
+    "Examples:",
+    "  - '<b>Hello</b>'.escape('html') -> '&lt;b&gt;Hello&lt;/b&gt;'",
+    "  - 'Say \"hi\"'.escape('json') -> 'Say \\\"hi\\\"'",
+    "",
+    "=== UNESCAPE ===",
+    "unescape(target: String) : String",
+    "  - Unescapes an escaped string from the given target format",
+    "  - Supported targets are the same as escape()",
+    "  - If input is empty, result is empty",
+    "  - If target is not specified, result is empty",
+    "",
+    "Examples:",
+    "  - '&lt;b&gt;Hello&lt;/b&gt;'.unescape('html') -> '<b>Hello</b>'",
+    "",
+    "=== ROUNDTRIP PROPERTY ===",
+    "For valid inputs, encode/decode and escape/unescape are inverses:",
+    "  - x.encode('format').decode('format') = x",
+    "  - x.escape('target').unescape('target') = x",
+    "",
+    "=== EMPTY COLLECTION BEHAVIOR ===",
+    "All functions return empty if input is empty:",
+    "  - {}.encode('hex') -> {}",
+    "  - {}.decode('base64') -> {}",
+    "  - {}.escape('html') -> {}",
+    "  - {}.unescape('json') -> {}"
+  ],
+  "_todo": [
+    "[ ] Improve passing rate (0/51 passing) - functions not yet implemented",
+    "[ ] Verify hex encoding is lowercase per spec",
+    "[ ] Test Unicode string encoding/decoding",
+    "[ ] Test edge cases: empty string, single character",
+    "[ ] Test invalid format arguments",
+    "[ ] Test escape/unescape for special characters"
+  ],
+  "_open_questions": [
+    "What happens if decode receives invalid encoded data (e.g., invalid base64)?",
+    "Should escape('html') escape > character? Spec says 'at least' < & \"",
+    "Should escape('html') escape characters above 127? Spec says 'ideally'"
+  ],
+  "meta": {
+    "status": "drafted"
+  },
+  "cases": [
+    {
+      "_section": "=== ENCODE HEX ==="
+    },
+    {
+      "name": "encode hex: simple ASCII string",
+      "expr": "'hello'.encode('hex')",
+      "input": {},
+      "expect": [{"type": "string", "value": "68656c6c6f"}],
+      "comment": "h=68, e=65, l=6c, l=6c, o=6f in hex"
+    },
+    {
+      "name": "encode hex: single character",
+      "expr": "'A'.encode('hex')",
+      "input": {},
+      "expect": [{"type": "string", "value": "41"}],
+      "comment": "A = 0x41 = 65 decimal"
+    },
+    {
+      "name": "encode hex: empty string",
+      "expr": "''.encode('hex')",
+      "input": {},
+      "expect": [{"type": "string", "value": ""}]
+    },
+    {
+      "name": "encode hex: digits",
+      "expr": "'123'.encode('hex')",
+      "input": {},
+      "expect": [{"type": "string", "value": "313233"}],
+      "comment": "1=31, 2=32, 3=33 in hex"
+    },
+    {
+      "name": "encode hex: lowercase output",
+      "expr": "'AB'.encode('hex')",
+      "input": {},
+      "expect": [{"type": "string", "value": "4142"}],
+      "comment": "Spec says hex output should be lowercase: 4142 not 4142"
+    },
+    {
+      "_section": "=== ENCODE BASE64 ==="
+    },
+    {
+      "name": "encode base64: simple string",
+      "expr": "'hello'.encode('base64')",
+      "input": {},
+      "expect": [{"type": "string", "value": "aGVsbG8="}]
+    },
+    {
+      "name": "encode base64: no padding needed",
+      "expr": "'abc'.encode('base64')",
+      "input": {},
+      "expect": [{"type": "string", "value": "YWJj"}],
+      "comment": "3 bytes = 4 base64 chars, no padding"
+    },
+    {
+      "name": "encode base64: one padding char",
+      "expr": "'ab'.encode('base64')",
+      "input": {},
+      "expect": [{"type": "string", "value": "YWI="}],
+      "comment": "2 bytes needs 1 padding char"
+    },
+    {
+      "name": "encode base64: two padding chars",
+      "expr": "'a'.encode('base64')",
+      "input": {},
+      "expect": [{"type": "string", "value": "YQ=="}],
+      "comment": "1 byte needs 2 padding chars"
+    },
+    {
+      "name": "encode base64: empty string",
+      "expr": "''.encode('base64')",
+      "input": {},
+      "expect": [{"type": "string", "value": ""}]
+    },
+    {
+      "_section": "=== ENCODE URLBASE64 ==="
+    },
+    {
+      "name": "encode urlbase64: simple string",
+      "expr": "'hello'.encode('urlbase64')",
+      "input": {},
+      "expect": [{"type": "string", "value": "aGVsbG8="}],
+      "comment": "Same as base64 for this input (no +/)"
+    },
+    {
+      "name": "encode urlbase64: chars that differ from standard base64",
+      "expr": "'<<??>>'.encode('urlbase64')",
+      "input": {},
+      "expect": [{"type": "string", "value": "PDw_Pz4-"}],
+      "comment": "urlbase64 uses - instead of + and _ instead of /"
+    },
+    {
+      "_section": "=== DECODE HEX ==="
+    },
+    {
+      "name": "decode hex: simple string",
+      "expr": "'68656c6c6f'.decode('hex')",
+      "input": {},
+      "expect": [{"type": "string", "value": "hello"}]
+    },
+    {
+      "name": "decode hex: single byte",
+      "expr": "'41'.decode('hex')",
+      "input": {},
+      "expect": [{"type": "string", "value": "A"}]
+    },
+    {
+      "name": "decode hex: empty string",
+      "expr": "''.decode('hex')",
+      "input": {},
+      "expect": [{"type": "string", "value": ""}]
+    },
+    {
+      "name": "decode hex: uppercase input accepted",
+      "expr": "'48454C4C4F'.decode('hex')",
+      "input": {},
+      "expect": [{"type": "string", "value": "HELLO"}],
+      "comment": "Decode should accept uppercase hex digits"
+    },
+    {
+      "_section": "=== DECODE BASE64 ==="
+    },
+    {
+      "name": "decode base64: simple string",
+      "expr": "'aGVsbG8='.decode('base64')",
+      "input": {},
+      "expect": [{"type": "string", "value": "hello"}]
+    },
+    {
+      "name": "decode base64: no padding",
+      "expr": "'YWJj'.decode('base64')",
+      "input": {},
+      "expect": [{"type": "string", "value": "abc"}]
+    },
+    {
+      "name": "decode base64: one padding char",
+      "expr": "'YWI='.decode('base64')",
+      "input": {},
+      "expect": [{"type": "string", "value": "ab"}]
+    },
+    {
+      "name": "decode base64: two padding chars",
+      "expr": "'YQ=='.decode('base64')",
+      "input": {},
+      "expect": [{"type": "string", "value": "a"}]
+    },
+    {
+      "name": "decode base64: empty string",
+      "expr": "''.decode('base64')",
+      "input": {},
+      "expect": [{"type": "string", "value": ""}]
+    },
+    {
+      "_section": "=== DECODE URLBASE64 ==="
+    },
+    {
+      "name": "decode urlbase64: simple string",
+      "expr": "'aGVsbG8='.decode('urlbase64')",
+      "input": {},
+      "expect": [{"type": "string", "value": "hello"}]
+    },
+    {
+      "name": "decode urlbase64: url-safe chars",
+      "expr": "'PDw_Pz4-'.decode('urlbase64')",
+      "input": {},
+      "expect": [{"type": "string", "value": "<<??>>"}]
+    },
+    {
+      "_section": "=== ESCAPE HTML ==="
+    },
+    {
+      "name": "escape html: less than",
+      "expr": "'<tag>'.escape('html')",
+      "input": {},
+      "expect": [{"type": "string", "value": "&lt;tag&gt;"}]
+    },
+    {
+      "name": "escape html: ampersand",
+      "expr": "'A & B'.escape('html')",
+      "input": {},
+      "expect": [{"type": "string", "value": "A &amp; B"}]
+    },
+    {
+      "name": "escape html: double quote",
+      "expr": "'Say \"hi\"'.escape('html')",
+      "input": {},
+      "expect": [{"type": "string", "value": "Say &quot;hi&quot;"}]
+    },
+    {
+      "name": "escape html: combined special chars",
+      "expr": "'<a href=\"x\">&</a>'.escape('html')",
+      "input": {},
+      "expect": [{"type": "string", "value": "&lt;a href=&quot;x&quot;&gt;&amp;&lt;/a&gt;"}]
+    },
+    {
+      "name": "escape html: no special chars",
+      "expr": "'hello world'.escape('html')",
+      "input": {},
+      "expect": [{"type": "string", "value": "hello world"}]
+    },
+    {
+      "name": "escape html: empty string",
+      "expr": "''.escape('html')",
+      "input": {},
+      "expect": [{"type": "string", "value": ""}]
+    },
+    {
+      "_section": "=== ESCAPE JSON ==="
+    },
+    {
+      "name": "escape json: double quote",
+      "expr": "'Say \"hi\"'.escape('json')",
+      "input": {},
+      "expect": [{"type": "string", "value": "Say \\\"hi\\\""}]
+    },
+    {
+      "name": "escape json: backslash",
+      "expr": "'path\\\\file'.escape('json')",
+      "input": {},
+      "expect": [{"type": "string", "value": "path\\\\\\\\file"}],
+      "comment": "Single backslash becomes double backslash in JSON"
+    },
+    {
+      "name": "escape json: no special chars",
+      "expr": "'hello world'.escape('json')",
+      "input": {},
+      "expect": [{"type": "string", "value": "hello world"}]
+    },
+    {
+      "name": "escape json: empty string",
+      "expr": "''.escape('json')",
+      "input": {},
+      "expect": [{"type": "string", "value": ""}]
+    },
+    {
+      "_section": "=== UNESCAPE HTML ==="
+    },
+    {
+      "name": "unescape html: less than",
+      "expr": "'&lt;tag&gt;'.unescape('html')",
+      "input": {},
+      "expect": [{"type": "string", "value": "<tag>"}]
+    },
+    {
+      "name": "unescape html: ampersand",
+      "expr": "'A &amp; B'.unescape('html')",
+      "input": {},
+      "expect": [{"type": "string", "value": "A & B"}]
+    },
+    {
+      "name": "unescape html: double quote",
+      "expr": "'Say &quot;hi&quot;'.unescape('html')",
+      "input": {},
+      "expect": [{"type": "string", "value": "Say \"hi\""}]
+    },
+    {
+      "name": "unescape html: combined",
+      "expr": "'&lt;a href=&quot;x&quot;&gt;&amp;&lt;/a&gt;'.unescape('html')",
+      "input": {},
+      "expect": [{"type": "string", "value": "<a href=\"x\">&</a>"}]
+    },
+    {
+      "name": "unescape html: no entities",
+      "expr": "'hello world'.unescape('html')",
+      "input": {},
+      "expect": [{"type": "string", "value": "hello world"}]
+    },
+    {
+      "name": "unescape html: empty string",
+      "expr": "''.unescape('html')",
+      "input": {},
+      "expect": [{"type": "string", "value": ""}]
+    },
+    {
+      "_section": "=== UNESCAPE JSON ==="
+    },
+    {
+      "name": "unescape json: double quote",
+      "expr": "'Say \\\"hi\\\"'.unescape('json')",
+      "input": {},
+      "expect": [{"type": "string", "value": "Say \"hi\""}]
+    },
+    {
+      "name": "unescape json: no escapes",
+      "expr": "'hello world'.unescape('json')",
+      "input": {},
+      "expect": [{"type": "string", "value": "hello world"}]
+    },
+    {
+      "name": "unescape json: empty string",
+      "expr": "''.unescape('json')",
+      "input": {},
+      "expect": [{"type": "string", "value": ""}]
+    },
+    {
+      "_section": "=== ENCODE/DECODE ROUNDTRIP ==="
+    },
+    {
+      "name": "roundtrip: hex encode then decode",
+      "expr": "'test'.encode('hex').decode('hex') = 'test'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "roundtrip: base64 encode then decode",
+      "expr": "'test'.encode('base64').decode('base64') = 'test'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "roundtrip: urlbase64 encode then decode",
+      "expr": "'test'.encode('urlbase64').decode('urlbase64') = 'test'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "_section": "=== ESCAPE/UNESCAPE ROUNDTRIP ==="
+    },
+    {
+      "name": "roundtrip: html escape then unescape",
+      "expr": "'<a>test</a>'.escape('html').unescape('html') = '<a>test</a>'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "roundtrip: json escape then unescape",
+      "expr": "'say \"hi\"'.escape('json').unescape('json') = 'say \"hi\"'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "_section": "=== EMPTY INPUT ==="
+    },
+    {
+      "name": "encode: empty input returns empty",
+      "expr": "{}.encode('hex').empty()",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "decode: empty input returns empty",
+      "expr": "{}.decode('base64').empty()",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "escape: empty input returns empty",
+      "expr": "{}.escape('html').empty()",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "unescape: empty input returns empty",
+      "expr": "{}.unescape('json').empty()",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    }
+  ]
+}

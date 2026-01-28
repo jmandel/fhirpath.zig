@@ -3025,8 +3025,8 @@ fn evalTypeExpr(
     switch (expr.op) {
         .Is => {
             // is returns true if the operand is of the specified type
+            // If input is empty, return empty (not false) per official tests
             if (operand.items.len == 0) {
-                try out.append(ctx.allocator, makeBoolItem(ctx, false));
                 return out;
             }
             // For singleton, check if it matches the type
@@ -3606,8 +3606,8 @@ fn evalFunction(
         const type_name = try typeNameFromExpr(ctx, call.args[0]);
         defer ctx.allocator.free(type_name);
         var out = ItemList.empty;
+        // Empty input returns empty (not false) per official tests
         if (input.len == 0) {
-            try out.append(ctx.allocator, makeBoolItem(ctx, false));
             return out;
         }
         if (input.len != 1) return error.SingletonRequired;

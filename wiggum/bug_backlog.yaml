@@ -65,7 +65,7 @@ bugs:
     updated: 2026-01-28
     tags: [functions, datetime]
   - slug: type-checking-operators
-    status: open
+    status: resolved
     severity: high
     title: Fix is()/as()/ofType() type checking with FHIR types
     description: Type operators return wrong results for FHIR types (Quantity, instant, etc). ~24 R5 failures. Need schema integration.

@@ -11,7 +11,7 @@
       "is_operator": {
         "syntax": "expr is TypeName or expr.is(TypeName)",
         "behavior": "Returns true if input is of specified type or subclass. Returns false if type doesn't match.",
-        "empty_input": "Returns false (not empty!) for empty collection.",
+        "empty_input": "Returns empty collection for empty input (per official tests; spec text is ambiguous).",
         "multiple_items": "Throws error if input has more than one item.",
         "invalid_type": "Throws error if type identifier cannot be resolved."
       },
@@ -301,15 +301,11 @@
       ]
     },
     {
-      "name": "is - empty collection returns false",
+      "name": "is - empty collection returns empty (not false)",
       "expr": "{}.is(Integer)",
       "input": {},
-      "expect": [
-        {
-          "type": "boolean",
-          "value": false
-        }
-      ]
+      "expect": [],
+      "comment": "Spec says 'all other cases returns false' but official tests and fhirpath.js expect empty for empty input. Following implementations."
     },
     {
       "name": "is keyword - integer is Integer",

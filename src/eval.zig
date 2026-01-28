@@ -1628,6 +1628,63 @@ fn evalFunction(
         try out.append(ctx.allocator, makeBoolItem(ctx, convertible));
         return out;
     }
+    if (std.mem.eql(u8, call.name, "toTime")) {
+        if (call.args.len != 0) return error.InvalidFunction;
+        var out = ItemList.empty;
+        if (input.len == 0) return out;
+        if (input.len != 1) return error.SingletonRequired;
+        if (convertToTime(ctx, input[0])) |time_str| {
+            try out.append(ctx.allocator, makeTimeItem(ctx, time_str));
+        }
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "convertsToTime")) {
+        if (call.args.len != 0) return error.InvalidFunction;
+        var out = ItemList.empty;
+        if (input.len == 0) return out;
+        if (input.len != 1) return error.SingletonRequired;
+        const convertible = convertToTime(ctx, input[0]) != null;
+        try out.append(ctx.allocator, makeBoolItem(ctx, convertible));
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "toDate")) {
+        if (call.args.len != 0) return error.InvalidFunction;
+        var out = ItemList.empty;
+        if (input.len == 0) return out;
+        if (input.len != 1) return error.SingletonRequired;
+        if (convertToDate(ctx, input[0])) |date_str| {
+            try out.append(ctx.allocator, makeDateItem(ctx, date_str));
+        }
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "convertsToDate")) {
+        if (call.args.len != 0) return error.InvalidFunction;
+        var out = ItemList.empty;
+        if (input.len == 0) return out;
+        if (input.len != 1) return error.SingletonRequired;
+        const convertible = convertToDate(ctx, input[0]) != null;
+        try out.append(ctx.allocator, makeBoolItem(ctx, convertible));
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "toDateTime")) {
+        if (call.args.len != 0) return error.InvalidFunction;
+        var out = ItemList.empty;
+        if (input.len == 0) return out;
+        if (input.len != 1) return error.SingletonRequired;
+        if (convertToDateTime(ctx, input[0])) |dt_str| {
+            try out.append(ctx.allocator, makeDateTimeItem(ctx, dt_str));
+        }
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "convertsToDateTime")) {
+        if (call.args.len != 0) return error.InvalidFunction;
+        var out = ItemList.empty;
+        if (input.len == 0) return out;
+        if (input.len != 1) return error.SingletonRequired;
+        const convertible = convertToDateTime(ctx, input[0]) != null;
+        try out.append(ctx.allocator, makeBoolItem(ctx, convertible));
+        return out;
+    }
     if (std.mem.eql(u8, call.name, "not")) {
         // not() returns the boolean negation of the input
         // Per FHIRPath spec: non-boolean singleton is truthy, so not() returns false
@@ -2766,9 +2823,11 @@ fn literalToItem(ctx: anytype, lit: ast.Literal) item.Item {
         .String => |s| makeStringItem(ctx, s),
         .Number => |n| makeNumberItem(ctx, n),
         .Quantity => |q| makeQuantityItem(ctx, q.value, q.unit),
-        .Date => |d| makeDateItem(ctx, d),
-        .DateTime => |d| makeDateTimeItem(ctx, d),
-        .Time => |t| makeTimeItem(ctx, t),
+        // Strip @ prefix from date/datetime literals (lexer captures @YYYY-MM-DD)
+        .Date => |d| makeDateItem(ctx, if (d.len > 0 and d[0] == '@') d[1..] else d),
+        .DateTime => |d| makeDateTimeItem(ctx, if (d.len > 0 and d[0] == '@') d[1..] else d),
+        // Strip @T prefix from time literals (lexer captures @Thh:mm:ss)
+        .Time => |t| makeTimeItem(ctx, if (t.len > 1 and t[0] == '@' and t[1] == 'T') t[2..] else t),
     };
 }
 
@@ -3108,6 +3167,241 @@ fn eqIgnoreCase(a: []const u8, b: []const u8) bool {
         if (std.ascii.toLower(a[idx]) != std.ascii.toLower(b[idx])) return false;
     }
     return true;
+}
+
+// Time string validation: hh[:mm[:ss[.fff]]] (partial times allowed)
+// Per spec and official tests: '14', '14:34', '14:34:28', '14:34:28.123' are all valid
+fn isValidTimeString(s: []const u8) bool {
+    if (s.len == 0) return false;
+
+    // Parse hour (2 digits required)
+    if (s.len < 2) return false;
+    if (!isDigit(s[0]) or !isDigit(s[1])) return false;
+    const hour = (s[0] - '0') * 10 + (s[1] - '0');
+    if (hour > 23) return false;
+
+    // Hour-only partial time
+    if (s.len == 2) return true;
+
+    // Must have colon
+    if (s[2] != ':') return false;
+    if (s.len < 5) return false;
+    if (!isDigit(s[3]) or !isDigit(s[4])) return false;
+    const minute = (s[3] - '0') * 10 + (s[4] - '0');
+    if (minute > 59) return false;
+
+    // Hour:minute partial time
+    if (s.len == 5) return true;
+
+    // Must have colon
+    if (s[5] != ':') return false;
+    if (s.len < 8) return false;
+    if (!isDigit(s[6]) or !isDigit(s[7])) return false;
+    const second = (s[6] - '0') * 10 + (s[7] - '0');
+    if (second > 59) return false;
+
+    // Full seconds
+    if (s.len == 8) return true;
+
+    // Must have dot for fractional seconds
+    if (s[8] != '.') return false;
+    if (s.len < 10) return false;
+
+    // Validate fractional part (1+ digits)
+    var idx: usize = 9;
+    while (idx < s.len) : (idx += 1) {
+        if (!isDigit(s[idx])) return false;
+    }
+    return true;
+}
+
+// Date string validation: YYYY[-MM[-DD]] (partial dates allowed)
+fn isValidDateString(s: []const u8) bool {
+    if (s.len < 4) return false;
+
+    // Parse year (4 digits)
+    if (!isDigit(s[0]) or !isDigit(s[1]) or !isDigit(s[2]) or !isDigit(s[3])) return false;
+
+    // Year-only partial date
+    if (s.len == 4) return true;
+
+    // Must have hyphen
+    if (s[4] != '-') return false;
+    if (s.len < 7) return false;
+    if (!isDigit(s[5]) or !isDigit(s[6])) return false;
+    const month = (s[5] - '0') * 10 + (s[6] - '0');
+    if (month < 1 or month > 12) return false;
+
+    // Year-month partial date
+    if (s.len == 7) return true;
+
+    // Must have hyphen
+    if (s[7] != '-') return false;
+    if (s.len < 10) return false;
+    if (!isDigit(s[8]) or !isDigit(s[9])) return false;
+    const day = (s[8] - '0') * 10 + (s[9] - '0');
+    if (day < 1 or day > 31) return false;
+
+    // Full date
+    if (s.len == 10) return true;
+
+    // Any extra characters are invalid for date-only
+    return false;
+}
+
+// DateTime string validation: YYYY[-MM[-DD[Thh[:mm[:ss[.fff]]][timezone]]]]
+fn isValidDateTimeString(s: []const u8) bool {
+    if (s.len < 4) return false;
+
+    // Parse year (4 digits)
+    if (!isDigit(s[0]) or !isDigit(s[1]) or !isDigit(s[2]) or !isDigit(s[3])) return false;
+
+    // Year-only partial datetime
+    if (s.len == 4) return true;
+
+    // Must have hyphen
+    if (s[4] != '-') return false;
+    if (s.len < 7) return false;
+    if (!isDigit(s[5]) or !isDigit(s[6])) return false;
+    const month = (s[5] - '0') * 10 + (s[6] - '0');
+    if (month < 1 or month > 12) return false;
+
+    // Year-month partial datetime
+    if (s.len == 7) return true;
+
+    // Must have hyphen
+    if (s[7] != '-') return false;
+    if (s.len < 10) return false;
+    if (!isDigit(s[8]) or !isDigit(s[9])) return false;
+    const day = (s[8] - '0') * 10 + (s[9] - '0');
+    if (day < 1 or day > 31) return false;
+
+    // Date-only partial datetime
+    if (s.len == 10) return true;
+
+    // Must have T for time part
+    if (s[10] != 'T') return false;
+    if (s.len < 13) return false;
+    if (!isDigit(s[11]) or !isDigit(s[12])) return false;
+    const hour = (s[11] - '0') * 10 + (s[12] - '0');
+    if (hour > 23) return false;
+
+    // DateTime with hour only
+    if (s.len == 13) return true;
+
+    // Check for timezone at this point (Z or +/-)
+    if (s[13] == 'Z') return s.len == 14;
+    if (s[13] == '+' or s[13] == '-') return isValidTimezone(s[13..]);
+
+    // Must have colon for minutes
+    if (s[13] != ':') return false;
+    if (s.len < 16) return false;
+    if (!isDigit(s[14]) or !isDigit(s[15])) return false;
+    const minute = (s[14] - '0') * 10 + (s[15] - '0');
+    if (minute > 59) return false;
+
+    // DateTime with hour:minute
+    if (s.len == 16) return true;
+
+    // Check for timezone
+    if (s[16] == 'Z') return s.len == 17;
+    if (s[16] == '+' or s[16] == '-') return isValidTimezone(s[16..]);
+
+    // Must have colon for seconds
+    if (s[16] != ':') return false;
+    if (s.len < 19) return false;
+    if (!isDigit(s[17]) or !isDigit(s[18])) return false;
+    const second = (s[17] - '0') * 10 + (s[18] - '0');
+    if (second > 59) return false;
+
+    // DateTime with hour:minute:second
+    if (s.len == 19) return true;
+
+    // Check for timezone
+    if (s[19] == 'Z') return s.len == 20;
+    if (s[19] == '+' or s[19] == '-') return isValidTimezone(s[19..]);
+
+    // Must have dot for fractional seconds
+    if (s[19] != '.') return false;
+    if (s.len < 21) return false;
+
+    // Validate fractional part (1+ digits)
+    var idx: usize = 20;
+    while (idx < s.len) : (idx += 1) {
+        if (s[idx] == 'Z') return idx + 1 == s.len;
+        if (s[idx] == '+' or s[idx] == '-') return isValidTimezone(s[idx..]);
+        if (!isDigit(s[idx])) return false;
+    }
+    return true;
+}
+
+fn isValidTimezone(s: []const u8) bool {
+    // Z
+    if (s.len == 1 and s[0] == 'Z') return true;
+
+    // +hh:mm or -hh:mm
+    if (s.len != 6) return false;
+    if (s[0] != '+' and s[0] != '-') return false;
+    if (!isDigit(s[1]) or !isDigit(s[2])) return false;
+    if (s[3] != ':') return false;
+    if (!isDigit(s[4]) or !isDigit(s[5])) return false;
+    const tz_hour = (s[1] - '0') * 10 + (s[2] - '0');
+    const tz_minute = (s[4] - '0') * 10 + (s[5] - '0');
+    if (tz_hour > 14) return false;
+    if (tz_minute > 59) return false;
+    return true;
+}
+
+fn isDigit(c: u8) bool {
+    return c >= '0' and c <= '9';
+}
+
+// Convert item to time string (for toTime)
+fn convertToTime(ctx: anytype, it: item.Item) ?[]const u8 {
+    const val = itemToValue(ctx, it);
+    switch (val) {
+        .time => |t| return t, // passthrough
+        .string => |s| {
+            if (isValidTimeString(s)) return s;
+            return null;
+        },
+        else => return null,
+    }
+}
+
+// Convert item to date string (for toDate)
+fn convertToDate(ctx: anytype, it: item.Item) ?[]const u8 {
+    const val = itemToValue(ctx, it);
+    switch (val) {
+        .date => |d| return d, // passthrough
+        .dateTime => |dt| {
+            // Extract date part from datetime
+            if (std.mem.indexOfScalar(u8, dt, 'T')) |t_pos| {
+                return dt[0..t_pos];
+            }
+            // DateTime without T - just return as-is (date-only partial)
+            return dt;
+        },
+        .string => |s| {
+            if (isValidDateString(s)) return s;
+            return null;
+        },
+        else => return null,
+    }
+}
+
+// Convert item to datetime string (for toDateTime)
+fn convertToDateTime(ctx: anytype, it: item.Item) ?[]const u8 {
+    const val = itemToValue(ctx, it);
+    switch (val) {
+        .dateTime => |dt| return dt, // passthrough
+        .date => |d| return d, // date promotes to datetime (time part empty)
+        .string => |s| {
+            if (isValidDateTimeString(s)) return s;
+            return null;
+        },
+        else => return null,
+    }
 }
 
 fn typeIdForNode(ctx: anytype, node_ref: @TypeOf(ctx.adapter.*).NodeRef) !u32 {

@@ -103,12 +103,14 @@
       "6. convertsToX returns empty (not false) when input is empty"
     ],
     "_todo": [
-      "[ ] Improve passing rate (67/119 passing, 16 blocked by parser)",
+      "[ ] Improve passing rate (104/135 passing, 1 blocked by parser, ~30 blocked by unimplemented toString/toQuantity)",
       "[x] Implement toBoolean/toInteger conversion functions",
       "[x] Implement toDecimal/convertsToDecimal conversion functions",
-      "[ ] Implement conversion functions (toString, toQuantity, toDate, toDateTime, toTime)",
+      "[x] Implement toDate, toDateTime, toTime conversion functions",
+      "[ ] Implement toString, toQuantity conversion functions",
       "[x] Implement convertsToBoolean/convertsToInteger",
-      "[ ] Implement remaining convertsToX boolean checker functions (quantity/date/dateTime/time)",
+      "[x] Implement convertsToDate/convertsToDateTime/convertsToTime boolean checker functions",
+      "[ ] Implement convertsToQuantity boolean checker function",
       "[ ] Parser: support parenthesized expressions like (-1)",
       "[ ] Parser: support method calls on date/time literals like @2024-01-15.toString()",
       "[ ] Parser: support method calls on quantity literals like (10 'mg').toString()",
@@ -1169,10 +1171,11 @@
       "input": {},
       "expect": [
         {
-          "type": "date",
+          "type": "dateTime",
           "value": "2024-01-15"
         }
-      ]
+      ],
+      "_note": "toDateTime() always returns DateTime type, even for date-only input"
     },
     {
       "name": "toDateTime: string 'invalid' returns empty",
@@ -1342,11 +1345,11 @@
       "input": {},
       "expect": [
         {
-          "type": "date",
+          "type": "dateTime",
           "value": "2024-01-15"
         }
       ],
-      "_note": "Time components empty (not set to zero), so output is partial",
+      "_note": "toDateTime() returns DateTime type; time components empty (not set to zero), so value is partial",
       "comment": "Blocked: parser doesn't yet support method calls on date/time literals"
     },
     {
@@ -1379,11 +1382,11 @@
       "input": {},
       "expect": [
         {
-          "type": "date",
+          "type": "dateTime",
           "value": "2024"
         }
       ],
-      "_note": "Partial datetime preserved"
+      "_note": "toDateTime() returns DateTime type, partial datetime value preserved"
     },
     {
       "name": "toDateTime: string with timezone",

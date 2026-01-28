@@ -45,21 +45,18 @@
     "Note: The function name 'all' is sometimes also called 'every' in other languages."
   ],
   "_todo": [
-    "[ ] Improve passing rate (0/27 passing) - pending all() implementation",
-    "[ ] Verify empty input returns true per spec",
-    "[ ] Verify criteria using $this and $index work correctly",
-    "[ ] Test with complex criteria expressions",
-    "[ ] Test behavior when criteria returns empty (should that mean false?)"
+    "[ ] Improve passing rate (0/29 passing) - pending all() implementation",
+    "[x] Verify empty input returns true per spec (covered by 'empty collection returns true' test)",
+    "[x] Verify criteria using $this and $index work correctly (covered by $INDEX TESTS section)",
+    "[x] Test with complex criteria expressions (covered by COMPLEX CRITERIA section)",
+    "[x] Test behavior when criteria returns empty (added EMPTY CRITERIA RESULT section - answer is false)"
   ],
   "_open_questions": [
-    "Q: What happens if criteria returns empty for some element?",
-    "A: The spec says 'evaluates to true' - empty is not true, so this should return false.",
-    "",
     "Q: Does all(criteria) short-circuit (stop evaluating on first false)?",
     "A: Implementation detail; spec doesn't mandate this but it's a reasonable optimization."
   ],
   "meta": {
-    "status": "drafted"
+    "status": "reviewed"
   },
   "cases": [
     {
@@ -244,6 +241,34 @@
       "expect": [{"type": "boolean", "value": true}]
     },
     {
+      "_section": "=== EMPTY CRITERIA RESULT ==="
+    },
+    {
+      "name": "all: criteria returns empty for some elements",
+      "expr": "items.all(value > 0)",
+      "input": {
+        "items": [
+          {"value": 10},
+          {"novalue": true},
+          {"value": 20}
+        ]
+      },
+      "expect": [{"type": "boolean", "value": false}],
+      "comment": "Second item has no 'value' field, so criteria returns empty (not true), thus all() returns false"
+    },
+    {
+      "name": "all: criteria returns empty for all elements",
+      "expr": "items.all(missing > 0)",
+      "input": {
+        "items": [
+          {"value": 10},
+          {"value": 20}
+        ]
+      },
+      "expect": [{"type": "boolean", "value": false}],
+      "comment": "No items have 'missing' field, so criteria returns empty for all - not true, so all() returns false"
+    },
+    {
       "_section": "=== RELATIONSHIP TO EXISTS ==="
     },
     {
@@ -255,10 +280,10 @@
     },
     {
       "name": "all vs exists: none pass",
-      "expr": "(-1 | -2).all($this > 0) = (-1 | -2).exists($this > 0).not()",
+      "expr": "(-1 | -2).all($this > 0) = (-1 | -2).exists($this > 0)",
       "input": {},
       "expect": [{"type": "boolean", "value": true}],
-      "comment": "When none pass, all() returns false and exists() returns false"
+      "comment": "When none pass, both all() and exists() return false, so they are equal"
     },
     {
       "name": "all: some pass but not all",

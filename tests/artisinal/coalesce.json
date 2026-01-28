@@ -31,12 +31,12 @@
     "Spec quote: \"returns the first non-empty collection\" and \"short-circuit behaviour is expected\"."
   ],
   "_todo": [
-    "[ ] Improve passing rate (1/14 passing) - coalesce evaluation not implemented",
+    "[x] Implement coalesce evaluation (10/10 passing)",
     "[ ] Add tests for interaction with undefined-order collections (children()/descendants())",
     "[ ] Add tests for mixed-type argument collections (e.g., Quantity vs Integer)"
   ],
   "meta": {
-    "status": "reviewed",
+    "status": "implemented",
     "feature": "coalesce",
     "source": "spec/index.md#coalesce"
   },

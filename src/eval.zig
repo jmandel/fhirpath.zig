@@ -2870,6 +2870,35 @@ fn evalFunction(
             }
         }
     }
+    // coalesce(arg1, arg2, ...) - returns the first non-empty argument
+    // Note: coalesce is always a standalone function call, never a method.
+    // The "input" here is the evaluation context (e.g., the document root),
+    // and all coalesce arguments are in call.args.
+    if (std.mem.eql(u8, call.name, "coalesce")) {
+        if (call.args.len < 1) return error.InvalidFunction;
+        // Context item for evaluating arguments (use first input item, or empty context)
+        const context_item: item.Item = if (input.len > 0) input[0] else item.Item{
+            .data_kind = .none,
+            .value_kind = .empty,
+            .type_id = 0,
+            .source_pos = 0,
+            .source_end = 0,
+            .node = null,
+            .value = .{ .empty = {} },
+        };
+        // Short-circuit evaluation: return the first non-empty argument
+        for (call.args) |arg| {
+            var result = try evalExpressionCtx(ctx, arg, context_item, env, null);
+            if (result.items.len > 0) {
+                // Found a non-empty result, return it
+                return result;
+            }
+            // Empty result, continue to next argument
+            result.deinit(ctx.allocator);
+        }
+        // All arguments were empty
+        return ItemList.empty;
+    }
     // String manipulation functions
     if (std.mem.eql(u8, call.name, "length")) {
         if (input.len == 0) return ItemList.empty;

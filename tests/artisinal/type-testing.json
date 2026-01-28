@@ -386,7 +386,14 @@
           "type": "decimal",
           "value": 1.0
         }
-      ]
+      ],
+      "_adjudicated": {
+        "fhirpath_js": [],
+        "our_old_value": null,
+        "verdict": "ours_correct",
+        "reason": "Spec §6.6 states 'this operator returns the value of the left operand if it is of the type specified in the second operand, or a subclass thereof. Otherwise, this operator returns the empty collection.' The literal 1.0 is definitively of type Decimal, so as(Decimal) must return it. fhirpath.js returning empty is incorrect.",
+        "spec_ref": "§6.6 Type Operators, as(type)"
+      }
     },
     {
       "name": "as function - string as String returns value",

@@ -239,7 +239,14 @@
       "name": "date - 1 year",
       "expr": "@2025-06-15 - 1 year",
       "input": {},
-      "expect": [{"type": "date", "value": "2024-06-15"}]
+      "expect": [{"type": "date", "value": "2024-06-15"}],
+      "_adjudicated": {
+        "fhirpath_js": [{"type": "dateTime", "value": "2024-06-15"}],
+        "our_old_value": null,
+        "verdict": "ours_correct",
+        "reason": "Spec §6.5 clearly states 'Returns the value of the given Date, DateTime, or Time, decremented by the time-valued quantity'. Input is Date, so result must be Date. fhirpath.js incorrectly returns DateTime type.",
+        "spec_ref": "§6.5 Date/Time Arithmetic, - (subtraction)"
+      }
     },
     {
       "name": "leap year date - 1 year (Mar 1 check)",
@@ -325,7 +332,14 @@
       "name": "datetime + 1 day",
       "expr": "@2025-01-15T10:30:00 + 1 day",
       "input": {},
-      "expect": [{"type": "dateTime", "value": "2025-01-16T10:30:00"}]
+      "expect": [{"type": "dateTime", "value": "2025-01-16T10:30:00"}],
+      "_adjudicated": {
+        "fhirpath_js": [{"type": "dateTime", "value": "2025-01-16T10:30:00-06:00"}],
+        "our_old_value": null,
+        "verdict": "ours_correct",
+        "reason": "Spec §6.5 says arithmetic 'returns the value of the given DateTime incremented by the time-valued quantity'. Input has no timezone, so result should preserve that precision. fhirpath.js adds local timezone (-06:00), which is environment-specific behavior not specified.",
+        "spec_ref": "§6.5 Date/Time Arithmetic, + (addition)"
+      }
     },
     {
       "name": "datetime - 1 hour",

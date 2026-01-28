@@ -4,6 +4,7 @@
 Supported engines:
   - js: fhirpath.js (JavaScript/Bun)
   - net: Firely .NET SDK (C#/.NET)
+  - hapi: HAPI FHIR (Java)
 
 Usage:
   engine_check.py [options] [file_pattern]
@@ -44,6 +45,11 @@ ENGINES = {
     "net": {
         "name": "Firely .NET",
         "cmd": ["dotnet", "run", "--project", str(ROOT / "vendor" / "fhirpath.net" / "FhirPathRunner"), "--", "--batch"],
+        "env_extra": {}
+    },
+    "hapi": {
+        "name": "HAPI FHIR",
+        "cmd": ["java", "-jar", str(ROOT / "vendor" / "fhirpath.hapi" / "target" / "fhirpath-runner-1.0-SNAPSHOT.jar"), "--batch"],
         "env_extra": {}
     }
 }

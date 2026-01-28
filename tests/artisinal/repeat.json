@@ -1,0 +1,228 @@
+{
+  "_spec_summary": [
+    "Repeat functions: repeat() and repeatAll() (repeatAll is STU).",
+    "",
+    "=== CORE BEHAVIOR ===",
+    "- repeat(projection) repeatedly applies projection to each item, accumulating unique results using equals (=).",
+    "- Output starts empty; input items seed the work queue but are not included unless produced by projection.",
+    "- Processing continues until no new items are produced.",
+    "- repeatAll(projection) behaves like repeat but allows duplicates; results from every iteration are included.",
+    "",
+    "=== TYPE HANDLING ===",
+    "- projection is evaluated in the context of each item; it can return any type.",
+    "- Primitive items usually yield empty for property access, ending recursion.",
+    "- Equality uses standard FHIRPath '=' semantics (numeric conversions, deep object equality).",
+    "",
+    "=== EMPTY COLLECTION SEMANTICS ===",
+    "- If the input collection is empty, result is empty.",
+    "",
+    "=== ORDERING & DUPLICATES ===",
+    "- Spec: \"The order of items returned by the repeat() function is undefined.\"",
+    "- repeat removes duplicates with '='; repeatAll preserves duplicates.",
+    "",
+    "=== RELATIONSHIPS ===",
+    "- repeat is a recursive variant of select; descendants() is shorthand for repeat(children()).",
+    "- repeat(item) differs from descendants().select(item); it only follows the projection path.",
+    "",
+    "=== SAFETY ===",
+    "- Spec notes implementations MAY guard against infinite loops and may raise errors for unsafe expressions.",
+    "",
+    "Spec refs: spec/index.md repeat() and repeatAll() sections (STU) and notes on undefined order."
+  ],
+  "_todo": [
+    "[ ] Improve passing rate (0/11 passing) - repeat/repeatAll eval errors",
+    "[ ] Add tests for complex object equality deduplication across branches",
+    "[ ] Add tests for unsafe repeatAll expressions and loop protection (MAY error)"
+  ],
+  "meta": {
+    "status": "drafted",
+    "feature": "repeat",
+    "source": "spec/index.md#repeat"
+  },
+  "cases": [
+    {
+      "_section": "=== REPEAT BASIC ==="
+    },
+    {
+      "name": "repeat: empty input yields empty",
+      "expr": "{}.repeat(child).empty()",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "repeat: no projection results yields empty",
+      "expr": "root.repeat(child).empty()",
+      "input": {
+        "root": {
+          "id": "solo"
+        }
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "repeat: simple child chain",
+      "expr": "root.repeat(child).count()",
+      "input": {
+        "root": {
+          "id": "root",
+          "child": {
+            "id": "a",
+            "child": {
+              "id": "b"
+            }
+          }
+        }
+      },
+      "expect": [
+        {
+          "type": "integer",
+          "value": 2
+        }
+      ]
+    },
+    {
+      "name": "repeat: branching tree traversal",
+      "expr": "root.repeat(child).count()",
+      "input": {
+        "root": {
+          "child": [
+            {
+              "id": "a",
+              "child": {
+                "id": "b"
+              }
+            },
+            {
+              "id": "c"
+            }
+          ]
+        }
+      },
+      "expect": [
+        {
+          "type": "integer",
+          "value": 3
+        }
+      ]
+    },
+    {
+      "name": "repeat: multiple roots aggregate results",
+      "expr": "nodes.repeat(child).count()",
+      "input": {
+        "nodes": [
+          {
+            "child": {
+              "id": 1
+            }
+          },
+          {
+            "child": {
+              "id": 2
+            }
+          }
+        ]
+      },
+      "expect": [
+        {
+          "type": "integer",
+          "value": 2
+        }
+      ]
+    },
+    {
+      "name": "repeat: deduplicates primitive results",
+      "expr": "root.repeat(child.id).count()",
+      "input": {
+        "root": {
+          "child": [
+            {
+              "id": 1
+            },
+            {
+              "id": 1
+            },
+            {
+              "id": 2
+            }
+          ]
+        }
+      },
+      "expect": [
+        {
+          "type": "integer",
+          "value": 2
+        }
+      ]
+    },
+    {
+      "_section": "=== REPEATALL BASIC (STU) ==="
+    },
+    {
+      "name": "repeatAll: empty input yields empty",
+      "expr": "{}.repeatAll(child).empty()",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "repeatAll: simple child chain",
+      "expr": "root.repeatAll(child).count()",
+      "input": {
+        "root": {
+          "id": "root",
+          "child": {
+            "id": "a",
+            "child": {
+              "id": "b"
+            }
+          }
+        }
+      },
+      "expect": [
+        {
+          "type": "integer",
+          "value": 2
+        }
+      ]
+    },
+    {
+      "name": "repeatAll: preserves duplicate primitive results",
+      "expr": "root.repeatAll(child.id).count()",
+      "input": {
+        "root": {
+          "child": [
+            {
+              "id": 1
+            },
+            {
+              "id": 1
+            },
+            {
+              "id": 2
+            }
+          ]
+        }
+      },
+      "expect": [
+        {
+          "type": "integer",
+          "value": 3
+        }
+      ]
+    }
+  ]
+}

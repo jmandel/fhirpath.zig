@@ -640,7 +640,14 @@
           "type": "date",
           "value": "2013-01-01"
         }
-      ]
+      ],
+      "_adjudicated": {
+        "fhirpath_js": [{"type": "dateTime", "value": "2013-01-01"}],
+        "our_old_value": null,
+        "verdict": "ours_correct",
+        "reason": "Spec §5.7.4 clearly states max() returns the maximum element from the input collection. The spec example shows ( @2012-12-31, @2013-01-01, @2012-01-01 ).max() returning @2013-01-01 - a date literal, not a dateTime. fhirpath.js incorrectly promotes Date to DateTime.",
+        "spec_ref": "§5.7.4 max()"
+      }
     },
     {
       "name": "max: dateTimes",

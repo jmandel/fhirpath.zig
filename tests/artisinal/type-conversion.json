@@ -1346,7 +1346,14 @@
         }
       ],
       "_note": "Spec example: extracts date part directly, no TZ adjustment",
-      "comment": "Blocked: parser doesn't yet support method calls on date/time literals"
+      "comment": "Blocked: parser doesn't yet support method calls on date/time literals",
+      "_adjudicated": {
+        "fhirpath_js": [],
+        "our_old_value": null,
+        "verdict": "ours_correct",
+        "reason": "Spec §5.7.10 toDate() explicitly provides this exact example: '@2024-01-15T23:30:00-05:00.toDate() returns @2024-01-15'. The spec states DateTime input extracts year, month, day components directly without timezone conversion. fhirpath.js returning empty is incorrect; likely a parsing limitation with timezone-offset DateTime literals.",
+        "spec_ref": "§5.7.10 toDate()"
+      }
     },
     {
       "name": "convertsToDate: DateTime always true",

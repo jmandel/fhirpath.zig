@@ -282,7 +282,14 @@
       "name": "equals: multi-item with any empty comparison yields empty",
       "expr": "(@2012-01 | @2012) = (@2012 | @2012)",
       "input": {},
-      "expect": []
+      "expect": [],
+      "_adjudicated": {
+        "fhirpath_js": [{"type": "boolean", "value": false}],
+        "our_old_value": null,
+        "verdict": "ours_correct",
+        "reason": "Spec §6.1.3 (=) states: when comparing multi-item collections, compare each pair in order. If any pair returns empty, and no pair returns false, the overall result is empty. Here: @2012-01 = @2012 returns empty (different precisions per spec example), @2012 = @2012 returns true. Since we have [empty, true] and no false, the result is empty - not false. fhirpath.js incorrectly treats precision mismatches as false rather than empty.",
+        "spec_ref": "§6.1.3 = (Equals), §6.1.3.2 Date/Time Equality"
+      }
     },
     {
       "_section": "=== NOT EQUALS (!=) ==="

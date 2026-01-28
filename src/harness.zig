@@ -408,7 +408,24 @@ fn runTestFile(
         };
         defer ast.deinitExpr(allocator, expr);
 
-        var doc = jsondoc.JsonDoc.init(allocator, input_str) catch {
+        // Get env and build combined JSON if needed
+        const env_val = obj.get("env");
+        var combined_json: ?[]const u8 = null;
+        defer if (combined_json) |cj| allocator.free(cj);
+
+        const doc_json = if (env_val) |ev| blk: {
+            const env_str = std.json.Stringify.valueAlloc(allocator, ev, .{}) catch "{}";
+            defer allocator.free(env_str);
+            combined_json = std.fmt.allocPrint(allocator, "{{\"__input\":{s},\"__env\":{s}}}", .{ input_str, env_str }) catch {
+                result.failed += 1;
+                result.parse_errors += 1;
+                try addFailure(allocator, failures, result.name, name_str, expr_str, "env json error", null, null);
+                continue;
+            };
+            break :blk combined_json.?;
+        } else input_str;
+
+        var doc = jsondoc.JsonDoc.init(allocator, doc_json) catch {
             if (expect_error) {
                 result.passed += 1;
                 if (opts.verbose) {
@@ -424,13 +441,39 @@ fn runTestFile(
         defer doc.deinit();
 
         var adapter = JsonDocAdapter.init(&doc);
+
+        // Extract root and build env map if we have env values
+        const root_idx = if (env_val != null)
+            adapter.objectGet(adapter.root(), "__input") orelse adapter.root()
+        else
+            adapter.root();
+
+        var env_map = eval.Env.init(doc.arena.allocator());
+        var env_ptr: ?*eval.Env = null;
+
+        if (env_val != null) {
+            if (adapter.objectGet(adapter.root(), "__env")) |env_idx| {
+                if (adapter.kind(env_idx) == .object) {
+                    var iter = adapter.objectIter(env_idx);
+                    while (iter.next()) |entry| {
+                        // Create a single-item slice for this env value
+                        const env_item = makeEnvItem(&adapter, entry.value);
+                        const slice = try doc.arena.allocator().alloc(item.Item, 1);
+                        slice[0] = env_item;
+                        try env_map.put(entry.key, slice);
+                    }
+                    env_ptr = &env_map;
+                }
+            }
+        }
+
         var ctx = eval.EvalContext(JsonDocAdapter){
             .allocator = doc.arena.allocator(),
             .adapter = &adapter,
             .types = &types,
             .schema = schema_ptr,
         };
-        var eval_result = eval.evalExpression(&ctx, expr, adapter.root(), null) catch {
+        var eval_result = eval.evalExpression(&ctx, expr, root_idx, env_ptr) catch {
             if (expect_error) {
                 result.passed += 1;
                 if (opts.verbose) {
@@ -682,4 +725,17 @@ fn deinitValue(allocator: std.mem.Allocator, v: std.json.Value) void {
         },
         else => {},
     }
+}
+
+fn makeEnvItem(adapter: *JsonDocAdapter, node_idx: JsonDocAdapter.NodeRef) item.Item {
+    const n = adapter.doc.node(node_idx);
+    return .{
+        .data_kind = .node_ref,
+        .value_kind = .empty,
+        .type_id = 0,
+        .source_pos = n.start,
+        .source_end = n.end,
+        .node = node_idx,
+        .value = null,
+    };
 }

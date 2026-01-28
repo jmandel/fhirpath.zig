@@ -8,11 +8,11 @@
       "Delimited identifiers: backticks allow identifiers with special chars like hyphens (spec \u00a7Identifiers)"
     ],
     "todo": [
-      "Add test for empty path (just $this or context reference)",
-      "Add test for paths starting with type name (e.g., Patient.name)",
-      "Add test for deeply nested array flattening",
-      "Add test for delimited identifier with escape sequences",
-      "[ ] Improve passing rate (3/4 passing) - 1 blocked by harness env support"
+      "[x] Improve passing rate (4/4 passing)",
+      "[ ] Add test for empty path (just $this or context reference)",
+      "[ ] Add test for paths starting with type name (e.g., Patient.name)",
+      "[ ] Add test for deeply nested array flattening",
+      "[ ] Add test for delimited identifier with escape sequences"
     ]
   },
   "cases": [

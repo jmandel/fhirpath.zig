@@ -16,7 +16,13 @@
     "- Math functions with numeric args: power, log, round, etc.",
     "- Comparison operators: both operands must be singletons",
     "- Arithmetic operators: +, -, *, /, div, mod expect singletons",
+    "- String concat: + and & expect singletons (& treats empty as empty string)",
+    "- Comparison operators: >, <, >=, <= expect singletons",
     "- single(): returns error when input has >1 items",
+    "",
+    "=== OPERATORS THAT ALLOW MULTI-ITEM COLLECTIONS ===",
+    "- Equality (=): Can compare multi-item collections pairwise",
+    "- Equivalence (~): Can compare multi-item collections (order-independent)",
     "",
     "=== EXAMPLES FROM SPEC ===",
     "Patient.name.family + ', ' + Patient.name.given",
@@ -37,7 +43,7 @@
     "[ ] Implement math function argument singleton checks (2+ tests failing)"
   ],
   "meta": {
-    "status": "written"
+    "status": "reviewed"
   },
   "cases": [
     {

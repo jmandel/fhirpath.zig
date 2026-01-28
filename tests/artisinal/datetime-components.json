@@ -1,0 +1,372 @@
+{
+  "_comment": "Date/DateTime/Time component extraction functions (STU)",
+  "_spec_summary": [
+    "## Date/Time Component Extraction Functions",
+    "These functions extract individual components from Date, DateTime, and Time values.",
+    "All are marked as STU (Standard for Trial Use) in the spec.",
+    "",
+    "### yearOf(): Integer",
+    "- Input: Single Date or DateTime",
+    "- Returns: Year component as integer (e.g., 2014)",
+    "- Empty input -> empty result",
+    "- Multiple items -> error",
+    "",
+    "### monthOf(): Integer",
+    "- Input: Single Date or DateTime",
+    "- Returns: Month component as integer (1-12)",
+    "- Empty input -> empty result",
+    "- If month not present in partial date (e.g., @2012), result is empty",
+    "- Multiple items -> error",
+    "",
+    "### dayOf(): Integer",
+    "- Input: Single Date or DateTime",
+    "- Returns: Day component as integer (1-31)",
+    "- Empty input -> empty result",
+    "- If day not present in partial date (e.g., @2012-01), result is empty",
+    "- Multiple items -> error",
+    "",
+    "### hourOf(): Integer",
+    "- Input: Single DateTime or Time",
+    "- Returns: Hour component as integer (0-23)",
+    "- Note: Does NOT work on Date (only DateTime/Time)",
+    "- Empty input -> empty result",
+    "- If hour not present (partial DateTime like @2012-01-01T), result is empty",
+    "- Multiple items -> error",
+    "",
+    "### minuteOf(): Integer",
+    "- Input: Single DateTime or Time",
+    "- Returns: Minute component as integer (0-59)",
+    "- Empty input -> empty result",
+    "- If minute not present, result is empty",
+    "- Multiple items -> error",
+    "",
+    "### secondOf(): Integer",
+    "- Input: Single DateTime or Time",
+    "- Returns: Second component as integer (0-59)",
+    "- Empty input -> empty result",
+    "- If second not present, result is empty",
+    "- Multiple items -> error",
+    "",
+    "### millisecondOf(): Integer",
+    "- Input: Single DateTime or Time",
+    "- Returns: Millisecond component as integer (0-999)",
+    "- Empty input -> empty result",
+    "- If millisecond not present, result is empty",
+    "- Multiple items -> error",
+    "",
+    "### timezoneOffsetOf(): Decimal",
+    "- Input: Single DateTime",
+    "- Returns: Timezone offset as decimal hours from UTC",
+    "  - e.g., -7:00 -> -7.0",
+    "  - e.g., +8:45 -> 8.75 (fractional for non-whole-hour offsets)",
+    "- Empty input -> empty result",
+    "- If timezone not present, result is empty",
+    "- Note: Does NOT work on Date or Time (only DateTime)",
+    "- Multiple items -> error",
+    "",
+    "### dateOf(): Date",
+    "- Input: Single Date or DateTime",
+    "- Returns: Date component (preserving precision from input)",
+    "  - @2012-01-01T12:30:00.000.dateOf() -> @2012-01-01",
+    "  - @2012-01T10:30.dateOf() -> @2012-01 (partial)",
+    "- Empty input -> empty result",
+    "- Multiple items -> error",
+    "",
+    "### timeOf(): Time",
+    "- Input: Single DateTime",
+    "- Returns: Time component (without timezone)",
+    "  - @2012-01-01T12:30:00.000-07:00.timeOf() -> @T12:30:00.000",
+    "- Note: Does NOT work on Date or Time (only DateTime)",
+    "- Empty input -> empty result",
+    "- If time not present (partial DateTime), result is empty",
+    "- Multiple items -> error",
+    "",
+    "### Key edge cases:",
+    "1. Partial dates/times return empty for components not present",
+    "2. Type restrictions: hourOf/minuteOf/secondOf/millisecondOf work on DateTime and Time, not Date",
+    "3. timezoneOffsetOf only works on DateTime",
+    "4. timeOf only works on DateTime (not Date, not Time)",
+    "5. dateOf works on both Date and DateTime"
+  ],
+  "_todo": [
+    "[ ] Improve passing rate (0/43 passing)",
+    "[ ] Verify timezone offset decimal handling for fractional hours",
+    "[ ] Test partial datetime edge cases for each function",
+    "[ ] Confirm behavior when applying wrong function to wrong type"
+  ],
+  "meta": {
+    "version": 1,
+    "status": "drafted"
+  },
+  "cases": [
+    {
+      "name": "yearOf: full datetime",
+      "expr": "@2014-01-05T10:30:00.000.yearOf()",
+      "input": {},
+      "expect": [{"type": "integer", "value": 2014}]
+    },
+    {
+      "name": "yearOf: date only",
+      "expr": "@2020-06-15.yearOf()",
+      "input": {},
+      "expect": [{"type": "integer", "value": 2020}]
+    },
+    {
+      "name": "yearOf: partial date (year only)",
+      "expr": "@2012.yearOf()",
+      "input": {},
+      "expect": [{"type": "integer", "value": 2012}]
+    },
+    {
+      "name": "yearOf: empty input",
+      "expr": "{}.yearOf()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "monthOf: full datetime",
+      "expr": "@2014-01-05T10:30:00.000.monthOf()",
+      "input": {},
+      "expect": [{"type": "integer", "value": 1}]
+    },
+    {
+      "name": "monthOf: date with month",
+      "expr": "@2020-12-25.monthOf()",
+      "input": {},
+      "expect": [{"type": "integer", "value": 12}]
+    },
+    {
+      "name": "monthOf: partial date (year only) returns empty",
+      "expr": "@2012.monthOf()",
+      "input": {},
+      "expect": [],
+      "comment": "Spec: If month is not present in the value, result is empty"
+    },
+    {
+      "name": "monthOf: empty input",
+      "expr": "{}.monthOf()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "dayOf: full datetime",
+      "expr": "@2014-01-05T10:30:00.000.dayOf()",
+      "input": {},
+      "expect": [{"type": "integer", "value": 5}]
+    },
+    {
+      "name": "dayOf: date with day",
+      "expr": "@2020-12-25.dayOf()",
+      "input": {},
+      "expect": [{"type": "integer", "value": 25}]
+    },
+    {
+      "name": "dayOf: partial date (year-month only) returns empty",
+      "expr": "@2012-06.dayOf()",
+      "input": {},
+      "expect": [],
+      "comment": "Spec: If day is not present in the value, result is empty"
+    },
+    {
+      "name": "dayOf: empty input",
+      "expr": "{}.dayOf()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "hourOf: full datetime",
+      "expr": "@2012-01-01T03:30:40.002-07:00.hourOf()",
+      "input": {},
+      "expect": [{"type": "integer", "value": 3}]
+    },
+    {
+      "name": "hourOf: datetime afternoon",
+      "expr": "@2012-01-01T16:30:40.002-07:00.hourOf()",
+      "input": {},
+      "expect": [{"type": "integer", "value": 16}]
+    },
+    {
+      "name": "hourOf: time only",
+      "expr": "@T14:30:00.hourOf()",
+      "input": {},
+      "expect": [{"type": "integer", "value": 14}]
+    },
+    {
+      "name": "hourOf: partial datetime (no time) returns empty",
+      "expr": "@2012-01-01T.hourOf()",
+      "input": {},
+      "expect": [],
+      "comment": "Spec: If hour is not present in the value, result is empty"
+    },
+    {
+      "name": "hourOf: empty input",
+      "expr": "{}.hourOf()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "minuteOf: full datetime",
+      "expr": "@2012-01-01T12:30:40.002-07:00.minuteOf()",
+      "input": {},
+      "expect": [{"type": "integer", "value": 30}]
+    },
+    {
+      "name": "minuteOf: time only",
+      "expr": "@T09:45:00.minuteOf()",
+      "input": {},
+      "expect": [{"type": "integer", "value": 45}]
+    },
+    {
+      "name": "minuteOf: partial time (hour only) returns empty",
+      "expr": "@T12.minuteOf()",
+      "input": {},
+      "expect": [],
+      "comment": "Time with only hour has no minute component"
+    },
+    {
+      "name": "minuteOf: empty input",
+      "expr": "{}.minuteOf()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "secondOf: full datetime",
+      "expr": "@2012-01-01T12:30:40.002-07:00.secondOf()",
+      "input": {},
+      "expect": [{"type": "integer", "value": 40}]
+    },
+    {
+      "name": "secondOf: time only",
+      "expr": "@T09:45:30.secondOf()",
+      "input": {},
+      "expect": [{"type": "integer", "value": 30}]
+    },
+    {
+      "name": "secondOf: partial time (no seconds) returns empty",
+      "expr": "@T12:30.secondOf()",
+      "input": {},
+      "expect": [],
+      "comment": "Time without seconds has no second component"
+    },
+    {
+      "name": "secondOf: empty input",
+      "expr": "{}.secondOf()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "millisecondOf: full datetime",
+      "expr": "@2012-01-01T12:30:00.002-07:00.millisecondOf()",
+      "input": {},
+      "expect": [{"type": "integer", "value": 2}]
+    },
+    {
+      "name": "millisecondOf: time with milliseconds",
+      "expr": "@T09:45:30.456.millisecondOf()",
+      "input": {},
+      "expect": [{"type": "integer", "value": 456}]
+    },
+    {
+      "name": "millisecondOf: time without milliseconds returns empty",
+      "expr": "@T12:30:00.millisecondOf()",
+      "input": {},
+      "expect": [],
+      "comment": "Time without explicit milliseconds has no millisecond component"
+    },
+    {
+      "name": "millisecondOf: empty input",
+      "expr": "{}.millisecondOf()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "timezoneOffsetOf: negative offset",
+      "expr": "@2012-01-01T12:30:00.000-07:00.timezoneOffsetOf()",
+      "input": {},
+      "expect": [{"type": "decimal", "value": -7.0}]
+    },
+    {
+      "name": "timezoneOffsetOf: positive fractional offset",
+      "expr": "@2012-01-01T12:30:00.000+08:45.timezoneOffsetOf()",
+      "input": {},
+      "expect": [{"type": "decimal", "value": 8.75}],
+      "comment": "Eucla, Western Australia uses UTC+8:45; 45 minutes = 0.75 hours"
+    },
+    {
+      "name": "timezoneOffsetOf: UTC (Z)",
+      "expr": "@2020-06-15T10:30:00Z.timezoneOffsetOf()",
+      "input": {},
+      "expect": [{"type": "decimal", "value": 0.0}]
+    },
+    {
+      "name": "timezoneOffsetOf: negative fractional offset",
+      "expr": "@2020-01-01T12:00:00-05:30.timezoneOffsetOf()",
+      "input": {},
+      "expect": [{"type": "decimal", "value": -5.5}]
+    },
+    {
+      "name": "timezoneOffsetOf: datetime without timezone returns empty",
+      "expr": "@2020-01-01T12:00:00.timezoneOffsetOf()",
+      "input": {},
+      "expect": [],
+      "comment": "Spec: If timezone offset is not present, result is empty"
+    },
+    {
+      "name": "timezoneOffsetOf: empty input",
+      "expr": "{}.timezoneOffsetOf()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "dateOf: full datetime extracts date",
+      "expr": "@2012-01-01T12:30:00.000-07:00.dateOf()",
+      "input": {},
+      "expect": [{"type": "date", "value": "2012-01-01"}]
+    },
+    {
+      "name": "dateOf: date returns itself",
+      "expr": "@2020-06-15.dateOf()",
+      "input": {},
+      "expect": [{"type": "date", "value": "2020-06-15"}]
+    },
+    {
+      "name": "dateOf: partial datetime preserves precision",
+      "expr": "@2012-06T.dateOf()",
+      "input": {},
+      "expect": [{"type": "date", "value": "2012-06"}],
+      "comment": "Spec says dateOf returns date component 'up to the precision present in the input'"
+    },
+    {
+      "name": "dateOf: empty input",
+      "expr": "{}.dateOf()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "timeOf: full datetime extracts time",
+      "expr": "@2012-01-01T12:30:00.000-07:00.timeOf()",
+      "input": {},
+      "expect": [{"type": "time", "value": "12:30:00.000"}],
+      "comment": "Spec example: returns @T12:30:00.000 (without timezone)"
+    },
+    {
+      "name": "timeOf: datetime without milliseconds",
+      "expr": "@2020-06-15T09:45:30.timeOf()",
+      "input": {},
+      "expect": [{"type": "time", "value": "09:45:30"}]
+    },
+    {
+      "name": "timeOf: partial datetime (date only) returns empty",
+      "expr": "@2012-01-01T.timeOf()",
+      "input": {},
+      "expect": [],
+      "comment": "Spec: If time is not present in the value, result is empty"
+    },
+    {
+      "name": "timeOf: empty input",
+      "expr": "{}.timeOf()",
+      "input": {},
+      "expect": []
+    }
+  ]
+}

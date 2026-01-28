@@ -18,11 +18,19 @@ pub const ValueKind = enum(u32) {
     time,
     dateTime,
     quantity,
+    typeInfo, // Reflection: SimpleTypeInfo with namespace and name
 };
 
 pub const Quantity = struct {
     value: []const u8,
     unit: []const u8,
+};
+
+/// SimpleTypeInfo for reflection - stores namespace and name.
+/// Used by type() function to return type information.
+pub const TypeInfo = struct {
+    namespace: []const u8, // e.g., "System" or "FHIR"
+    name: []const u8, // e.g., "String", "Integer", "Patient"
 };
 
 pub const Value = union(ValueKind) {
@@ -36,6 +44,7 @@ pub const Value = union(ValueKind) {
     time: []const u8,
     dateTime: []const u8,
     quantity: Quantity,
+    typeInfo: TypeInfo,
 };
 
 pub const Item = struct {

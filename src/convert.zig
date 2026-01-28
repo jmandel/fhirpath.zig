@@ -33,6 +33,12 @@ fn valueToJson(allocator: std.mem.Allocator, v: item.Value) !std.json.Value {
             try obj.put("unit", .{ .string = q.unit });
             break :blk std.json.Value{ .object = obj };
         },
+        .typeInfo => |ti| blk: {
+            var obj = std.json.ObjectMap.init(allocator);
+            try obj.put("namespace", .{ .string = ti.namespace });
+            try obj.put("name", .{ .string = ti.name });
+            break :blk std.json.Value{ .object = obj };
+        },
     };
 }
 

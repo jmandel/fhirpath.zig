@@ -221,6 +221,21 @@ fn applySegment(
     name: []const u8,
     out: *ItemList,
 ) !void {
+    // Handle TypeInfo property access
+    if (it.data_kind == .value and it.value_kind == .typeInfo and it.value != null) {
+        const ti = it.value.?.typeInfo;
+        if (std.mem.eql(u8, name, "namespace")) {
+            try out.append(ctx.allocator, makeStringItem(ctx, ti.namespace));
+            return;
+        }
+        if (std.mem.eql(u8, name, "name")) {
+            try out.append(ctx.allocator, makeStringItem(ctx, ti.name));
+            return;
+        }
+        // Unknown property on TypeInfo - return empty
+        return;
+    }
+
     if (it.node == null) return;
     const A = @TypeOf(ctx.adapter.*);
     const ref = nodeRefFromRaw(A, it.node.?);
@@ -2380,6 +2395,7 @@ fn itemIsType(ctx: anytype, it: item.Item, type_name: []const u8) bool {
             .time => std.mem.eql(u8, normalized, "Time"),
             .dateTime => std.mem.eql(u8, normalized, "DateTime"),
             .quantity => std.mem.eql(u8, normalized, "Quantity"),
+            .typeInfo => std.mem.eql(u8, normalized, "TypeInfo"),
             .empty => false,
         };
     }
@@ -3504,6 +3520,16 @@ fn evalFunction(
         }
         if (input.len == 0) return out;
         return error.SingletonRequired;
+    }
+    // Reflection function: type() returns TypeInfo for each element
+    if (std.mem.eql(u8, call.name, "type")) {
+        if (call.args.len != 0) return error.InvalidFunction;
+        var out = ItemList.empty;
+        for (input) |it| {
+            const info = getTypeInfoForItem(ctx, it);
+            try out.append(ctx.allocator, makeTypeInfoItem(ctx, info.namespace, info.name));
+        }
+        return out;
     }
     if (std.mem.eql(u8, call.name, "first")) {
         var out = ItemList.empty;
@@ -5263,6 +5289,10 @@ fn valueEqualTriState(a: item.Value, b: item.Value) ?bool {
             if (!quantityUnitsCompatible(v.unit, b.quantity.unit)) return false;
             return compareDecimalStrings(v.value, b.quantity.value) == 0;
         },
+        .typeInfo => |v| {
+            return std.mem.eql(u8, v.namespace, b.typeInfo.namespace) and
+                std.mem.eql(u8, v.name, b.typeInfo.name);
+        },
     }
 }
 
@@ -5499,6 +5529,80 @@ fn makeQuantityItem(ctx: anytype, value: []const u8, unit: []const u8) item.Item
         .node = null,
         .value = .{ .quantity = .{ .value = value, .unit = unit } },
     };
+}
+
+fn makeTypeInfoItem(_: anytype, namespace: []const u8, name: []const u8) item.Item {
+    // TypeInfo items have type System.TypeInfo (conceptually)
+    // For simplicity, we don't register a type_id for TypeInfo itself
+    return .{
+        .data_kind = .value,
+        .value_kind = .typeInfo,
+        .type_id = 0, // TypeInfo is a meta-type, not a regular type
+        .source_pos = 0,
+        .source_end = 0,
+        .node = null,
+        .value = .{ .typeInfo = .{ .namespace = namespace, .name = name } },
+    };
+}
+
+/// Get namespace and name for an item's type.
+/// Returns namespace and name strings.
+fn getTypeInfoForItem(ctx: anytype, it: item.Item) struct { namespace: []const u8, name: []const u8 } {
+    // For value items, use value_kind to determine type
+    if (it.data_kind == .value and it.value != null) {
+        return switch (it.value.?) {
+            .empty => .{ .namespace = "System", .name = "Any" },
+            .boolean => .{ .namespace = "System", .name = "Boolean" },
+            .integer => .{ .namespace = "System", .name = "Integer" },
+            .long => .{ .namespace = "System", .name = "Long" },
+            .decimal => .{ .namespace = "System", .name = "Decimal" },
+            .string => .{ .namespace = "System", .name = "String" },
+            .date => .{ .namespace = "System", .name = "Date" },
+            .time => .{ .namespace = "System", .name = "Time" },
+            .dateTime => .{ .namespace = "System", .name = "DateTime" },
+            .quantity => .{ .namespace = "System", .name = "Quantity" },
+            .typeInfo => .{ .namespace = "System", .name = "TypeInfo" },
+        };
+    }
+
+    // For node-backed items, determine from JSON type
+    if (it.data_kind == .node_ref and it.node != null) {
+        const A = @TypeOf(ctx.adapter.*);
+        const ref = nodeRefFromRaw(A, it.node.?);
+        return switch (A.kind(ctx.adapter, ref)) {
+            .bool => .{ .namespace = "System", .name = "Boolean" },
+            .number => blk: {
+                // Check if integer or decimal
+                const text = A.numberText(ctx.adapter, ref);
+                if (isInteger(text)) {
+                    break :blk .{ .namespace = "System", .name = "Integer" };
+                }
+                break :blk .{ .namespace = "System", .name = "Decimal" };
+            },
+            .string => .{ .namespace = "System", .name = "String" },
+            .object, .array => blk: {
+                // For objects/arrays, check if we have a type_id that provides more info
+                if (it.type_id != 0) {
+                    const type_name = ctx.types.name(it.type_id);
+                    if (type_name.len > 0) {
+                        // Parse "Namespace.Name" format
+                        if (std.mem.indexOf(u8, type_name, ".")) |dot_pos| {
+                            break :blk .{
+                                .namespace = type_name[0..dot_pos],
+                                .name = type_name[dot_pos + 1 ..],
+                            };
+                        }
+                        // No namespace prefix, assume System
+                        break :blk .{ .namespace = "System", .name = type_name };
+                    }
+                }
+                break :blk .{ .namespace = "System", .name = "Any" };
+            },
+            .null => .{ .namespace = "System", .name = "Any" },
+        };
+    }
+
+    return .{ .namespace = "System", .name = "Any" };
 }
 
 fn itemIsBool(ctx: anytype, it: item.Item) bool {

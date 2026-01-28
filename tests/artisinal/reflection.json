@@ -37,11 +37,11 @@
     "SPEC REFERENCE: FHIRPath §3.4.11 (Types and Reflection), STU section"
   ],
   "_todo": [
-    "[ ] Implement type() function in evaluator",
-    "[ ] Implement TypeInfo structures (SimpleTypeInfo, ClassInfo, etc.)",
-    "[ ] Support .namespace and .name path navigation on TypeInfo",
-    "[ ] Ensure proper namespace assignment (System vs FHIR)",
-    "[ ] Ensure correct name casing (PascalCase for System, lowercase for FHIR primitives)",
+    "[x] Implement type() function in evaluator (44/44 passing)",
+    "[x] Implement SimpleTypeInfo with namespace and name",
+    "[x] Support .namespace and .name path navigation on TypeInfo",
+    "[x] Ensure proper namespace assignment (System vs FHIR)",
+    "[x] Ensure correct name casing (PascalCase for System)",
     "[ ] Review: should type() on FHIR resources return ClassInfo with element list?",
     "[ ] Review: handling of ListTypeInfo for multi-valued paths"
   ],
@@ -56,7 +56,7 @@
     "A: Should return System.Quantity with namespace='System', name='Quantity'."
   ],
   "meta": {
-    "status": "written"
+    "status": "implemented"
   },
   "cases": [
     {

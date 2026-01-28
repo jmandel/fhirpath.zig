@@ -221,8 +221,8 @@ pub const Parser = struct {
                 }
                 // Check for time-unit keyword (year, years, month, months, etc.)
                 if (self.current.kind == .Identifier) {
-                    if (isTimeUnitKeyword(self.current.lexeme)) {
-                        const unit = try self.allocator.dupe(u8, self.current.lexeme);
+                    if (normalizeTimeUnitKeyword(self.current.lexeme)) |normalized| {
+                        const unit = try self.allocator.dupe(u8, normalized);
                         errdefer self.allocator.free(unit);
                         _ = try self.advance();
                         return self.parseTailSteps(.{ .Literal = .{ .Quantity = .{ .value = value, .unit = unit } } });
@@ -699,28 +699,34 @@ pub const Parser = struct {
     }
 };
 
+// Normalize a time-unit keyword to singular form for quantity literals.
+// Returns the singular form if s is a valid time-unit keyword, null otherwise.
+fn normalizeTimeUnitKeyword(s: []const u8) ?[]const u8 {
+    const mappings = [_]struct { plural: []const u8, singular: []const u8 }{
+        .{ .plural = "years", .singular = "year" },
+        .{ .plural = "year", .singular = "year" },
+        .{ .plural = "months", .singular = "month" },
+        .{ .plural = "month", .singular = "month" },
+        .{ .plural = "weeks", .singular = "week" },
+        .{ .plural = "week", .singular = "week" },
+        .{ .plural = "days", .singular = "day" },
+        .{ .plural = "day", .singular = "day" },
+        .{ .plural = "hours", .singular = "hour" },
+        .{ .plural = "hour", .singular = "hour" },
+        .{ .plural = "minutes", .singular = "minute" },
+        .{ .plural = "minute", .singular = "minute" },
+        .{ .plural = "seconds", .singular = "second" },
+        .{ .plural = "second", .singular = "second" },
+        .{ .plural = "milliseconds", .singular = "millisecond" },
+        .{ .plural = "millisecond", .singular = "millisecond" },
+    };
+    for (mappings) |m| {
+        if (std.mem.eql(u8, s, m.plural)) return m.singular;
+    }
+    return null;
+}
+
 // Check if an identifier is a FHIRPath time-unit keyword for quantity literals
 fn isTimeUnitKeyword(s: []const u8) bool {
-    const time_units = [_][]const u8{
-        "year",
-        "years",
-        "month",
-        "months",
-        "week",
-        "weeks",
-        "day",
-        "days",
-        "hour",
-        "hours",
-        "minute",
-        "minutes",
-        "second",
-        "seconds",
-        "millisecond",
-        "milliseconds",
-    };
-    for (time_units) |unit| {
-        if (std.mem.eql(u8, s, unit)) return true;
-    }
-    return false;
+    return normalizeTimeUnitKeyword(s) != null;
 }

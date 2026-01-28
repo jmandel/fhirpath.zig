@@ -204,16 +204,16 @@
       "_section": "=== IS/AS PRECEDENCE (SPEC VS OFFICIAL TESTS CONFLICT) ==="
     },
     {
-      "name": "precedence: official tests expect comparison before is",
+      "name": "precedence: spec says is binds tighter than comparison",
       "expr": "1 > 2 is Boolean",
       "input": {},
-      "expect": [],
-      "comment": "SPEC CONFLICT: Precedence table says is(#6) > comparison(#8), but official test testPrecedence3 expects (1>2) is Boolean = true. fhirpath.js follows spec (errors). Our empty is a KNOWN GAP for 'is' on comparison results.",
+      "expect_error": true,
+      "comment": "SPEC CONFLICT: Per spec precedence table, is(#6) > comparison(#8), so parses as 1 > (2 is Boolean) = 1 > false = error. Official test testPrecedence3 expects true (comparison binding tighter). We follow the spec.",
       "_adjudicated": {
         "fhirpath_js": "error: InequalityExpression type mismatch",
-        "our_old_value": null,
+        "our_old_value": "expect: [] (empty)",
         "verdict": "spec_vs_test_conflict",
-        "reason": "Spec precedence says is binds tighter, but official test expects comparison to bind tighter. When implemented, should follow official tests (return true).",
+        "reason": "Spec precedence says is binds tighter, so 1 > (2 is Boolean) = 1 > false = type error. fhirpath.js agrees. Official test expects comparison to bind tighter. We follow the spec.",
         "spec_ref": "§6.1 Operator Precedence, testPrecedence3"
       }
     },
@@ -303,8 +303,8 @@
       "name": "precedence: & same level as + (left-associative)",
       "expr": "'a' & 'b' + 'c'",
       "input": {},
-      "expect": [],
-      "comment": "KNOWN GAP: Should parse as ('a' & 'b') + 'c' = 'abc', but string + not implemented. Returns empty."
+      "expect": [{"type": "string", "value": "abc"}],
+      "comment": "Parses as ('a' & 'b') + 'c' = 'ab' + 'c' = 'abc'. Both & and + are same precedence, left-associative."
     },
     {
       "name": "precedence: arithmetic + before & with numbers",

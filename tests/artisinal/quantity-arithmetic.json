@@ -210,25 +210,25 @@
       "name": "add: calendar duration same unit",
       "expr": "2 days + 3 days",
       "input": {},
-      "expect": [{"type": "Quantity", "value": {"value": 5, "unit": "days"}}]
+      "expect": [{"type": "Quantity", "value": {"value": 5, "unit": "day"}}]
     },
     {
       "name": "subtract: calendar duration same unit",
       "expr": "5 days - 2 days",
       "input": {},
-      "expect": [{"type": "Quantity", "value": {"value": 3, "unit": "days"}}]
+      "expect": [{"type": "Quantity", "value": {"value": 3, "unit": "day"}}]
     },
     {
       "name": "add: calendar duration hours",
       "expr": "3 hours + 2 hours",
       "input": {},
-      "expect": [{"type": "Quantity", "value": {"value": 5, "unit": "hours"}}]
+      "expect": [{"type": "Quantity", "value": {"value": 5, "unit": "hour"}}]
     },
     {
       "name": "add: calendar duration minutes",
       "expr": "30 minutes + 15 minutes",
       "input": {},
-      "expect": [{"type": "Quantity", "value": {"value": 45, "unit": "minutes"}}]
+      "expect": [{"type": "Quantity", "value": {"value": 45, "unit": "minute"}}]
     },
     {
       "name": "add: calendar duration years",
@@ -241,13 +241,13 @@
       "name": "add: calendar duration months",
       "expr": "6 months + 3 months",
       "input": {},
-      "expect": [{"type": "Quantity", "value": {"value": 9, "unit": "months"}}]
+      "expect": [{"type": "Quantity", "value": {"value": 9, "unit": "month"}}]
     },
     {
       "name": "add: calendar duration weeks",
       "expr": "2 weeks + 1 week",
       "input": {},
-      "expect": [{"type": "Quantity", "value": {"value": 3, "unit": "weeks"}}]
+      "expect": [{"type": "Quantity", "value": {"value": 3, "unit": "week"}}]
     },
     {
       "name": "add: different units returns empty (incompatible dimensions)",
@@ -331,13 +331,13 @@
       "name": "add: seconds as calendar duration",
       "expr": "30 seconds + 15 seconds",
       "input": {},
-      "expect": [{"type": "Quantity", "value": {"value": 45, "unit": "seconds"}}]
+      "expect": [{"type": "Quantity", "value": {"value": 45, "unit": "second"}}]
     },
     {
       "name": "add: milliseconds as calendar duration",
       "expr": "500 milliseconds + 250 milliseconds",
       "input": {},
-      "expect": [{"type": "Quantity", "value": {"value": 750, "unit": "milliseconds"}}]
+      "expect": [{"type": "Quantity", "value": {"value": 750, "unit": "millisecond"}}]
     },
     {
       "name": "equality: same unit same value",

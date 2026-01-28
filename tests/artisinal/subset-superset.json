@@ -9,8 +9,8 @@
     "- Conceptually, subsetOf tests each input item for membership in other with a default of true; supersetOf tests each item in other with a default of true.",
     "",
     "=== TYPE HANDLING ===",
-    "- Items may be of any type, but comparisons use equals semantics (same type or implicitly convertible types).",
-    "- If comparing items would result in an equality error (incompatible types), evaluation likely signals an error; filter incompatible items first (spec does not spell this out).",
+    "- Items may be of any type, but membership uses equals (=) semantics (same type or implicitly convertible types).",
+    "- If equals yields empty (e.g., partial date/time precision or incompatible types), the spec does not define how subsetOf/supersetOf should treat that; avoid such inputs or document a policy.",
     "",
     "=== EMPTY COLLECTION SEMANTICS ===",
     "- subsetOf: empty input => true; non-empty input with empty other => false.",
@@ -22,7 +22,7 @@
     "- Duplicates do not require multiplicity in the other collection; each item is tested for membership using equals.",
     "",
     "=== EDGE CASES ===",
-    "- Because equals can return empty for some partial date/time comparisons, membership outcomes in those cases are unspecified here; avoid such inputs unless spec clarifies.",
+    "- Because equals can return empty for some partial date/time comparisons (or incompatible types), membership outcomes in those cases are unspecified here; avoid such inputs unless spec clarifies.",
     "",
     "=== RELATIONSHIPS ===",
     "- A.subsetOf(B) is logically equivalent to B.supersetOf(A).",
@@ -36,7 +36,7 @@
     "[ ] Clarify behavior when equals returns empty (e.g., partial date/time comparisons)"
   ],
   "meta": {
-    "status": "drafted",
+    "status": "reviewed",
     "feature": "subset-superset",
     "source": "spec/index.md#subsetOf"
   },

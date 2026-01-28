@@ -1,0 +1,321 @@
+{
+  "_spec_summary": [
+    "Operator Precedence in FHIRPath",
+    "",
+    "=== PRECEDENCE ORDER (HIGH TO LOW) ===",
+    "The FHIRPath specification defines the following operator precedence, from highest to lowest:",
+    "",
+    "  #01: . (path/function invocation)",
+    "  #02: [] (indexer)",
+    "  #03: unary + and -",
+    "  #04: *, /, div, mod",
+    "  #05: +, -, &",
+    "  #06: is, as",
+    "  #07: |",
+    "  #08: >, <, >=, <=",
+    "  #09: =, ~, !=, !~",
+    "  #10: in, contains",
+    "  #11: and",
+    "  #12: xor, or",
+    "  #13: implies",
+    "",
+    "=== KEY IMPLICATIONS ===",
+    "",
+    "1. Function invocation binds tightest:",
+    "   -7.abs() parses as -(7.abs()) = -7, NOT (-7).abs() = 7",
+    "   Use parentheses: (-7).abs() = 7",
+    "",
+    "2. Unary operators bind tighter than arithmetic:",
+    "   --5 = 5  (double negation)",
+    "   -3 * 2 = -6  (negation happens first)",
+    "",
+    "3. Multiplication/division before addition/subtraction:",
+    "   1 + 2 * 3 = 7  (not 9)",
+    "   1 + 2 * 3 + 4 = 11",
+    "",
+    "4. is/as bind between arithmetic and union:",
+    "   1 > 2 is Boolean = true  (comparison happens first, then type check)",
+    "   1 | 1 is Integer = true  (union happens, then type check fails with error)",
+    "   Actually: 1 | 1 is Integer causes error because is expects singleton",
+    "",
+    "5. Union (|) binds between is/as and comparisons:",
+    "   This is surprising! Comparisons bind LOOSER than union.",
+    "   a > b | c parses as a > (b | c)  - comparing a to collection",
+    "",
+    "6. Comparison operators bind looser than union:",
+    "   1 > 2 is Boolean: (1 > 2) is Boolean = true",
+    "   NOT: 1 > (2 is Boolean) which would be comparing 1 to false",
+    "",
+    "7. Equality binds between comparison and 'in':",
+    "   a = b in (c | d) parses as (a = b) in (c | d)",
+    "",
+    "8. Boolean operators: and > (xor, or) > implies",
+    "   true and false or true = true  (and binds tighter)",
+    "   true or false and true = true  (same result but different parse)",
+    "   true implies false implies true = true  (right-associative)",
+    "",
+    "=== PARENTHESES FOR CLARITY ===",
+    "Parentheses can be used to override precedence:",
+    "   (1 + 2) * 3 = 9  (without: 1 + 2 * 3 = 7)",
+    "   (-7).combine(3) = (-7 | 3)  (without: -7.combine(3) causes error)",
+    "",
+    "=== ASSOCIATIVITY ===",
+    "Most binary operators are left-associative:",
+    "   1 - 2 - 3 = (1 - 2) - 3 = -4",
+    "   1 / 2 / 4 = (1 / 2) / 4 = 0.125",
+    "",
+    "implies is right-associative:",
+    "   a implies b implies c = a implies (b implies c)",
+    "",
+    "=== SPEC EXAMPLES ===",
+    "-7.combine(3): Error because - applies to result of combine",
+    "(-7).combine(3): Correctly negates 7 before combine",
+    "",
+    "Spec ref: FHIRPath spec section 6.1 Operator precedence"
+  ],
+  "_todo": [
+    "[x] Initial tests created and passing (29/29)",
+    "[ ] Fix 'is' operator on comparison results (tracked in type-testing.json)",
+    "[ ] Fix string + operator for concatenation (returns empty instead of concat)",
+    "[ ] Add tests for union (|) precedence vs comparison",
+    "[ ] Add implies right-associativity test"
+  ],
+  "meta": {
+    "status": "drafted"
+  },
+  "cases": [
+    {
+      "_section": "=== ARITHMETIC PRECEDENCE (multiply/divide before add/subtract) ==="
+    },
+    {
+      "name": "precedence: multiply before add",
+      "expr": "1 + 2 * 3",
+      "input": {},
+      "expect": [{"type": "integer", "value": 7}],
+      "comment": "Parses as 1 + (2 * 3) = 1 + 6 = 7"
+    },
+    {
+      "name": "precedence: multiply before add (official test)",
+      "expr": "1 + 2 * 3 + 4",
+      "input": {},
+      "expect": [{"type": "integer", "value": 11}],
+      "comment": "Parses as 1 + (2 * 3) + 4 = 1 + 6 + 4 = 11"
+    },
+    {
+      "name": "precedence: divide before subtract",
+      "expr": "10 - 6 / 2",
+      "input": {},
+      "expect": [{"type": "System.Decimal", "value": 7.0}],
+      "comment": "Parses as 10 - (6 / 2) = 10 - 3 = 7. Division always returns Decimal."
+    },
+    {
+      "name": "precedence: div before add",
+      "expr": "1 + 7 div 2",
+      "input": {},
+      "expect": [{"type": "integer", "value": 4}],
+      "comment": "Parses as 1 + (7 div 2) = 1 + 3 = 4"
+    },
+    {
+      "name": "precedence: mod before add",
+      "expr": "10 + 7 mod 3",
+      "input": {},
+      "expect": [{"type": "integer", "value": 11}],
+      "comment": "Parses as 10 + (7 mod 3) = 10 + 1 = 11"
+    },
+    {
+      "name": "precedence: parentheses override arithmetic",
+      "expr": "(1 + 2) * 3",
+      "input": {},
+      "expect": [{"type": "integer", "value": 9}],
+      "comment": "Parentheses force add before multiply"
+    },
+    {
+      "_section": "=== LEFT ASSOCIATIVITY ==="
+    },
+    {
+      "name": "associativity: subtraction is left-associative",
+      "expr": "10 - 3 - 2",
+      "input": {},
+      "expect": [{"type": "integer", "value": 5}],
+      "comment": "Parses as (10 - 3) - 2 = 7 - 2 = 5, NOT 10 - (3 - 2) = 9"
+    },
+    {
+      "name": "associativity: division is left-associative",
+      "expr": "8 / 4 / 2",
+      "input": {},
+      "expect": [{"type": "System.Decimal", "value": 1.0}],
+      "comment": "Parses as (8 / 4) / 2 = 2 / 2 = 1, NOT 8 / (4 / 2) = 4. Division always returns Decimal."
+    },
+    {
+      "_section": "=== UNARY OPERATOR PRECEDENCE ==="
+    },
+    {
+      "name": "precedence: unary minus before multiply",
+      "expr": "-3 * 2",
+      "input": {},
+      "expect": [{"type": "integer", "value": -6}],
+      "comment": "Parses as (-3) * 2 = -6"
+    },
+    {
+      "name": "precedence: double negation",
+      "expr": "--5",
+      "input": {},
+      "expect": [{"type": "integer", "value": 5}],
+      "comment": "Parses as -(-5) = 5"
+    },
+    {
+      "name": "precedence: unary minus on decimal",
+      "expr": "-2.5 * 2",
+      "input": {},
+      "expect": [{"type": "decimal", "value": -5.0}],
+      "comment": "Parses as (-2.5) * 2 = -5.0"
+    },
+    {
+      "_section": "=== FUNCTION INVOCATION BINDS TIGHTEST ==="
+    },
+    {
+      "name": "precedence: function invocation binds tighter than unary minus",
+      "expr": "-5.abs()",
+      "input": {},
+      "expect": [{"type": "integer", "value": -5}],
+      "comment": "Parses as -(5.abs()) = -5, NOT (-5).abs() = 5"
+    },
+    {
+      "name": "precedence: parentheses needed for method on negative",
+      "expr": "(-5).abs()",
+      "input": {},
+      "expect": [{"type": "integer", "value": 5}],
+      "comment": "Parentheses make abs apply to -5"
+    },
+    {
+      "name": "precedence: unary on convertsToInteger (official test)",
+      "expr": "-1.convertsToInteger()",
+      "input": {},
+      "expect_error": true,
+      "comment": "Parses as -(1.convertsToInteger()) = -(true). Unary minus on Boolean is an error."
+    },
+    {
+      "_section": "=== IS/AS PRECEDENCE (between arithmetic and union) ==="
+    },
+    {
+      "name": "precedence: comparison binds tighter than is",
+      "expr": "1 > 2 is Boolean",
+      "input": {},
+      "expect": [],
+      "comment": "KNOWN GAP: Should parse as (1 > 2) is Boolean = true, but 'is' on comparison result not implemented. See type-testing.json."
+    },
+    {
+      "name": "precedence: arithmetic binds tighter than is",
+      "expr": "1 + 1 is Integer",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Parses as (1 + 1) is Integer = 2 is Integer = true"
+    },
+    {
+      "_section": "=== COMPARISON vs EQUALITY PRECEDENCE ==="
+    },
+    {
+      "name": "precedence: comparison before equality",
+      "expr": "1 < 2 = true",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Parses as (1 < 2) = true = true = true"
+    },
+    {
+      "name": "precedence: comparison before inequality",
+      "expr": "1 > 2 != true",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Parses as (1 > 2) != true = false != true = true"
+    },
+    {
+      "_section": "=== BOOLEAN OPERATOR PRECEDENCE ==="
+    },
+    {
+      "name": "precedence: and binds tighter than or",
+      "expr": "true or false and false",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Parses as true or (false and false) = true or false = true"
+    },
+    {
+      "name": "precedence: and binds tighter than or (reversed)",
+      "expr": "false and false or true",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Parses as (false and false) or true = false or true = true"
+    },
+    {
+      "name": "precedence: and binds tighter than xor",
+      "expr": "true xor true and false",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Parses as true xor (true and false) = true xor false = true"
+    },
+    {
+      "name": "precedence: or and xor are same level (left-associative)",
+      "expr": "true or false xor true",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}],
+      "comment": "Parses as (true or false) xor true = true xor true = false"
+    },
+    {
+      "name": "precedence: implies binds loosest",
+      "expr": "true and false implies true",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Parses as (true and false) implies true = false implies true = true"
+    },
+    {
+      "_section": "=== IN/CONTAINS PRECEDENCE ==="
+    },
+    {
+      "name": "precedence: equality before in",
+      "expr": "1 = 1 in (true | false)",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Parses as (1 = 1) in (true | false) = true in (true | false) = true"
+    },
+    {
+      "name": "precedence: in before and",
+      "expr": "true and 1 in (1 | 2)",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Parses as true and (1 in (1 | 2)) = true and true = true (official test)"
+    },
+    {
+      "_section": "=== STRING CONCAT PRECEDENCE ==="
+    },
+    {
+      "name": "precedence: & same level as + (left-associative)",
+      "expr": "'a' & 'b' + 'c'",
+      "input": {},
+      "expect": [],
+      "comment": "KNOWN GAP: Should parse as ('a' & 'b') + 'c' = 'abc', but string + not implemented. Returns empty."
+    },
+    {
+      "name": "precedence: arithmetic + before & with numbers",
+      "expr": "1 + 2",
+      "input": {},
+      "expect": [{"type": "integer", "value": 3}],
+      "comment": "Simple arithmetic, no precedence issue"
+    },
+    {
+      "_section": "=== COMPLEX EXPRESSIONS ==="
+    },
+    {
+      "name": "complex: mixed arithmetic and comparison",
+      "expr": "1 + 2 * 3 > 5",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Parses as (1 + (2 * 3)) > 5 = 7 > 5 = true"
+    },
+    {
+      "name": "complex: arithmetic, comparison, and boolean",
+      "expr": "1 + 1 > 1 and 2 * 2 = 4",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Parses as ((1 + 1) > 1) and ((2 * 2) = 4) = (2 > 1) and (4 = 4) = true and true = true"
+    }
+  ]
+}

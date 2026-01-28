@@ -1,0 +1,466 @@
+{
+  "_spec_summary": [
+    "DATE/TIME ARITHMETIC (FHIRPath §6.5)",
+    "",
+    "Date and time arithmetic operators are used to add/subtract time-valued quantities",
+    "to/from date/time values. The left operand must be Date, DateTime, or Time; the",
+    "right operand must be a Quantity with a time-valued unit.",
+    "",
+    "=== VALID TIME UNITS ===",
+    "  - year, years",
+    "  - month, months",
+    "  - week, weeks",
+    "  - day, days",
+    "  - hour, hours",
+    "  - minute, minutes",
+    "  - second, seconds, or 's'",
+    "  - millisecond, milliseconds, or 'ms'",
+    "",
+    "=== CALENDAR vs DEFINITE-DURATION SEMANTICS ===",
+    "FHIRPath distinguishes between calendar-based and definite-duration arithmetic:",
+    "  - CALENDAR-BASED: seconds and above (year, month, week, day, hour, minute, second)",
+    "  - DEFINITE-DURATION: seconds and below (second, millisecond)",
+    "  - At the second level, both are identical.",
+    "  - If a definite-quantity duration above seconds appears, evaluation signals an error.",
+    "",
+    "=== YEAR ARITHMETIC (Calendar-based, ISO 8601) ===",
+    "The year is added to the year component.",
+    "  - If resulting year is out of range → error",
+    "  - If month/day is invalid in resulting year → use last day of calendar month",
+    "  - Example: @2020-02-29 + 1 year → @2021-02-28 (Feb 29 doesn't exist in 2021)",
+    "",
+    "=== MONTH ARITHMETIC (Calendar-based, ISO 8601) ===",
+    "Month is divided by 12; integer portion added to year, remainder to month.",
+    "  - If resulting date is invalid → use last day of resulting calendar month",
+    "  - @2014 + 24 months → @2016 (24/12 = 2 years, 0 months remainder)",
+    "  - @2019-03-01 + 24 months → @2021-03-01",
+    "  - @2014 + 23 months → @2015 (23/12 = 1 year, 11 months → still in 2015)",
+    "  - @2020-01-31 + 1 month → @2020-02-29 (last day of Feb in leap year)",
+    "",
+    "=== WEEK ARITHMETIC (Calendar-based) ===",
+    "Week is multiplied by 7, then added as days.",
+    "  - @2025-01-01 + 2 weeks → @2025-01-15",
+    "",
+    "=== DAY ARITHMETIC (Calendar-based) ===",
+    "Day is added to day component, respecting calendar month/year lengths.",
+    "  - @2016 + 365 days → @2017 (converted to 1 year, even in leap year)",
+    "  - @2025-01-31 + 1 day → @2025-02-01",
+    "",
+    "=== HOUR/MINUTE/SECOND/MILLISECOND ARITHMETIC ===",
+    "Each unit is added and rolls over to next larger unit as needed.",
+    "  - 60 seconds → 1 minute",
+    "  - 60 minutes → 1 hour",
+    "  - 24 hours → 1 day",
+    "  - 1000 milliseconds → 1 second",
+    "",
+    "=== TIME OVERFLOW (Cyclic behavior) ===",
+    "For Time values (which have no date component), overflow wraps around:",
+    "  - @T23:30:00 + 1 hour → @T00:30:00",
+    "  - @T00:30:00 - 1 hour → @T23:30:00",
+    "",
+    "=== DECIMAL FRACTIONS IN QUANTITIES ===",
+    "For precisions above seconds, the decimal portion is IGNORED.",
+    "  - @2025-01-01 + 1.5 years → @2026-01-01 (0.5 ignored)",
+    "  - Implementers SHOULD warn when decimals are ignored.",
+    "  - Authors SHOULD round() or floor() before using decimal quantities.",
+    "",
+    "=== PARTIAL DATE/TIME VALUES ===",
+    "When quantity is more precise than the partial date/time:",
+    "  - Convert quantity to highest precision in partial (remove decimal)",
+    "  - Then add/subtract",
+    "  - @2014 + 24 months → @2016 (24 months = 2 years at year precision)",
+    "  - @2014 + 23 months → @2015 (23 months = 1 year + 11 months, but partial precision is year)",
+    "",
+    "=== VALID COMBINATIONS ===",
+    "Date:     years, months, weeks, days",
+    "DateTime: years, months, weeks, days, hours, minutes, seconds, milliseconds",
+    "Time:     hours, minutes, seconds, milliseconds",
+    "Invalid combinations signal an error.",
+    "",
+    "=== EMPTY PROPAGATION ===",
+    "If either operand is empty ({}), result is empty.",
+    "",
+    "=== TYPE ERRORS ===",
+    "If there is more than one item, or an item of incompatible type → error."
+  ],
+  "_todo": [
+    "[ ] Improve passing rate (0/53 passing) - all tests fail with parse errors",
+    "[ ] Parser needs to support date/time + quantity expressions",
+    "[ ] Evaluator needs to implement calendar arithmetic for Date/DateTime/Time",
+    "[ ] Verify leap year handling for Feb 29",
+    "[ ] Test month-end overflow (Jan 31 + 1 month)",
+    "[ ] Test Time cyclic overflow behavior",
+    "[ ] Test partial date/time precision handling",
+    "[ ] Test decimal fraction ignoring",
+    "[ ] Test invalid unit combinations (e.g., Date + hours)"
+  ],
+  "meta": {
+    "status": "drafted"
+  },
+  "cases": [
+    {"_section": "=== ADDITION: DATE + YEARS ==="},
+    {
+      "name": "date + 1 year",
+      "expr": "@2024-01-15 + 1 year",
+      "input": {},
+      "expect": [{"type": "date", "value": "2025-01-15"}]
+    },
+    {
+      "name": "date + 2 years",
+      "expr": "@2024-06-30 + 2 years",
+      "input": {},
+      "expect": [{"type": "date", "value": "2026-06-30"}]
+    },
+    {
+      "name": "leap year date + 1 year (Feb 29 becomes Feb 28)",
+      "expr": "@2024-02-29 + 1 year",
+      "input": {},
+      "expect": [{"type": "date", "value": "2025-02-28"}],
+      "_note": "Feb 29 doesn't exist in 2025, so use last day of Feb"
+    },
+    {
+      "name": "leap year date + 4 years (Feb 29 stays Feb 29)",
+      "expr": "@2024-02-29 + 4 years",
+      "input": {},
+      "expect": [{"type": "date", "value": "2028-02-29"}],
+      "_note": "2028 is also a leap year, so Feb 29 is valid"
+    },
+    {
+      "name": "partial date (year only) + 1 year",
+      "expr": "@2024 + 1 year",
+      "input": {},
+      "expect": [{"type": "date", "value": "2025"}]
+    },
+
+    {"_section": "=== ADDITION: DATE + MONTHS ==="},
+    {
+      "name": "date + 1 month",
+      "expr": "@2025-01-15 + 1 month",
+      "input": {},
+      "expect": [{"type": "date", "value": "2025-02-15"}]
+    },
+    {
+      "name": "date + 12 months = 1 year",
+      "expr": "@2025-06-15 + 12 months",
+      "input": {},
+      "expect": [{"type": "date", "value": "2026-06-15"}]
+    },
+    {
+      "name": "date + 24 months (spec example)",
+      "expr": "@2019-03-01 + 24 months",
+      "input": {},
+      "expect": [{"type": "date", "value": "2021-03-01"}]
+    },
+    {
+      "name": "partial date (year) + 24 months (spec example)",
+      "expr": "@2014 + 24 months",
+      "input": {},
+      "expect": [{"type": "date", "value": "2016"}],
+      "_note": "At year precision, 24 months = 2 years"
+    },
+    {
+      "name": "partial date (year) + 23 months (spec example)",
+      "expr": "@2014 + 23 months",
+      "input": {},
+      "expect": [{"type": "date", "value": "2015"}],
+      "_note": "23 months = 1 year at year precision (decimal part dropped)"
+    },
+    {
+      "name": "month overflow: Jan 31 + 1 month (leap year)",
+      "expr": "@2024-01-31 + 1 month",
+      "input": {},
+      "expect": [{"type": "date", "value": "2024-02-29"}],
+      "_note": "Feb 31 doesn't exist; use last day of Feb 2024 (leap year)"
+    },
+    {
+      "name": "month overflow: Jan 31 + 1 month (non-leap year)",
+      "expr": "@2025-01-31 + 1 month",
+      "input": {},
+      "expect": [{"type": "date", "value": "2025-02-28"}],
+      "_note": "Feb 31 doesn't exist; use last day of Feb 2025"
+    },
+    {
+      "name": "month rollover to next year",
+      "expr": "@2025-11-15 + 3 months",
+      "input": {},
+      "expect": [{"type": "date", "value": "2026-02-15"}]
+    },
+
+    {"_section": "=== ADDITION: DATE + WEEKS ==="},
+    {
+      "name": "date + 1 week",
+      "expr": "@2025-01-01 + 1 week",
+      "input": {},
+      "expect": [{"type": "date", "value": "2025-01-08"}]
+    },
+    {
+      "name": "date + 2 weeks",
+      "expr": "@2025-01-01 + 2 weeks",
+      "input": {},
+      "expect": [{"type": "date", "value": "2025-01-15"}]
+    },
+    {
+      "name": "week crossing month boundary",
+      "expr": "@2025-01-29 + 1 week",
+      "input": {},
+      "expect": [{"type": "date", "value": "2025-02-05"}]
+    },
+
+    {"_section": "=== ADDITION: DATE + DAYS ==="},
+    {
+      "name": "date + 1 day",
+      "expr": "@2025-01-15 + 1 day",
+      "input": {},
+      "expect": [{"type": "date", "value": "2025-01-16"}]
+    },
+    {
+      "name": "day crossing month boundary",
+      "expr": "@2025-01-31 + 1 day",
+      "input": {},
+      "expect": [{"type": "date", "value": "2025-02-01"}]
+    },
+    {
+      "name": "day crossing year boundary",
+      "expr": "@2025-12-31 + 1 day",
+      "input": {},
+      "expect": [{"type": "date", "value": "2026-01-01"}]
+    },
+    {
+      "name": "partial date (year) + 365 days (spec example)",
+      "expr": "@2016 + 365 days",
+      "input": {},
+      "expect": [{"type": "date", "value": "2017"}],
+      "_note": "365 days = 1 year at year precision, even in leap year"
+    },
+
+    {"_section": "=== SUBTRACTION: DATE - YEARS ==="},
+    {
+      "name": "date - 1 year",
+      "expr": "@2025-06-15 - 1 year",
+      "input": {},
+      "expect": [{"type": "date", "value": "2024-06-15"}]
+    },
+    {
+      "name": "leap year date - 1 year (Mar 1 check)",
+      "expr": "@2024-02-29 - 1 year",
+      "input": {},
+      "expect": [{"type": "date", "value": "2023-02-28"}],
+      "_note": "Feb 29 doesn't exist in 2023"
+    },
+
+    {"_section": "=== SUBTRACTION: DATE - MONTHS ==="},
+    {
+      "name": "date - 24 months (spec example)",
+      "expr": "@2019-03-01 - 24 months",
+      "input": {},
+      "expect": [{"type": "date", "value": "2017-03-01"}]
+    },
+    {
+      "name": "partial date - 24 months (spec example)",
+      "expr": "@2014 - 24 months",
+      "input": {},
+      "expect": [{"type": "date", "value": "2012"}]
+    },
+    {
+      "name": "month underflow: Mar 31 - 1 month",
+      "expr": "@2025-03-31 - 1 month",
+      "input": {},
+      "expect": [{"type": "date", "value": "2025-02-28"}],
+      "_note": "Feb 31 doesn't exist; use last day of Feb"
+    },
+
+    {"_section": "=== SUBTRACTION: DATE - DAYS ==="},
+    {
+      "name": "date - 1 day",
+      "expr": "@2025-01-15 - 1 day",
+      "input": {},
+      "expect": [{"type": "date", "value": "2025-01-14"}]
+    },
+    {
+      "name": "day underflow: first of month - 1 day",
+      "expr": "@2025-02-01 - 1 day",
+      "input": {},
+      "expect": [{"type": "date", "value": "2025-01-31"}]
+    },
+    {
+      "name": "day underflow crossing year boundary",
+      "expr": "@2025-01-01 - 1 day",
+      "input": {},
+      "expect": [{"type": "date", "value": "2024-12-31"}]
+    },
+
+    {"_section": "=== DATETIME + UNITS ==="},
+    {
+      "name": "datetime + 1 hour",
+      "expr": "@2025-01-15T10:30:00 + 1 hour",
+      "input": {},
+      "expect": [{"type": "dateTime", "value": "2025-01-15T11:30:00"}]
+    },
+    {
+      "name": "datetime hour overflow to next day",
+      "expr": "@2025-01-15T23:30:00 + 2 hours",
+      "input": {},
+      "expect": [{"type": "dateTime", "value": "2025-01-16T01:30:00"}]
+    },
+    {
+      "name": "datetime + 90 minutes",
+      "expr": "@2025-01-15T10:00:00 + 90 minutes",
+      "input": {},
+      "expect": [{"type": "dateTime", "value": "2025-01-15T11:30:00"}]
+    },
+    {
+      "name": "datetime + 3600 seconds",
+      "expr": "@2025-01-15T10:00:00 + 3600 seconds",
+      "input": {},
+      "expect": [{"type": "dateTime", "value": "2025-01-15T11:00:00"}]
+    },
+    {
+      "name": "datetime + 1000 milliseconds",
+      "expr": "@2025-01-15T10:00:00.000 + 1000 milliseconds",
+      "input": {},
+      "expect": [{"type": "dateTime", "value": "2025-01-15T10:00:01.000"}]
+    },
+    {
+      "name": "datetime + 1 day",
+      "expr": "@2025-01-15T10:30:00 + 1 day",
+      "input": {},
+      "expect": [{"type": "dateTime", "value": "2025-01-16T10:30:00"}]
+    },
+    {
+      "name": "datetime - 1 hour",
+      "expr": "@2025-01-15T10:30:00 - 1 hour",
+      "input": {},
+      "expect": [{"type": "dateTime", "value": "2025-01-15T09:30:00"}]
+    },
+    {
+      "name": "datetime hour underflow to previous day",
+      "expr": "@2025-01-15T00:30:00 - 2 hours",
+      "input": {},
+      "expect": [{"type": "dateTime", "value": "2025-01-14T22:30:00"}]
+    },
+
+    {"_section": "=== TIME ARITHMETIC (CYCLIC) ==="},
+    {
+      "name": "time + 1 hour (spec example)",
+      "expr": "@T23:30:00 + 1 hour",
+      "input": {},
+      "expect": [{"type": "time", "value": "00:30:00"}],
+      "_note": "Overflow wraps around to beginning of day"
+    },
+    {
+      "name": "time - 1 hour (spec example)",
+      "expr": "@T00:30:00 - 1 hour",
+      "input": {},
+      "expect": [{"type": "time", "value": "23:30:00"}],
+      "_note": "Underflow wraps around to end of day"
+    },
+    {
+      "name": "time - 2 hours (spec example)",
+      "expr": "@T01:00:00 - 2 hours",
+      "input": {},
+      "expect": [{"type": "time", "value": "23:00:00"}]
+    },
+    {
+      "name": "time + 30 minutes",
+      "expr": "@T10:15:00 + 30 minutes",
+      "input": {},
+      "expect": [{"type": "time", "value": "10:45:00"}]
+    },
+    {
+      "name": "time minute overflow",
+      "expr": "@T10:45:00 + 30 minutes",
+      "input": {},
+      "expect": [{"type": "time", "value": "11:15:00"}]
+    },
+    {
+      "name": "time + seconds",
+      "expr": "@T10:00:00 + 90 seconds",
+      "input": {},
+      "expect": [{"type": "time", "value": "10:01:30"}]
+    },
+
+    {"_section": "=== EMPTY PROPAGATION ==="},
+    {
+      "name": "empty date + quantity returns empty",
+      "expr": "{}.first() + 1 day",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "date + empty quantity returns empty",
+      "expr": "@2025-01-15 + {}.first()",
+      "input": {},
+      "expect": []
+    },
+
+    {"_section": "=== PLURAL/SINGULAR UNIT FORMS ==="},
+    {
+      "name": "singular unit: 1 year",
+      "expr": "@2025-01-15 + 1 year",
+      "input": {},
+      "expect": [{"type": "date", "value": "2026-01-15"}]
+    },
+    {
+      "name": "plural unit: 2 years",
+      "expr": "@2025-01-15 + 2 years",
+      "input": {},
+      "expect": [{"type": "date", "value": "2027-01-15"}]
+    },
+    {
+      "name": "abbreviation: 's' for seconds",
+      "expr": "@2025-01-15T10:00:00 + 30 's'",
+      "input": {},
+      "expect": [{"type": "dateTime", "value": "2025-01-15T10:00:30"}]
+    },
+    {
+      "name": "abbreviation: 'ms' for milliseconds",
+      "expr": "@2025-01-15T10:00:00.000 + 500 'ms'",
+      "input": {},
+      "expect": [{"type": "dateTime", "value": "2025-01-15T10:00:00.500"}]
+    },
+
+    {"_section": "=== CHAINED OPERATIONS ==="},
+    {
+      "name": "chained addition: date + 1 year + 1 month",
+      "expr": "@2025-01-15 + 1 year + 1 month",
+      "input": {},
+      "expect": [{"type": "date", "value": "2026-02-15"}]
+    },
+    {
+      "name": "mixed operations: date + 1 month - 1 day",
+      "expr": "@2025-01-15 + 1 month - 1 day",
+      "input": {},
+      "expect": [{"type": "date", "value": "2025-02-14"}]
+    },
+
+    {"_section": "=== COMPARISON WITH ARITHMETIC RESULTS ==="},
+    {
+      "name": "arithmetic result comparison",
+      "expr": "@2025-01-15 + 1 day = @2025-01-16",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "arithmetic result comparison (false case)",
+      "expr": "@2025-01-15 + 1 day = @2025-01-15",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}]
+    },
+
+    {"_section": "=== DECIMAL QUANTITY VALUES (decimal portion ignored) ==="},
+    {
+      "name": "decimal years (fraction ignored)",
+      "expr": "@2025-01-15 + 1.9 years",
+      "input": {},
+      "expect": [{"type": "date", "value": "2026-01-15"}],
+      "_note": "Per spec: decimal portion ignored for calendar units"
+    },
+    {
+      "name": "decimal months (fraction ignored)",
+      "expr": "@2025-01-15 + 2.5 months",
+      "input": {},
+      "expect": [{"type": "date", "value": "2025-03-15"}],
+      "_note": "Per spec: decimal portion ignored for calendar units"
+    }
+  ]
+}

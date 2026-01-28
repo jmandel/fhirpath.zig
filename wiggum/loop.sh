@@ -29,8 +29,11 @@ CONFIG_DIR="$ROOT/wiggum"
 HEAD_FILE="$CONFIG_DIR/prompt-head.txt"
 TAIL_FILE="$CONFIG_DIR/prompt-tail.txt"
 
-# LLM backend: "codex" (default) or "shelley"
+# LLM backend: "codex" (default), "claude", or "shelley"
 LLM_BACKEND="${LLM_BACKEND:-codex}"
+
+# Claude settings (when LLM_BACKEND=claude)
+CLAUDE_MODEL="${CLAUDE_MODEL:-opus}"
 
 # Shelley settings (when LLM_BACKEND=shelley)
 SHELLEY_PROMPT="${SHELLEY_PROMPT:-$CONFIG_DIR/shelley-prompt.ts}"
@@ -42,6 +45,10 @@ run_llm() {
   local cwd="$1"
   # Prompt comes via stdin
   case "$LLM_BACKEND" in
+    claude)
+      cd "$cwd"
+      claude -p --dangerously-skip-permissions --model "$CLAUDE_MODEL"
+      ;;
     codex)
       codex exec --dangerously-bypass-approvals-and-sandbox -C "$cwd" -
       ;;

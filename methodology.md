@@ -141,6 +141,8 @@ Goal: verify correctness of existing tests.
 - Cross‑check each expectation against the spec text.
 - Tighten or correct tests when they diverge from the spec.
 
+**Using reference engines**: You can use `python scripts/eval_engines.py` to check what other implementations return, but don't over-trust them—they can be wrong too. The spec is the authority. Use engine results as one data point, not the answer.
+
 ### FIX_BUG
 Goal: resolve a bug from the backlog.
 - Bugs are managed via `wiggum/scripts/bug_backlog.py` (do not hand‑edit).

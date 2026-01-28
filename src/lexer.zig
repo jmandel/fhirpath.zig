@@ -122,7 +122,9 @@ pub const Lexer = struct {
     fn errorToken(self: *Lexer, message: []const u8) Token {
         const pos = self.index;
         self.last_error = .{ .pos = pos, .message = message };
-        return self.token(.Invalid, pos, pos + 1);
+        // Guard against EOF: end must not exceed input length
+        const end = if (pos < self.input.len) pos + 1 else pos;
+        return self.token(.Invalid, pos, end);
     }
 
     fn skipTrivia(self: *Lexer) !void {

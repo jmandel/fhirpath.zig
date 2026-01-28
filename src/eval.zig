@@ -121,13 +121,40 @@ fn evalPath(
     env: ?*Env,
     index: ?usize,
 ) EvalError!ItemList {
+    // Check if any step uses defineVariable - if so, we need a local env
+    const needs_local_env = for (path.steps) |step| {
+        switch (step) {
+            .Function => |call| {
+                if (std.mem.eql(u8, call.name, "defineVariable")) break true;
+            },
+            else => {},
+        }
+    } else false;
+
+    // Create local env if needed (for defineVariable support)
+    var local_env: ?Env = null;
+    defer if (local_env) |*le| le.deinit();
+
+    var effective_env: ?*Env = env;
+    if (needs_local_env) {
+        local_env = Env.init(ctx.allocator);
+        // Copy parent env if it exists
+        if (env) |e| {
+            var it = e.map.iterator();
+            while (it.next()) |entry| {
+                try local_env.?.map.put(entry.key_ptr.*, entry.value_ptr.*);
+            }
+        }
+        effective_env = &local_env.?;
+    }
+
     var current = ItemList.empty;
     errdefer current.deinit(ctx.allocator);
 
     switch (path.root) {
         .This => try current.append(ctx.allocator, root_item),
         .Env => |name| {
-            if (env) |e| {
+            if (effective_env) |e| {
                 if (e.map.get(name)) |vals| {
                     try current.appendSlice(ctx.allocator, vals);
                 }
@@ -140,7 +167,7 @@ fn evalPath(
         },
         .Total => {
             // $total is used in aggregate() - needs to be passed through env
-            if (env) |e| {
+            if (effective_env) |e| {
                 if (e.map.get("$total")) |vals| {
                     try current.appendSlice(ctx.allocator, vals);
                 }
@@ -177,7 +204,7 @@ fn evalPath(
                 next = ItemList.empty;
             },
             .Function => |call| {
-                const next = try evalFunction(ctx, call, current.items, env);
+                const next = try evalFunction(ctx, call, current.items, effective_env);
                 current.deinit(ctx.allocator);
                 current = next;
             },
@@ -2066,8 +2093,35 @@ fn evalInvoke(
     env: ?*Env,
     index: ?usize,
 ) EvalError!ItemList {
+    // Check if any step uses defineVariable - if so, we need a local env
+    const needs_local_env = for (inv.steps) |step| {
+        switch (step) {
+            .Function => |call| {
+                if (std.mem.eql(u8, call.name, "defineVariable")) break true;
+            },
+            else => {},
+        }
+    } else false;
+
+    // Create local env if needed (for defineVariable support)
+    var local_env: ?Env = null;
+    defer if (local_env) |*le| le.deinit();
+
+    var effective_env: ?*Env = env;
+    if (needs_local_env) {
+        local_env = Env.init(ctx.allocator);
+        // Copy parent env if it exists
+        if (env) |e| {
+            var it = e.map.iterator();
+            while (it.next()) |entry| {
+                try local_env.?.map.put(entry.key_ptr.*, entry.value_ptr.*);
+            }
+        }
+        effective_env = &local_env.?;
+    }
+
     // First evaluate the operand
-    var current = try evalExpressionCtx(ctx, inv.operand.*, root_item, env, index);
+    var current = try evalExpressionCtx(ctx, inv.operand.*, root_item, effective_env, index);
     errdefer current.deinit(ctx.allocator);
 
     // Then apply each step
@@ -2094,7 +2148,7 @@ fn evalInvoke(
                 next = ItemList.empty;
             },
             .Function => |call| {
-                const result = try evalFunction(ctx, call, current.items, env);
+                const result = try evalFunction(ctx, call, current.items, effective_env);
                 current.deinit(ctx.allocator);
                 current = result;
             },
@@ -3829,7 +3883,126 @@ fn evalFunction(
         }
         return out;
     }
+    // defineVariable(name [, expr]) - defines a variable accessible in subsequent expressions
+    // If expr is provided, variable holds the evaluated result
+    // If expr is omitted, variable holds the input collection
+    // Returns the input collection unchanged (pass-through semantics)
+    if (std.mem.eql(u8, call.name, "defineVariable")) {
+        if (call.args.len < 1 or call.args.len > 2) return error.InvalidFunction;
+
+        // First arg must be a string literal (variable name)
+        const name = switch (call.args[0]) {
+            .Literal => |lit| switch (lit) {
+                .String => |s| s,
+                else => return error.InvalidFunction,
+            },
+            else => return error.InvalidFunction,
+        };
+
+        // Determine the value: either from expr arg or from input collection
+        const var_value: []const item.Item = if (call.args.len == 2) blk: {
+            // Evaluate the expression to get the variable value
+            // Special handling: if the expression is a Path with root=This, evaluate it
+            // using the input collection as the initial context (for functions like sum())
+            var expr_result = try evalExprOnCollection(ctx, call.args[1], input, env);
+            defer expr_result.deinit(ctx.allocator);
+            // Copy items to arena (they may be freed after defer)
+            const items_copy = try ctx.allocator.alloc(item.Item, expr_result.items.len);
+            @memcpy(items_copy, expr_result.items);
+            break :blk items_copy;
+        } else blk: {
+            // Use input collection as the value
+            const items_copy = try ctx.allocator.alloc(item.Item, input.len);
+            @memcpy(items_copy, input);
+            break :blk items_copy;
+        };
+
+        // Add to environment (requires mutable env - evalInvoke creates local env for this)
+        if (env) |e| {
+            try e.map.put(name, var_value);
+        }
+
+        // Return input unchanged (pass-through)
+        var out = ItemList.empty;
+        try out.appendSlice(ctx.allocator, input);
+        return out;
+    }
     return error.InvalidFunction;
+}
+
+/// Evaluates an expression using a collection as the initial context.
+/// For Path expressions with root=This, the input collection becomes the starting point.
+/// This allows expressions like sum() to operate on the collection.
+fn evalExprOnCollection(
+    ctx: anytype,
+    expr: ast.Expr,
+    input: []const item.Item,
+    env: ?*Env,
+) EvalError!ItemList {
+    switch (expr) {
+        .Path => |path| {
+            // If the path starts with This, use the input collection as the starting point
+            if (path.root == .This) {
+                var current = ItemList.empty;
+                errdefer current.deinit(ctx.allocator);
+                try current.appendSlice(ctx.allocator, input);
+
+                // Apply the steps
+                for (path.steps) |step| {
+                    switch (step) {
+                        .Property => |name| {
+                            var next = ItemList.empty;
+                            errdefer next.deinit(ctx.allocator);
+                            for (current.items) |it| {
+                                try applySegment(ctx, it, name, &next);
+                            }
+                            current.deinit(ctx.allocator);
+                            current = next;
+                        },
+                        .Index => |idx| {
+                            var next = ItemList.empty;
+                            errdefer next.deinit(ctx.allocator);
+                            if (idx < current.items.len) {
+                                try next.append(ctx.allocator, current.items[idx]);
+                            }
+                            current.deinit(ctx.allocator);
+                            current = next;
+                        },
+                        .Function => |call| {
+                            const next = try evalFunction(ctx, call, current.items, env);
+                            current.deinit(ctx.allocator);
+                            current = next;
+                        },
+                    }
+                }
+                return current;
+            }
+            // For other roots (Env, Literal, etc.), evaluate normally
+            const root_item = if (input.len > 0) input[0] else item.Item{
+                .data_kind = .none,
+                .value_kind = .empty,
+                .type_id = 0,
+                .source_pos = 0,
+                .source_end = 0,
+                .node = null,
+                .value = .{ .empty = {} },
+            };
+            return evalExpressionCtx(ctx, expr, root_item, env, null);
+        },
+        else => {
+            // For non-Path expressions, evaluate with first input item as context
+            const root_item = if (input.len > 0) input[0] else item.Item{
+                .data_kind = .none,
+                .value_kind = .empty,
+                .type_id = 0,
+                .source_pos = 0,
+                .source_end = 0,
+                .node = null,
+                .value = .{ .empty = {} },
+            };
+            return evalExpressionCtx(ctx, expr, root_item, env, null);
+        },
+    }
 }
 
 fn parseIntegerArg(call: ast.FunctionCall) EvalError!i64 {

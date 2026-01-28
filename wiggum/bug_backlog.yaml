@@ -17,10 +17,10 @@ bugs:
     updated: 2026-01-27
     tags: []
   - slug: artisinal-env-support
-    status: resolved
+    status: open
     severity: medium
     title: Artisinal env not supported
-    description: Artisinal tests allow env entries but the harness ignores env; implement env parsing and evaluation so % vars work in tests and runtime.
+    description: Harness ignores env field. Was fixed in 4466e76 but regressed in ea7d2da during harness refactor. Need to re-add env parsing and pass to eval context.
     created: 2026-01-27
     updated: 2026-01-27
     tags: []

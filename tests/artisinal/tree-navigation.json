@@ -1,0 +1,197 @@
+{
+  "_spec_summary": [
+    "Tree navigation functions: children() and descendants().",
+    "",
+    "=== CORE BEHAVIOR ===",
+    "- children() returns the immediate child nodes of each item in the input collection.",
+    "- descendants() returns all descendant nodes (children, grandchildren, etc.) of each input item, excluding the input items themselves.",
+    "- descendants() is defined as shorthand for repeat(children()).",
+    "",
+    "=== TYPE HANDLING ===",
+    "- These functions operate on any input items; they simply expose child nodes of each item.",
+    "- Primitive items (string/number/boolean/date/etc.) have no children and contribute nothing to the result.",
+    "- Outputs are heterogeneous (different underlying types), so callers often use ofType() or type checks to narrow types.",
+    "",
+    "=== EMPTY COLLECTION SEMANTICS ===",
+    "- If the input collection is empty, the result is empty.",
+    "- Items with no children contribute nothing (result may still be empty even if input is not).",
+    "",
+    "=== COLLECTION/ARRAY SEMANTICS ===",
+    "- The input is a collection; children()/descendants() are evaluated per item and the results are concatenated.",
+    "- In JSON-backed models, object children are property values; multi-valued properties yield each element as a child item (collections are implicit in FHIRPath).",
+    "",
+    "=== ORDERING & DUPLICATES ===",
+    "- Ordering of children is undefined; order-dependent functions (first/last/skip/take) are not reliable on these results and may error in some implementations.",
+    "- No de-duplication is implied; if multiple branches yield equal values, they appear multiple times in the result.",
+    "",
+    "Spec refs: spec/index.md \"Tree navigation\" (children(), descendants()) and notes on undefined order for children/descendants."
+  ],
+  "_todo": [
+    "[ ] Improve passing rate (0/7 passing) - children()/descendants() eval errors",
+    "[ ] Add tests for order-dependent operations returning errors if policy enforces undefined order",
+    "[ ] Add tests for duplicate descendant values across branches"
+  ],
+  "meta": {
+    "status": "drafted",
+    "feature": "tree-navigation",
+    "source": "spec/index.md#Tree navigation"
+  },
+  "cases": [
+    {
+      "name": "children returns immediate child nodes",
+      "expr": "children()",
+      "input": {
+        "name": {
+          "given": [
+            "Ann",
+            "Bob"
+          ],
+          "family": "Smith"
+        },
+        "active": true,
+        "count": 3
+      },
+      "unordered": true,
+      "expect": [
+        {
+          "type": "System.Any",
+          "value": {
+            "given": [
+              "Ann",
+              "Bob"
+            ],
+            "family": "Smith"
+          }
+        },
+        {
+          "type": "boolean",
+          "value": true
+        },
+        {
+          "type": "integer",
+          "value": 3
+        }
+      ]
+    },
+    {
+      "name": "children flattens child nodes across collection items",
+      "expr": "items.children()",
+      "input": {
+        "items": [
+          {
+            "a": 1
+          },
+          {
+            "a": 2,
+            "b": {
+              "c": 3
+            }
+          }
+        ]
+      },
+      "unordered": true,
+      "expect": [
+        {
+          "type": "integer",
+          "value": 1
+        },
+        {
+          "type": "integer",
+          "value": 2
+        },
+        {
+          "type": "System.Any",
+          "value": {
+            "c": 3
+          }
+        }
+      ]
+    },
+    {
+      "name": "children on missing path returns empty",
+      "expr": "missing.children()",
+      "input": {
+        "present": true
+      },
+      "expect": []
+    },
+    {
+      "name": "children on primitive returns empty",
+      "expr": "1.children()",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "descendants returns nested primitive values",
+      "expr": "name.descendants()",
+      "input": {
+        "name": {
+          "given": [
+            "Ann",
+            "Bob"
+          ],
+          "family": "Smith"
+        }
+      },
+      "unordered": true,
+      "expect": [
+        {
+          "type": "string",
+          "value": "Ann"
+        },
+        {
+          "type": "string",
+          "value": "Bob"
+        },
+        {
+          "type": "string",
+          "value": "Smith"
+        }
+      ]
+    },
+    {
+      "name": "descendants includes intermediate nodes",
+      "expr": "items.descendants()",
+      "input": {
+        "items": [
+          {
+            "a": 1
+          },
+          {
+            "a": 2,
+            "b": {
+              "c": 3
+            }
+          }
+        ]
+      },
+      "unordered": true,
+      "expect": [
+        {
+          "type": "integer",
+          "value": 1
+        },
+        {
+          "type": "integer",
+          "value": 2
+        },
+        {
+          "type": "System.Any",
+          "value": {
+            "c": 3
+          }
+        },
+        {
+          "type": "integer",
+          "value": 3
+        }
+      ]
+    },
+    {
+      "name": "descendants on primitive returns empty",
+      "expr": "true.descendants()",
+      "input": {},
+      "expect": []
+    }
+  ]
+}

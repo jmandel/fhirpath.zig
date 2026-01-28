@@ -1,6 +1,6 @@
 {
   "meta": {
-    "status": "reviewed",
+    "status": "implemented",
     "spec_sections": [
       "5.1.3 (ofType)",
       "6.6 (Type operators: is, as)",
@@ -42,7 +42,7 @@
     }
   },
   "_todo": [
-    "[x] Improve passing rate (62/62 passing)",
+    "[x] Improve passing rate (63/63 passing)",
     "[ ] Test with FHIR model types once model is loaded",
     "[ ] Test error cases: multiple items in input collection for is/as",
     "[ ] Test unresolvable type identifiers (should error)",
@@ -356,8 +356,8 @@
       ]
     },
     {
-      "name": "is keyword - precedence with comparison",
-      "expr": "1 > 2 is Boolean",
+      "name": "is keyword - precedence with comparison (parens)",
+      "expr": "(1 > 2) is Boolean",
       "input": {},
       "expect": [
         {
@@ -365,7 +365,14 @@
           "value": true
         }
       ],
-      "note": "The result of 1>2 (false) is tested against Boolean type"
+      "comment": "Per spec §3132, 'is' (#06) binds tighter than '>' (#08), so parens needed for this test"
+    },
+    {
+      "name": "is keyword - precedence without parens",
+      "expr": "1 > 2 is Boolean",
+      "input": {},
+      "expect_error": true,
+      "comment": "Parses as '1 > (2 is Boolean)' → '1 > false' → type error (Integer vs Boolean)"
     },
     {
       "name": "as function - integer as Integer returns value",

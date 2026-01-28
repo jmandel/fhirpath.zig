@@ -2,7 +2,6 @@
 #
 # Format is simple YAML for deterministic parsing by scripts.
 # Only single-line values are supported.
-# Timestamps use ISO 8601 format with time: YYYY-MM-DDTHH:MM:SS-ZZ:ZZ
 #
 # Allowed status values (convention): open, in_progress, blocked, resolved, wontfix
 # Allowed severity values (convention): low, medium, high, critical
@@ -14,30 +13,38 @@ bugs:
     severity: medium
     title: Result nodes lack metadata
     description: Evaluator returns raw std.json.Value with no type_id, source_pos, or data_kind. Blocks zero-copy spans and type-aware ops. See design.md Item layout.
-    created: 2026-01-27T08:00:00-06:00
-    updated: 2026-01-27T19:30:00-06:00
+    created: "2026-01-27T08:00:00-06:00"
+    updated: "2026-01-27T19:30:00-06:00"
     tags: []
   - slug: artisinal-env-support
     status: open
     severity: medium
     title: Artisinal env not supported
     description: Harness ignores env field. Was fixed in 4466e76 but regressed in ea7d2da during harness refactor. Need to re-add env parsing and pass to eval context.
-    created: 2026-01-27T08:00:00-06:00
-    updated: 2026-01-27T20:00:00-06:00
+    created: "2026-01-27T08:00:00-06:00"
+    updated: "2026-01-27T20:00:00-06:00"
     tags: []
   - slug: harness-memory-leaks
     status: resolved
     severity: medium
     title: Fix memory leaks in test harness
     description: Harness leaks memory when formatting failure output (valueAlloc not freed). Shows gpa errors on test failures.
-    created: 2026-01-27T08:00:00-06:00
-    updated: 2026-01-27T19:15:00-06:00
+    created: "2026-01-27T08:00:00-06:00"
+    updated: "2026-01-27T19:15:00-06:00"
     tags: [harness, memory]
   - slug: eval-leaks-intermediate-arraylists-during-harness-runs
     status: resolved
     severity: medium
     title: Eval leaks intermediate ArrayLists during harness runs
     description: Running zig build harness with GPA reports leaks from eval.zig (distinctItems/applySegment) even though eval_result.deinit is called; see stack traces in harness output after failures.
-    created: 2026-01-27T08:00:00-06:00
-    updated: 2026-01-27T19:30:00-06:00
+    created: "2026-01-27T08:00:00-06:00"
+    updated: "2026-01-27T19:30:00-06:00"
     tags: [memory, eval]
+  - slug: harness-comment-only-entries
+    status: open
+    severity: low
+    title: Harness counts comment-only entries as failures
+    description: Section header entries in artisinal test files (entries with only _comment field) are counted as failures because they lack an expr field. These should be skipped.
+    created: 2026-01-27
+    updated: 2026-01-27
+    tags: [harness]

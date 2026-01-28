@@ -64,14 +64,14 @@
     "- Decimal 0.0, empty string '', etc. cannot implicitly convert to boolean, so they evaluate to TRUE"
   ],
   "_todo": [
-    "[ ] Improve passing rate (0/48 passing - parser does not support and/or/xor/implies operators)",
+    "[x] Improve passing rate (48/48 passing)",
     "[x] Verify truth tables against spec",
     "[x] Cross-check with official tests",
     "[x] Fix singleton evaluation tests (0/1 both truthy, multi-item is error)",
     "[ ] Consider adding tests for string/decimal in boolean context"
   ],
   "meta": {
-    "status": "reviewed"
+    "status": "implemented"
   },
   "cases": [
     {

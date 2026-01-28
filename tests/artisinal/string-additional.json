@@ -1,0 +1,255 @@
+{
+  "_spec_summary": [
+    "Additional String Functions: trim(), split(), join()",
+    "",
+    "=== TRIM ===",
+    "trim() : String",
+    "  - Removes whitespace characters from beginning AND ending of the input string",
+    "  - Whitespace is defined by the FHIRPath lexical category: tab (\\t), space ( ), line feed (\\n), carriage return (\\r)",
+    "  - DOES NOT remove whitespace from the middle of the string",
+    "  - If input is empty, result is empty",
+    "  - If input is not a string, behavior depends on implicit conversion rules",
+    "",
+    "Examples from the spec:",
+    "  - '  hello  '.trim() → 'hello'",
+    "  - '\\t\\ntext\\r\\n'.trim() → 'text'",
+    "",
+    "=== SPLIT ===",
+    "split(separator: String) : collection",
+    "  - Splits a singleton input string into a collection of strings using the given separator",
+    "  - If input is empty, result is empty",
+    "  - If separator is not found, result is the original string as a single-element collection",
+    "  - Empty strings between consecutive separators ARE preserved",
+    "  - The separator itself is NOT included in any result element",
+    "",
+    "Examples from the spec (§ Additional String Functions):",
+    "  - ('A,B,C').split(',') → { 'A', 'B', 'C' }",
+    "  - ('ABC').split(',') → { 'ABC' }",
+    "  - 'A,,C'.split(',') → { 'A', '', 'C' }   -- NOTE: empty string between consecutive separators",
+    "",
+    "Edge cases:",
+    "  - Separator at start: ',A,B'.split(',') → { '', 'A', 'B' }",
+    "  - Separator at end: 'A,B,'.split(',') → { 'A', 'B', '' }",
+    "  - All separators: ',,'.split(',') → { '', '', '' }",
+    "  - Multi-char separator: 'a::b::c'.split('::') → { 'a', 'b', 'c' }",
+    "",
+    "=== JOIN ===",
+    "join([separator: String]) : String",
+    "  - Takes a collection of strings and joins them into a single string",
+    "  - Optional separator is placed between each element",
+    "  - If no separator is provided, strings are concatenated directly",
+    "  - If input is empty, result is empty",
+    "  - If input has one element, result is that element (separator ignored)",
+    "",
+    "Examples from the spec (§ Additional String Functions):",
+    "  - ('A' | 'B' | 'C').join() → 'ABC'",
+    "  - ('A' | 'B' | 'C').join(',') → 'A,B,C'",
+    "",
+    "Edge cases:",
+    "  - Single element: 'solo'.join(',') → 'solo'",
+    "  - Empty separator: ('A' | 'B').join('') → 'AB'",
+    "  - Multi-char separator: ('A' | 'B' | 'C').join('--') → 'A--B--C'",
+    "",
+    "=== RELATIONSHIP BETWEEN SPLIT AND JOIN ===",
+    "  - split and join are inverse operations: 'A,B,C'.split(',').join(',') → 'A,B,C'",
+    "  - Exception: empty strings from split affect roundtrip",
+    "",
+    "=== EMPTY COLLECTION BEHAVIOR ===",
+    "All three functions return empty if input is empty:",
+    "  - {}.trim() → {}",
+    "  - {}.split(',') → {}",
+    "  - {}.join(',') → {}"
+  ],
+  "_todo": [
+    "[x] Improve passing rate (24/24 passing) - all tests pass",
+    "[x] Verify split preserves empty strings between consecutive separators",
+    "[ ] Test join with non-string inputs (should they be converted?)",
+    "[ ] Test FHIRPath escape sequences (\\t, \\n, etc.) in trim context"
+  ],
+  "_open_questions": [
+    "Does split('') (empty separator) split into individual characters? Spec doesn't specify.",
+    "Does join require all elements to be strings, or does it convert automatically?"
+  ],
+  "meta": {
+    "status": "drafted"
+  },
+  "cases": [
+    {
+      "_section": "=== TRIM BASIC ==="
+    },
+    {
+      "name": "trim: leading spaces",
+      "expr": "'   hello'.trim()",
+      "input": {},
+      "expect": [{"type": "string", "value": "hello"}]
+    },
+    {
+      "name": "trim: trailing spaces",
+      "expr": "'hello   '.trim()",
+      "input": {},
+      "expect": [{"type": "string", "value": "hello"}]
+    },
+    {
+      "name": "trim: both leading and trailing spaces",
+      "expr": "'  hello  '.trim()",
+      "input": {},
+      "expect": [{"type": "string", "value": "hello"}]
+    },
+    {
+      "name": "trim: preserves internal spaces",
+      "expr": "'  hello world  '.trim()",
+      "input": {},
+      "expect": [{"type": "string", "value": "hello world"}]
+    },
+    {
+      "name": "trim: mixed whitespace (tab, space, newline)",
+      "expr": "' \t\nhello\r\n '.trim()",
+      "input": {},
+      "expect": [{"type": "string", "value": "hello"}],
+      "comment": "Uses actual tab/newline/CR characters in JSON string - FHIRPath \\t escapes tested separately"
+    },
+    {
+      "name": "trim: no whitespace to trim",
+      "expr": "'hello'.trim()",
+      "input": {},
+      "expect": [{"type": "string", "value": "hello"}]
+    },
+    {
+      "name": "trim: only whitespace",
+      "expr": "'   '.trim()",
+      "input": {},
+      "expect": [{"type": "string", "value": ""}]
+    },
+    {
+      "name": "trim: empty string",
+      "expr": "''.trim()",
+      "input": {},
+      "expect": [{"type": "string", "value": ""}]
+    },
+    {
+      "name": "trim: empty input collection",
+      "expr": "{}.trim().empty()",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "_section": "=== SPLIT BASIC ==="
+    },
+    {
+      "name": "split: simple comma separator",
+      "expr": "'A,B,C'.split(',')",
+      "input": {},
+      "expect": [
+        {"type": "string", "value": "A"},
+        {"type": "string", "value": "B"},
+        {"type": "string", "value": "C"}
+      ]
+    },
+    {
+      "name": "split: no separator found",
+      "expr": "'ABC'.split(',')",
+      "input": {},
+      "expect": [{"type": "string", "value": "ABC"}]
+    },
+    {
+      "name": "split: consecutive separators preserve empty strings",
+      "expr": "'A,,C'.split(',')",
+      "input": {},
+      "expect": [
+        {"type": "string", "value": "A"},
+        {"type": "string", "value": ""},
+        {"type": "string", "value": "C"}
+      ]
+    },
+    {
+      "name": "split: separator at start",
+      "expr": "',A,B'.split(',')",
+      "input": {},
+      "expect": [
+        {"type": "string", "value": ""},
+        {"type": "string", "value": "A"},
+        {"type": "string", "value": "B"}
+      ]
+    },
+    {
+      "name": "split: separator at end",
+      "expr": "'A,B,'.split(',')",
+      "input": {},
+      "expect": [
+        {"type": "string", "value": "A"},
+        {"type": "string", "value": "B"},
+        {"type": "string", "value": ""}
+      ]
+    },
+    {
+      "name": "split: multi-character separator",
+      "expr": "'a::b::c'.split('::')",
+      "input": {},
+      "expect": [
+        {"type": "string", "value": "a"},
+        {"type": "string", "value": "b"},
+        {"type": "string", "value": "c"}
+      ]
+    },
+    {
+      "name": "split: empty input",
+      "expr": "{}.split(',').empty()",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "split: count result elements",
+      "expr": "'one,two,three'.split(',').count()",
+      "input": {},
+      "expect": [{"type": "integer", "value": 3}]
+    },
+    {
+      "_section": "=== JOIN BASIC ==="
+    },
+    {
+      "name": "join: without separator",
+      "expr": "('A' | 'B' | 'C').join()",
+      "input": {},
+      "expect": [{"type": "string", "value": "ABC"}]
+    },
+    {
+      "name": "join: with comma separator",
+      "expr": "('A' | 'B' | 'C').join(',')",
+      "input": {},
+      "expect": [{"type": "string", "value": "A,B,C"}]
+    },
+    {
+      "name": "join: single element",
+      "expr": "'solo'.join(',')",
+      "input": {},
+      "expect": [{"type": "string", "value": "solo"}]
+    },
+    {
+      "name": "join: empty separator",
+      "expr": "('A' | 'B' | 'C').join('')",
+      "input": {},
+      "expect": [{"type": "string", "value": "ABC"}]
+    },
+    {
+      "name": "join: multi-character separator",
+      "expr": "('A' | 'B' | 'C').join('--')",
+      "input": {},
+      "expect": [{"type": "string", "value": "A--B--C"}]
+    },
+    {
+      "name": "join: empty input collection",
+      "expr": "{}.join(',').empty()",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "_section": "=== SPLIT/JOIN ROUNDTRIP ==="
+    },
+    {
+      "name": "split then join: roundtrip equality",
+      "expr": "'A,B,C'.split(',').join(',') = 'A,B,C'",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    }
+  ]
+}

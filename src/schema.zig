@@ -79,6 +79,11 @@ pub const FieldEntry = struct {
     choice_group_id: u16,
 };
 
+// Field flags
+pub const FIELD_MULTIPLE: u8 = 1 << 0;
+pub const FIELD_CHOICE_BASE: u8 = 1 << 1;
+pub const FIELD_CHOICE_VARIANT: u8 = 1 << 2;
+
 pub const ChoiceGroupEntry = struct {
     base_name_off: u32,
     base_name_len: u32,
@@ -349,6 +354,88 @@ pub const Schema = struct {
         const entry = self.fieldForType(type_id, field_name) orelse return null;
         return if (entry.child_type_id == 0) null else entry.child_type_id;
     }
+
+    /// Check if a field is a choice base type and return its choice_group_id.
+    /// Returns null if the field doesn't exist or isn't a choice base.
+    pub fn choiceGroupForField(self: *Schema, type_id: u32, field_name: []const u8) ?u16 {
+        const entry = self.fieldForType(type_id, field_name) orelse return null;
+        if ((entry.flags & FIELD_CHOICE_BASE) != 0 and entry.choice_group_id > 0) {
+            return entry.choice_group_id;
+        }
+        return null;
+    }
+
+    /// Get all choice variant names for a given choice group within a type.
+    /// Returns an iterator over (variant_name, child_type_id) pairs.
+    pub fn choiceVariantsForType(self: *Schema, type_id: u32, choice_group_id: u16) ChoiceVariantIterator {
+        return .{
+            .schema = self,
+            .type_id = type_id,
+            .choice_group_id = choice_group_id,
+        };
+    }
+
+    pub const ChoiceVariantIterator = struct {
+        schema: *Schema,
+        type_id: u32,
+        choice_group_id: u16,
+        current_type_id: ?u32 = null,
+        field_idx: u32 = 0,
+        field_end: u32 = 0,
+        started: bool = false,
+
+        pub fn next(self: *ChoiceVariantIterator) ?struct { name: []const u8, child_type_id: u32 } {
+            if (!self.started) {
+                self.started = true;
+                self.current_type_id = self.type_id;
+                if (isModelType(self.type_id)) {
+                    const idx = modelIndex(self.type_id);
+                    if (idx < self.schema.model.header.types_count) {
+                        const t = self.schema.model.typeEntry(idx);
+                        self.field_idx = t.field_start;
+                        self.field_end = t.field_start + t.field_count;
+                    }
+                }
+            }
+
+            while (self.current_type_id) |tid| {
+                while (self.field_idx < self.field_end) {
+                    const entry = self.schema.model.fieldEntry(self.field_idx);
+                    self.field_idx += 1;
+
+                    // Check if this is a variant for our choice group
+                    if (entry.choice_group_id == self.choice_group_id and
+                        (entry.flags & FIELD_CHOICE_VARIANT) != 0)
+                    {
+                        return .{
+                            .name = self.schema.model.stringAt(entry.name_off, entry.name_len),
+                            .child_type_id = entry.child_type_id,
+                        };
+                    }
+                }
+
+                // Move to base type
+                const idx = modelIndex(tid);
+                if (idx >= self.schema.model.header.types_count) break;
+                const t = self.schema.model.typeEntry(idx);
+                if (t.base_type_id == 0 or !isModelType(t.base_type_id)) {
+                    self.current_type_id = null;
+                    break;
+                }
+                self.current_type_id = t.base_type_id;
+                const base_idx = modelIndex(t.base_type_id);
+                if (base_idx >= self.schema.model.header.types_count) {
+                    self.current_type_id = null;
+                    break;
+                }
+                const base_t = self.schema.model.typeEntry(base_idx);
+                self.field_idx = base_t.field_start;
+                self.field_end = base_t.field_start + base_t.field_count;
+            }
+
+            return null;
+        }
+    };
 };
 
 fn findFieldInRange(self: *Schema, start: u32, count: u32, name: []const u8) ?FieldEntry {

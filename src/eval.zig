@@ -263,13 +263,45 @@ fn applySegment(
                     try out.append(ctx.allocator, child);
                 }
             } else {
-                // Property not found - check if name is a type that matches this item's type.
-                // Per FHIRPath spec: "When resolving an identifier that is also the root of a
-                // FHIRPath expression, it is resolved as a type name first, and if it resolves
-                // to a type, it must resolve to the type of the context (or a supertype)."
-                // This applies to the first identifier in a path like "Patient.active".
-                if (itemMatchesType(ctx, it, name)) {
-                    try out.append(ctx.allocator, it);
+                // Property not found - check if this is a choice type field in the schema.
+                // For choice types (e.g., value[x] in FHIR), we need to check for concrete variants
+                // like valueQuantity, valueString, etc.
+                var found_choice = false;
+                if (ctx.schema) |s| {
+                    if (schema.isModelType(it.type_id)) {
+                        if (s.choiceGroupForField(it.type_id, name)) |group_id| {
+                            // This is a choice type - look for any variant in the JSON
+                            var variants = s.choiceVariantsForType(it.type_id, group_id);
+                            while (variants.next()) |v| {
+                                if (A.objectGet(ctx.adapter, ref, v.name)) |variant_ref| {
+                                    found_choice = true;
+                                    if (A.kind(ctx.adapter, variant_ref) == .array) {
+                                        const len = A.arrayLen(ctx.adapter, variant_ref);
+                                        for (0..len) |i| {
+                                            const variant_item_ref = A.arrayAt(ctx.adapter, variant_ref, i);
+                                            const child = try itemFromNodeWithType(ctx, variant_item_ref, v.child_type_id);
+                                            try out.append(ctx.allocator, child);
+                                        }
+                                    } else {
+                                        const child = try itemFromNodeWithType(ctx, variant_ref, v.child_type_id);
+                                        try out.append(ctx.allocator, child);
+                                    }
+                                    break; // Only one variant should be present
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (!found_choice) {
+                    // Property not found - check if name is a type that matches this item's type.
+                    // Per FHIRPath spec: "When resolving an identifier that is also the root of a
+                    // FHIRPath expression, it is resolved as a type name first, and if it resolves
+                    // to a type, it must resolve to the type of the context (or a supertype)."
+                    // This applies to the first identifier in a path like "Patient.active".
+                    if (itemMatchesType(ctx, it, name)) {
+                        try out.append(ctx.allocator, it);
+                    }
                 }
             }
         },
@@ -6008,7 +6040,29 @@ fn literalToItem(ctx: anytype, lit: ast.Literal) item.Item {
 
 fn makeNodeItem(ctx: anytype, node_ref: @TypeOf(ctx.adapter.*).NodeRef, type_id_override: u32) !item.Item {
     const A = @TypeOf(ctx.adapter.*);
-    const type_id = if (type_id_override != 0) type_id_override else try typeIdForNode(ctx, node_ref);
+    // Determine the type_id. If an override is provided, use it, but also check if
+    // the node has a resourceType field that indicates a more specific type.
+    // This handles polymorphic fields like Bundle.entry.resource which are typed
+    // as 'Resource' in the schema but have actual resource types at runtime.
+    const type_id = blk: {
+        if (type_id_override != 0) {
+            // Check if this is a model type that could have a more specific runtime type
+            if (schema.isModelType(type_id_override) and A.kind(ctx.adapter, node_ref) == .object) {
+                if (resourceTypeName(ctx, node_ref)) |rt| {
+                    if (ctx.schema) |s| {
+                        if (s.typeIdByLocalName(rt)) |specific_tid| {
+                            // Use the more specific type if it's a subtype of the override
+                            if (s.isSubtype(specific_tid, type_id_override)) {
+                                break :blk specific_tid;
+                            }
+                        }
+                    }
+                }
+            }
+            break :blk type_id_override;
+        }
+        break :blk try typeIdForNode(ctx, node_ref);
+    };
     var source_pos: u32 = 0;
     var source_end: u32 = 0;
     if (node.hasSpanSupport(A)) {

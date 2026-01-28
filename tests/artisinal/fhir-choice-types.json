@@ -53,7 +53,7 @@
     "concrete field in the JSON (valueQuantity, valueString, etc.) using model info."
   ],
   "_todo": [
-    "[ ] Improve passing rate (5/22 with model, 4/22 without - requires model-aware choice type resolution)",
+    "[x] Improve passing rate (22/22 with model - choice type resolution implemented)",
     "[x] Test value[x] with Quantity (valueQuantity)",
     "[ ] Add CodeableConcept variant tests when needed",
     "[x] Test value[x] with String (valueString)",
@@ -63,7 +63,7 @@
     "[x] Document strict vs non-strict mode behavior"
   ],
   "meta": {
-    "status": "reviewed",
+    "status": "implemented",
     "feature": "fhir-choice-types",
     "requires_model": true
   },

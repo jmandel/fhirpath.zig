@@ -5931,8 +5931,11 @@ fn convertToBoolean(ctx: anytype, it: item.Item) ?bool {
 fn convertToDecimalText(ctx: anytype, it: item.Item) ?[]const u8 {
     const val = itemToValue(ctx, it);
     return switch (val) {
-        .integer => |v| std.fmt.allocPrint(ctx.allocator, "{d}.0", .{v}) catch null,
+        // Integer->Decimal preserves integer precision (no decimal point)
+        // This is important for lowBoundary/highBoundary to work correctly
+        .integer => |v| std.fmt.allocPrint(ctx.allocator, "{d}", .{v}) catch null,
         .decimal => |s| s,
+        // Spec: Boolean true->1.0, false->0.0 (single decimal place)
         .boolean => |v| if (v) "1.0" else "0.0",
         .string => |s| if (isDecimalString(s)) s else null,
         else => null,

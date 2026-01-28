@@ -308,6 +308,8 @@ fn runTestFile(
 
     // Infer input_dir from path if not specified
     var input_dir = opts.input_dir;
+    var input_dir_owned: ?[]const u8 = null;
+    defer if (input_dir_owned) |d| allocator.free(d);
     if (input_dir == null and is_official) {
         // Default to sibling "input" directory
         const dir = std.fs.path.dirname(path) orelse ".";
@@ -315,7 +317,10 @@ fn runTestFile(
         if (inferred) |d| {
             if (std.fs.cwd().access(d, .{})) |_| {
                 input_dir = d;
-            } else |_| {}
+                input_dir_owned = d;
+            } else |_| {
+                allocator.free(d);
+            }
         }
     }
 
@@ -687,7 +692,15 @@ fn jsonEqual(a: std.json.Value, b: std.json.Value) bool {
         .bool => |v| return v == b.bool,
         .integer => |v| return v == b.integer,
         .float => |v| return v == b.float,
-        .number_string => |v| return std.mem.eql(u8, v, b.number_string),
+        .number_string => |v| {
+            // Compare as numbers if both parseable, handles trailing zeros
+            const na = std.fmt.parseFloat(f64, v) catch null;
+            const nb = std.fmt.parseFloat(f64, b.number_string) catch null;
+            if (na != null and nb != null) {
+                return na.? == nb.?;
+            }
+            return std.mem.eql(u8, v, b.number_string);
+        },
         .string => |v| return std.mem.eql(u8, v, b.string),
         .array => |arr| {
             const arr_b = b.array;

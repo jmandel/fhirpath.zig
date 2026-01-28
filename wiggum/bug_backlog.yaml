@@ -57,7 +57,7 @@ bugs:
     updated: 2026-01-28
     tags: [parser, harness, memory]
   - slug: boundary-functions
-    status: open
+    status: resolved
     severity: high
     title: Implement lowBoundary() and highBoundary() functions
     description: Date/time boundary functions not implemented. ~25 R5 test failures. Spec §5.6.5.

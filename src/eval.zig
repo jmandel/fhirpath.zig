@@ -997,18 +997,20 @@ fn valueEquivalent(ctx: anytype, a_val: item.Value, a_type: u32, b_val: item.Val
         return dateTimeEquivalent(a_text, b_text);
     }
 
-    const a_numeric = a_val == .integer or a_val == .decimal;
-    const b_numeric = b_val == .integer or b_val == .decimal;
+    const a_numeric = a_val == .integer or a_val == .long or a_val == .decimal;
+    const b_numeric = b_val == .integer or b_val == .long or b_val == .decimal;
     if (a_numeric and b_numeric) {
         var buf_a: [64]u8 = undefined;
         var buf_b: [64]u8 = undefined;
         const text_a = switch (a_val) {
             .integer => std.fmt.bufPrint(&buf_a, "{d}", .{a_val.integer}) catch return false,
+            .long => std.fmt.bufPrint(&buf_a, "{d}", .{a_val.long}) catch return false,
             .decimal => a_val.decimal,
             else => return false,
         };
         const text_b = switch (b_val) {
             .integer => std.fmt.bufPrint(&buf_b, "{d}", .{b_val.integer}) catch return false,
+            .long => std.fmt.bufPrint(&buf_b, "{d}", .{b_val.long}) catch return false,
             .decimal => b_val.decimal,
             else => return false,
         };
@@ -1122,21 +1124,33 @@ fn compareItems(ctx: anytype, a: item.Item, b: item.Item) EvalError!?i32 {
     const va = itemToValue(ctx, a);
     const vb = itemToValue(ctx, b);
 
-    // Compare integers
-    if (va == .integer and vb == .integer) {
-        if (va.integer < vb.integer) return -1;
-        if (va.integer > vb.integer) return 1;
+    // Compare integers (including Long)
+    if ((va == .integer or va == .long) and (vb == .integer or vb == .long)) {
+        const ai: i64 = switch (va) {
+            .integer => va.integer,
+            .long => va.long,
+            else => unreachable,
+        };
+        const bi: i64 = switch (vb) {
+            .integer => vb.integer,
+            .long => vb.long,
+            else => unreachable,
+        };
+        if (ai < bi) return -1;
+        if (ai > bi) return 1;
         return 0;
     }
 
-    // Compare decimals or mixed int/decimal
+    // Compare decimals or mixed int/long/decimal
     const fa: ?f64 = switch (va) {
         .integer => |i| @floatFromInt(i),
+        .long => |i| @floatFromInt(i),
         .decimal => |d| std.fmt.parseFloat(f64, d) catch null,
         else => null,
     };
     const fb: ?f64 = switch (vb) {
         .integer => |i| @floatFromInt(i),
+        .long => |i| @floatFromInt(i),
         .decimal => |d| std.fmt.parseFloat(f64, d) catch null,
         else => null,
     };
@@ -1566,14 +1580,51 @@ fn evalArithmetic(
         }
     }
 
+    // Long arithmetic (Long + Long, Long + Integer, Integer + Long)
+    const a_is_int_or_long = va == .integer or va == .long;
+    const b_is_int_or_long = vb == .integer or vb == .long;
+    const either_long = va == .long or vb == .long;
+    if (a_is_int_or_long and b_is_int_or_long and either_long) {
+        const a: i64 = switch (va) {
+            .integer => va.integer,
+            .long => va.long,
+            else => unreachable,
+        };
+        const b: i64 = switch (vb) {
+            .integer => vb.integer,
+            .long => vb.long,
+            else => unreachable,
+        };
+        const result: ?i64 = switch (op) {
+            .add => a +% b,
+            .sub => a -% b,
+            .mul => a *% b,
+            .int_div => if (b != 0) @divTrunc(a, b) else null,
+            .mod => if (b != 0) @mod(a, b) else null,
+            .div => null, // Long division with / returns decimal
+        };
+        if (result) |r| {
+            try out.append(ctx.allocator, makeLongItemFromValue(ctx, r));
+            return out;
+        }
+        if (op == .div and b != 0) {
+            const fa: f64 = @floatFromInt(a);
+            const fb: f64 = @floatFromInt(b);
+            try out.append(ctx.allocator, try makeDecimalItem(ctx, fa / fb));
+            return out;
+        }
+    }
+
     // Decimal arithmetic
     const fa: ?f64 = switch (va) {
         .integer => |i| @floatFromInt(i),
+        .long => |i| @floatFromInt(i),
         .decimal => |d| std.fmt.parseFloat(f64, d) catch null,
         else => null,
     };
     const fb: ?f64 = switch (vb) {
         .integer => |i| @floatFromInt(i),
+        .long => |i| @floatFromInt(i),
         .decimal => |d| std.fmt.parseFloat(f64, d) catch null,
         else => null,
     };
@@ -2679,6 +2730,25 @@ fn evalFunction(
         }
         return out;
     }
+    if (std.mem.eql(u8, call.name, "toLong")) {
+        if (call.args.len != 0) return error.InvalidFunction;
+        var out = ItemList.empty;
+        if (input.len == 0) return out;
+        if (input.len != 1) return error.SingletonRequired;
+        if (convertToLong(ctx, input[0])) |val| {
+            try out.append(ctx.allocator, makeLongItemFromValue(ctx, val));
+        }
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "convertsToLong")) {
+        if (call.args.len != 0) return error.InvalidFunction;
+        var out = ItemList.empty;
+        if (input.len == 0) return out;
+        if (input.len != 1) return error.SingletonRequired;
+        const convertible = convertToLong(ctx, input[0]) != null;
+        try out.append(ctx.allocator, makeBoolItem(ctx, convertible));
+        return out;
+    }
     if (std.mem.eql(u8, call.name, "convertsToInteger")) {
         if (call.args.len != 0) return error.InvalidFunction;
         var out = ItemList.empty;
@@ -3352,15 +3422,16 @@ fn evalFunction(
         const integer_type_id = ctx.types.getOrAdd("System.Integer") catch 0;
         const decimal_type_id = ctx.types.getOrAdd("System.Decimal") catch 0;
         const quantity_type_id = ctx.types.getOrAdd("System.Quantity") catch 0;
+        const long_type_id = ctx.types.getOrAdd("System.Long") catch 0;
 
-        const first_kind = sumKindForItem(input[0], integer_type_id, decimal_type_id, quantity_type_id) orelse return error.InvalidOperand;
+        const first_kind = sumKindForItem(input[0], integer_type_id, decimal_type_id, quantity_type_id, long_type_id) orelse return error.InvalidOperand;
 
         var out = ItemList.empty;
         switch (first_kind) {
             .integer => {
                 var total: i64 = 0;
                 for (input) |it| {
-                    if (sumKindForItem(it, integer_type_id, decimal_type_id, quantity_type_id) != .integer) {
+                    if (sumKindForItem(it, integer_type_id, decimal_type_id, quantity_type_id, long_type_id) != .integer) {
                         return error.InvalidOperand;
                     }
                     if (it.data_kind == .value and it.value != null and it.value.? == .integer) {
@@ -3379,10 +3450,25 @@ fn evalFunction(
                 try out.append(ctx.allocator, makeIntegerItem(ctx, total));
                 return out;
             },
+            .long => {
+                var total: i64 = 0;
+                for (input) |it| {
+                    if (sumKindForItem(it, integer_type_id, decimal_type_id, quantity_type_id, long_type_id) != .long) {
+                        return error.InvalidOperand;
+                    }
+                    if (it.data_kind == .value and it.value != null and it.value.? == .long) {
+                        total +%= it.value.?.long;
+                    } else {
+                        return error.InvalidOperand;
+                    }
+                }
+                try out.append(ctx.allocator, makeLongItemFromValue(ctx, total));
+                return out;
+            },
             .decimal => {
                 var max_scale: u32 = 0;
                 for (input) |it| {
-                    if (sumKindForItem(it, integer_type_id, decimal_type_id, quantity_type_id) != .decimal) {
+                    if (sumKindForItem(it, integer_type_id, decimal_type_id, quantity_type_id, long_type_id) != .decimal) {
                         return error.InvalidOperand;
                     }
                     const text = decimalTextFromItem(ctx, it) orelse return error.InvalidOperand;
@@ -3407,7 +3493,7 @@ fn evalFunction(
                 var unit: ?[]const u8 = null;
                 var max_scale: u32 = 0;
                 for (input) |it| {
-                    if (sumKindForItem(it, integer_type_id, decimal_type_id, quantity_type_id) != .quantity) {
+                    if (sumKindForItem(it, integer_type_id, decimal_type_id, quantity_type_id, long_type_id) != .quantity) {
                         return error.InvalidOperand;
                     }
                     if (it.data_kind != .value or it.value == null or it.value.? != .quantity) {
@@ -3445,8 +3531,9 @@ fn evalFunction(
         const integer_type_id = ctx.types.getOrAdd("System.Integer") catch 0;
         const decimal_type_id = ctx.types.getOrAdd("System.Decimal") catch 0;
         const quantity_type_id = ctx.types.getOrAdd("System.Quantity") catch 0;
+        const long_type_id = ctx.types.getOrAdd("System.Long") catch 0;
 
-        const first_kind = sumKindForItem(input[0], integer_type_id, decimal_type_id, quantity_type_id) orelse return error.InvalidOperand;
+        const first_kind = sumKindForItem(input[0], integer_type_id, decimal_type_id, quantity_type_id, long_type_id) orelse return error.InvalidOperand;
 
         var out = ItemList.empty;
         const count: f64 = @floatFromInt(input.len);
@@ -3456,7 +3543,7 @@ fn evalFunction(
                 // Integer inputs are implicitly converted to Decimal for avg()
                 var total: f64 = 0;
                 for (input) |it| {
-                    if (sumKindForItem(it, integer_type_id, decimal_type_id, quantity_type_id) != .integer) {
+                    if (sumKindForItem(it, integer_type_id, decimal_type_id, quantity_type_id, long_type_id) != .integer) {
                         return error.InvalidOperand;
                     }
                     if (it.data_kind == .value and it.value != null and it.value.? == .integer) {
@@ -3475,10 +3562,26 @@ fn evalFunction(
                 try out.append(ctx.allocator, try makeDecimalItem(ctx, total / count));
                 return out;
             },
+            .long => {
+                // Long inputs are implicitly converted to Decimal for avg()
+                var total: f64 = 0;
+                for (input) |it| {
+                    if (sumKindForItem(it, integer_type_id, decimal_type_id, quantity_type_id, long_type_id) != .long) {
+                        return error.InvalidOperand;
+                    }
+                    if (it.data_kind == .value and it.value != null and it.value.? == .long) {
+                        total += @floatFromInt(it.value.?.long);
+                    } else {
+                        return error.InvalidOperand;
+                    }
+                }
+                try out.append(ctx.allocator, try makeDecimalItem(ctx, total / count));
+                return out;
+            },
             .decimal => {
                 var total: f64 = 0;
                 for (input) |it| {
-                    if (sumKindForItem(it, integer_type_id, decimal_type_id, quantity_type_id) != .decimal) {
+                    if (sumKindForItem(it, integer_type_id, decimal_type_id, quantity_type_id, long_type_id) != .decimal) {
                         return error.InvalidOperand;
                     }
                     const text = decimalTextFromItem(ctx, it) orelse return error.InvalidOperand;
@@ -3492,7 +3595,7 @@ fn evalFunction(
                 var unit: ?[]const u8 = null;
                 var total: f64 = 0;
                 for (input) |it| {
-                    if (sumKindForItem(it, integer_type_id, decimal_type_id, quantity_type_id) != .quantity) {
+                    if (sumKindForItem(it, integer_type_id, decimal_type_id, quantity_type_id, long_type_id) != .quantity) {
                         return error.InvalidOperand;
                     }
                     if (it.data_kind != .value or it.value == null or it.value.? != .quantity) {
@@ -5712,6 +5815,23 @@ fn convertToInteger(ctx: anytype, it: item.Item) ?i64 {
     }
 }
 
+/// Converts an item to Long if possible.
+/// - Integer or Long: passthrough/convert
+/// - String: must match regex (\+|-)?\d+ and fit in 64 bits
+/// - Boolean: true -> 1, false -> 0
+/// - Other types: null (not convertible)
+fn convertToLong(ctx: anytype, it: item.Item) ?i64 {
+    const val = itemToValue(ctx, it);
+    switch (val) {
+        .integer => |v| return v,
+        .long => |v| return v,
+        .boolean => |v| return if (v) 1 else 0,
+        .string => |s| return parseIntegerString(s),
+        // Decimal is not convertible to Long
+        else => return null,
+    }
+}
+
 fn convertToBoolean(ctx: anytype, it: item.Item) ?bool {
     const val = itemToValue(ctx, it);
     const integer_type_id = ctx.types.getOrAdd("System.Integer") catch 0;
@@ -6309,17 +6429,19 @@ fn isTime(s: []const u8) bool {
 // Math function implementations
 // ============================================================================
 
-const SumKind = enum { integer, decimal, quantity };
+const SumKind = enum { integer, long, decimal, quantity };
 
 fn sumKindForItem(
     it: item.Item,
     integer_type_id: u32,
     decimal_type_id: u32,
     quantity_type_id: u32,
+    long_type_id: u32,
 ) ?SumKind {
     if (it.data_kind == .value and it.value != null) {
         return switch (it.value.?) {
             .integer => .integer,
+            .long => .long,
             .decimal => .decimal,
             .quantity => .quantity,
             else => null,
@@ -6327,6 +6449,7 @@ fn sumKindForItem(
     }
     if (it.data_kind == .node_ref) {
         if (it.type_id == integer_type_id) return .integer;
+        if (it.type_id == long_type_id) return .long;
         if (it.type_id == decimal_type_id) return .decimal;
         if (it.type_id == quantity_type_id) return .quantity;
     }

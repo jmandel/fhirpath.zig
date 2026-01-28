@@ -53,20 +53,20 @@
     "Spec refs: spec/index.md Long literal section, toLong(), convertsToLong()."
   ],
   "_todo": [
-    "[ ] Improve passing rate (14/45 passing)",
+    "[x] All 45 tests passing",
     "[x] Long literal parsing works (0L, 45L syntax)",
     "[x] Long type identity checks work (is/as/ofType Long)",
     "[x] Long equality/comparison with same type works",
-    "[ ] Implement toLong() and convertsToLong() functions",
-    "[ ] Implement Long arithmetic operations (+, -, *, div, mod)",
-    "[ ] Implement Long ordering comparisons (<, >, <=, >=)",
-    "[ ] Implement Long equivalence with Integer (45L ~ 45)",
-    "[ ] Implement Long aggregate functions (sum, min, max, avg)",
+    "[x] Implement toLong() and convertsToLong() functions",
+    "[x] Implement Long arithmetic operations (+, -, *, div, mod)",
+    "[x] Implement Long ordering comparisons (<, >, <=, >=)",
+    "[x] Implement Long equivalence with Integer (45L ~ 45)",
+    "[x] Implement Long aggregate functions (sum, min, max, avg)",
     "[ ] Add tests for 64-bit boundary values (max/min Long)",
-    "[ ] Open question: Should Long+Long return Long or Decimal? (spec unclear)"
+    "[x] Resolution: Long+Long returns Long (intuitive behavior per spec Integer analogy)"
   ],
   "meta": {
-    "status": "reviewed",
+    "status": "implemented",
     "feature": "long-type",
     "source": "spec/index.md#Long"
   },

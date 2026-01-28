@@ -1,12 +1,13 @@
 {
   "meta": {
-    "status": "drafted"
+    "status": "reviewed"
   },
   "_spec_summary": "Regex matching functions: matches(), matchesFull(), replaceMatches(). All use regular expressions (PCRE flavor recommended). Case-sensitive by default, use 'single line' mode, allow Unicode.\n\n## matches(regex : String, [flags : String]) : Boolean\n- Returns true if the value contains a match for the given regex\n- Use ^ and $ anchors to match entire string\n- Empty input or regex returns empty\n- Multiple items in input is an error\n- Optional flags: 'i' for case-insensitive, 'm' for multi-line mode\n\n## matchesFull(regex : String, [flags : String]) : Boolean (STU)\n- Returns true if the value COMPLETELY matches the regex\n- Implicitly anchored at start and end (^ and $ surround the pattern)\n- Empty input or regex returns empty\n- Multiple items in input is an error\n- Optional flags: 'i' for case-insensitive, 'm' for multi-line mode\n\n## replaceMatches(regex : String, substitution : String, [flags : String]) : String\n- Replaces each regex match with the substitution string\n- Substitution can use named capture groups: ${groupname}\n- Empty input, regex, or substitution returns empty\n- Multiple items in input is an error\n- Optional flags: 'i' for case-insensitive, 'm' for multi-line mode\n\n## Key behaviors:\n- Regex is interpreted as PCRE (most portable)\n- Case-sensitive unless 'i' flag provided\n- Single-line mode by default (. doesn't match newlines unless multiline)\n- Unicode characters allowed",
   "_todo": [
     "[ ] Improve passing rate (0/32 passing, eval errors - functions not implemented)",
-    "[ ] Verify regex escape handling in tests",
-    "[ ] Check named capture group support"
+    "[x] Verify test expectations against spec examples",
+    "[x] Review regex escape handling in tests",
+    "[ ] Note: numbered capture groups ($1, $2) are standard PCRE but spec only shows named groups (${name})"
   ],
   "cases": [
     {

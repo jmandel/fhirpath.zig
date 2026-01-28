@@ -216,9 +216,23 @@ init().then(() => {
   runExpression();
 });
 
+let rerunTimer = null;
+function scheduleRun() {
+  if (rerunTimer) clearTimeout(rerunTimer);
+  rerunTimer = setTimeout(() => {
+    runExpression();
+    rerunTimer = null;
+  }, 120);
+}
+
 runBtn.addEventListener("click", runExpression);
 loadBtn.addEventListener("click", () => {
   loadExample(0);
   runExpression();
 });
-jsonInput.addEventListener("input", updateInputMeta);
+exprInput.addEventListener("input", scheduleRun);
+jsonInput.addEventListener("input", () => {
+  updateInputMeta();
+  scheduleRun();
+});
+schemaSelect.addEventListener("change", runExpression);

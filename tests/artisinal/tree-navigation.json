@@ -105,7 +105,14 @@
             "c": 3
           }
         }
-      ]
+      ],
+      "_adjudicated": {
+        "fhirpath_js": [{"type": "number", "value": 1}, {"type": "number", "value": 2}, {"type": "object", "value": {"c": 3}}],
+        "our_old_value": null,
+        "verdict": "js_limitation",
+        "reason": "fhirpath.js uses JavaScript's native type system which reports 'number' instead of 'integer' and 'object' instead of 'System.Any'. The actual values returned are semantically correct; only the type names differ due to JS type system limitations.",
+        "spec_ref": "§Tree navigation - children()"
+      }
     },
     {
       "name": "children on missing path returns empty",

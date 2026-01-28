@@ -229,7 +229,14 @@
           "type": "boolean",
           "value": true
         }
-      ]
+      ],
+      "_adjudicated": {
+        "fhirpath_js": [{"type": "boolean", "value": false}],
+        "our_old_value": null,
+        "verdict": "ours_correct",
+        "reason": "Spec §5.6.6 states: 'Returns true if all items in the collection passed as the other argument are members of the input collection. Membership is determined using the equals (=) operation.' This is set membership, not multiset matching. Each item in other (1, 1, 2) is tested for membership in items [1, 2]: all pass because 1 and 2 are both in [1, 2]. fhirpath.js appears to incorrectly implement multiset semantics requiring multiplicity.",
+        "spec_ref": "§5.6.6 supersetOf(other : collection) : Boolean"
+      }
     },
     {
       "name": "subsetOf/supersetOf: both empty are true",

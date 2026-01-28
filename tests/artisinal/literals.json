@@ -1,9 +1,9 @@
 {
   "meta": {
-    "status": "drafted"
+    "status": "reviewed"
   },
   "_spec_summary": [
-    "=== FHIRPath Literals (§4.1) ===",
+    "=== FHIRPath Literals (\u00a74.1) ===",
     "FHIRPath expressions can contain literal values of the following types:",
     "",
     "=== Boolean ===",
@@ -14,21 +14,21 @@
     "String literals are surrounded by single-quotes ('...').",
     "Max length: 2^31 - 1 characters.",
     "Escape sequences (ONLY these are recognized):",
-    "  \\' → single-quote",
-    "  \\\" → double-quote",
-    "  \\` → backtick",
-    "  \\r → carriage return (CR, U+000D)",
-    "  \\n → line feed (LF, U+000A)",
-    "  \\t → tab (U+0009)",
-    "  \\f → form feed (U+000C)",
-    "  \\\\ → backslash",
-    "  \\uXXXX → Unicode character (4 hex digits)",
+    "  \\' \u2192 single-quote",
+    "  \\\" \u2192 double-quote",
+    "  \\` \u2192 backtick",
+    "  \\r \u2192 carriage return (CR, U+000D)",
+    "  \\n \u2192 line feed (LF, U+000A)",
+    "  \\t \u2192 tab (U+0009)",
+    "  \\f \u2192 form feed (U+000C)",
+    "  \\\\ \u2192 backslash",
+    "  \\uXXXX \u2192 Unicode character (4 hex digits)",
     "",
     "CRITICAL: Unrecognized escape sequences drop the backslash!",
-    "  '\\p' → 'p' (backslash disappears)",
-    "  '\\3' → '3'",
-    "  '\\u005' → 'u005' (not 4 hex digits, so not Unicode escape)",
-    "  '\\' at end → '' (empty, backslash is dropped)",
+    "  '\\p' \u2192 'p' (backslash disappears)",
+    "  '\\3' \u2192 '3'",
+    "  '\\u005' \u2192 'u005' (not 4 hex digits, so not Unicode escape)",
+    "  '\\' at end \u2192 '' (empty, backslash is dropped)",
     "",
     "=== Integer ===",
     "Whole numbers in range -2^31 to 2^31 - 1.",
@@ -81,332 +81,599 @@
     "[x] Implement Long literal parsing (0L, 45L, etc.)",
     "[x] Fix string escape sequences (\\t, \\n, \\r, \\f not expanding)",
     "[x] Implement Unicode escape (\\uXXXX) processing",
-    "[ ] Fix calendar duration unit normalization (days -> day singular)"
+    "[ ] Fix calendar duration unit normalization (days -> day, years -> year, etc.)"
   ],
   "cases": [
     {
       "name": "boolean: true literal",
       "expr": "true",
       "input": {},
-      "expect": [{"type": "boolean", "value": true}]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
     },
     {
       "name": "boolean: false literal",
       "expr": "false",
       "input": {},
-      "expect": [{"type": "boolean", "value": false}]
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ]
     },
     {
       "name": "string: simple literal",
       "expr": "'hello world'",
       "input": {},
-      "expect": [{"type": "string", "value": "hello world"}]
+      "expect": [
+        {
+          "type": "string",
+          "value": "hello world"
+        }
+      ]
     },
     {
       "name": "string: empty string",
       "expr": "''",
       "input": {},
-      "expect": [{"type": "string", "value": ""}]
+      "expect": [
+        {
+          "type": "string",
+          "value": ""
+        }
+      ]
     },
     {
       "name": "string: escape single-quote",
       "expr": "'it\\'s a test'",
       "input": {},
-      "expect": [{"type": "string", "value": "it's a test"}]
+      "expect": [
+        {
+          "type": "string",
+          "value": "it's a test"
+        }
+      ]
     },
     {
       "name": "string: escape double-quote",
       "expr": "'say \\\"hello\\\"'",
       "input": {},
-      "expect": [{"type": "string", "value": "say \"hello\""}]
+      "expect": [
+        {
+          "type": "string",
+          "value": "say \"hello\""
+        }
+      ]
     },
     {
       "name": "string: escape backtick",
       "expr": "'code \\`block\\`'",
       "input": {},
-      "expect": [{"type": "string", "value": "code `block`"}]
+      "expect": [
+        {
+          "type": "string",
+          "value": "code `block`"
+        }
+      ]
     },
     {
       "name": "string: escape backslash",
       "expr": "'path\\\\to\\\\file'",
       "input": {},
-      "expect": [{"type": "string", "value": "path\\to\\file"}]
+      "expect": [
+        {
+          "type": "string",
+          "value": "path\\to\\file"
+        }
+      ]
     },
     {
       "name": "string: escape tab",
       "expr": "'a\\tb'",
       "input": {},
-      "expect": [{"type": "string", "value": "a\tb"}]
+      "expect": [
+        {
+          "type": "string",
+          "value": "a\tb"
+        }
+      ]
     },
     {
       "name": "string: escape newline",
       "expr": "'line1\\nline2'",
       "input": {},
-      "expect": [{"type": "string", "value": "line1\nline2"}]
+      "expect": [
+        {
+          "type": "string",
+          "value": "line1\nline2"
+        }
+      ]
     },
     {
       "name": "string: escape carriage return",
       "expr": "'a\\rb'",
       "input": {},
-      "expect": [{"type": "string", "value": "a\rb"}]
+      "expect": [
+        {
+          "type": "string",
+          "value": "a\rb"
+        }
+      ]
     },
     {
       "name": "string: escape form feed",
       "expr": "'a\\fb'",
       "input": {},
-      "expect": [{"type": "string", "value": "a\fb"}]
+      "expect": [
+        {
+          "type": "string",
+          "value": "a\fb"
+        }
+      ]
     },
     {
       "name": "string: unicode escape basic",
       "expr": "'\\u0041'",
       "input": {},
-      "expect": [{"type": "string", "value": "A"}],
+      "expect": [
+        {
+          "type": "string",
+          "value": "A"
+        }
+      ],
       "comment": "U+0041 is uppercase A"
     },
     {
       "name": "string: unicode escape asterisk",
       "expr": "'\\u002a'",
       "input": {},
-      "expect": [{"type": "string", "value": "*"}],
+      "expect": [
+        {
+          "type": "string",
+          "value": "*"
+        }
+      ],
       "comment": "U+002A is asterisk"
     },
     {
       "name": "string: unicode escape uppercase hex",
       "expr": "'\\u002A'",
       "input": {},
-      "expect": [{"type": "string", "value": "*"}],
+      "expect": [
+        {
+          "type": "string",
+          "value": "*"
+        }
+      ],
       "comment": "Hex digits can be uppercase"
     },
     {
       "name": "string: unicode escape null character",
       "expr": "'a\\u0000b'",
       "input": {},
-      "expect": [{"type": "string", "value": "a\u0000b"}],
+      "expect": [
+        {
+          "type": "string",
+          "value": "a\u0000b"
+        }
+      ],
       "comment": "U+0000 is null character"
     },
     {
       "name": "string: unrecognized escape drops backslash",
       "expr": "'\\p'",
       "input": {},
-      "expect": [{"type": "string", "value": "p"}],
+      "expect": [
+        {
+          "type": "string",
+          "value": "p"
+        }
+      ],
       "comment": "Spec: backslash is ignored for non-escape sequences"
     },
     {
       "name": "string: unrecognized escape with digit",
       "expr": "'\\3'",
       "input": {},
-      "expect": [{"type": "string", "value": "3"}],
-      "comment": "Spec example: \\3 → 3"
+      "expect": [
+        {
+          "type": "string",
+          "value": "3"
+        }
+      ],
+      "comment": "Spec example: \\3 \u2192 3"
     },
     {
       "name": "string: incomplete unicode escape",
       "expr": "'\\u005'",
       "input": {},
-      "expect": [{"type": "string", "value": "u005"}],
-      "comment": "Spec example: \\u005 → u005 (not 4 hex digits)"
+      "expect": [
+        {
+          "type": "string",
+          "value": "u005"
+        }
+      ],
+      "comment": "Spec example: \\u005 \u2192 u005 (not 4 hex digits)"
     },
     {
       "name": "string: trailing backslash escape impossible",
       "expr": "'test\\'",
       "input": {},
       "expect_error": true,
-      "comment": "A trailing backslash escapes the closing quote, making this unterminated. The spec example '\\' → '' is from CQL define context, not valid standalone FHIRPath."
+      "comment": "A trailing backslash escapes the closing quote, making this unterminated. The spec example '\\' \u2192 '' is from CQL define context, not valid standalone FHIRPath."
     },
     {
       "name": "string: backslash followed by backslash-p",
       "expr": "'\\\\p'",
       "input": {},
-      "expect": [{"type": "string", "value": "\\p"}],
-      "comment": "Spec example: \\\\p → \\p"
+      "expect": [
+        {
+          "type": "string",
+          "value": "\\p"
+        }
+      ],
+      "comment": "Spec example: \\\\p \u2192 \\p"
     },
     {
       "name": "string: multiple escapes combined",
       "expr": "'\\\\/\\f\\r\\n\\t\\\"\\`\\''",
       "input": {},
-      "expect": [{"type": "string", "value": "\\/\f\r\n\t\"`'"}],
+      "expect": [
+        {
+          "type": "string",
+          "value": "\\/\f\r\n\t\"`'"
+        }
+      ],
       "comment": "All standard escapes in sequence"
     },
     {
       "name": "integer: zero",
       "expr": "0",
       "input": {},
-      "expect": [{"type": "integer", "value": 0}]
+      "expect": [
+        {
+          "type": "integer",
+          "value": 0
+        }
+      ]
     },
     {
       "name": "integer: positive",
       "expr": "45",
       "input": {},
-      "expect": [{"type": "integer", "value": 45}]
+      "expect": [
+        {
+          "type": "integer",
+          "value": 45
+        }
+      ]
     },
     {
       "name": "integer: negative (unary negation)",
       "expr": "-5",
       "input": {},
-      "expect": [{"type": "integer", "value": -5}]
+      "expect": [
+        {
+          "type": "integer",
+          "value": -5
+        }
+      ]
     },
     {
       "name": "integer: max 32-bit",
       "expr": "2147483647",
       "input": {},
-      "expect": [{"type": "integer", "value": 2147483647}]
+      "expect": [
+        {
+          "type": "integer",
+          "value": 2147483647
+        }
+      ]
     },
     {
       "name": "integer: min 32-bit",
       "expr": "-2147483648",
       "input": {},
-      "expect": [{"type": "integer", "value": -2147483648}]
+      "expect": [
+        {
+          "type": "integer",
+          "value": -2147483648
+        }
+      ]
     },
     {
       "name": "long: zero",
       "expr": "0L",
       "input": {},
-      "expect": [{"type": "long", "value": 0}]
+      "expect": [
+        {
+          "type": "long",
+          "value": 0
+        }
+      ]
     },
     {
       "name": "long: positive",
       "expr": "45L",
       "input": {},
-      "expect": [{"type": "long", "value": 45}]
+      "expect": [
+        {
+          "type": "long",
+          "value": 45
+        }
+      ]
     },
     {
       "name": "long: negative (unary negation)",
       "expr": "-5L",
       "input": {},
-      "expect": [{"type": "long", "value": -5}]
+      "expect": [
+        {
+          "type": "long",
+          "value": -5
+        }
+      ]
     },
     {
       "name": "long: beyond 32-bit range",
       "expr": "9223372036854775807L",
       "input": {},
-      "expect": [{"type": "long", "value": 9223372036854775807}]
+      "expect": [
+        {
+          "type": "long",
+          "value": 9223372036854775807
+        }
+      ]
     },
     {
       "name": "decimal: zero with fraction",
       "expr": "0.0",
       "input": {},
-      "expect": [{"type": "decimal", "value": "0.0"}]
+      "expect": [
+        {
+          "type": "decimal",
+          "value": "0.0"
+        }
+      ]
     },
     {
       "name": "decimal: pi approximation",
       "expr": "3.14159265",
       "input": {},
-      "expect": [{"type": "decimal", "value": "3.14159265"}]
+      "expect": [
+        {
+          "type": "decimal",
+          "value": "3.14159265"
+        }
+      ]
     },
     {
       "name": "decimal: negative",
       "expr": "-2.5",
       "input": {},
-      "expect": [{"type": "decimal", "value": "-2.5"}]
+      "expect": [
+        {
+          "type": "decimal",
+          "value": "-2.5"
+        }
+      ]
     },
     {
       "name": "decimal: leading zero",
       "expr": "0.123",
       "input": {},
-      "expect": [{"type": "decimal", "value": "0.123"}]
+      "expect": [
+        {
+          "type": "decimal",
+          "value": "0.123"
+        }
+      ]
     },
     {
       "name": "date: full date",
       "expr": "@2014-01-25",
       "input": {},
-      "expect": [{"type": "date", "value": "2014-01-25"}]
+      "expect": [
+        {
+          "type": "date",
+          "value": "2014-01-25"
+        }
+      ]
     },
     {
       "name": "date: year-month only",
       "expr": "@2014-01",
       "input": {},
-      "expect": [{"type": "date", "value": "2014-01"}]
+      "expect": [
+        {
+          "type": "date",
+          "value": "2014-01"
+        }
+      ]
     },
     {
       "name": "date: year only",
       "expr": "@2014",
       "input": {},
-      "expect": [{"type": "date", "value": "2014"}]
+      "expect": [
+        {
+          "type": "date",
+          "value": "2014"
+        }
+      ]
     },
     {
       "name": "time: hour and minute",
       "expr": "@T12:00",
       "input": {},
-      "expect": [{"type": "time", "value": "12:00"}]
+      "expect": [
+        {
+          "type": "time",
+          "value": "12:00"
+        }
+      ]
     },
     {
       "name": "time: with seconds",
       "expr": "@T14:30:14",
       "input": {},
-      "expect": [{"type": "time", "value": "14:30:14"}]
+      "expect": [
+        {
+          "type": "time",
+          "value": "14:30:14"
+        }
+      ]
     },
     {
       "name": "time: with milliseconds",
       "expr": "@T14:30:14.559",
       "input": {},
-      "expect": [{"type": "time", "value": "14:30:14.559"}]
+      "expect": [
+        {
+          "type": "time",
+          "value": "14:30:14.559"
+        }
+      ]
     },
     {
       "name": "datetime: full with milliseconds",
       "expr": "@2014-01-25T14:30:14.559",
       "input": {},
-      "expect": [{"type": "dateTime", "value": "2014-01-25T14:30:14.559"}]
+      "expect": [
+        {
+          "type": "dateTime",
+          "value": "2014-01-25T14:30:14.559"
+        }
+      ]
     },
     {
       "name": "datetime: with Z timezone",
       "expr": "@2014-01-25T14:30:14.559Z",
       "input": {},
-      "expect": [{"type": "dateTime", "value": "2014-01-25T14:30:14.559Z"}]
+      "expect": [
+        {
+          "type": "dateTime",
+          "value": "2014-01-25T14:30:14.559Z"
+        }
+      ]
     },
     {
       "name": "datetime: with positive timezone",
       "expr": "@2014-01-25T14:30:14+05:30",
       "input": {},
-      "expect": [{"type": "dateTime", "value": "2014-01-25T14:30:14+05:30"}]
+      "expect": [
+        {
+          "type": "dateTime",
+          "value": "2014-01-25T14:30:14+05:30"
+        }
+      ]
     },
     {
       "name": "datetime: with negative timezone",
       "expr": "@2014-01-25T14:30:14-08:00",
       "input": {},
-      "expect": [{"type": "dateTime", "value": "2014-01-25T14:30:14-08:00"}]
+      "expect": [
+        {
+          "type": "dateTime",
+          "value": "2014-01-25T14:30:14-08:00"
+        }
+      ]
     },
     {
       "name": "datetime: partial year only",
       "expr": "@2014T",
       "input": {},
-      "expect": [{"type": "dateTime", "value": "2014T"}],
+      "expect": [
+        {
+          "type": "dateTime",
+          "value": "2014T"
+        }
+      ],
       "comment": "Trailing T indicates DateTime, not Date"
     },
     {
       "name": "datetime: partial year-month",
       "expr": "@2014-01T",
       "input": {},
-      "expect": [{"type": "dateTime", "value": "2014-01T"}]
+      "expect": [
+        {
+          "type": "dateTime",
+          "value": "2014-01T"
+        }
+      ]
     },
     {
       "name": "datetime: partial year-month-day",
       "expr": "@2014-03-25T",
       "input": {},
-      "expect": [{"type": "dateTime", "value": "2014-03-25T"}]
+      "expect": [
+        {
+          "type": "dateTime",
+          "value": "2014-03-25T"
+        }
+      ]
     },
     {
       "name": "quantity: decimal with UCUM unit",
       "expr": "4.5 'mg'",
       "input": {},
-      "expect": [{"type": "Quantity", "value": {"value": 4.5, "unit": "mg"}}]
+      "expect": [
+        {
+          "type": "Quantity",
+          "value": {
+            "value": 4.5,
+            "unit": "mg"
+          }
+        }
+      ]
     },
     {
       "name": "quantity: integer with UCUM unit",
       "expr": "100 '[degF]'",
       "input": {},
-      "expect": [{"type": "Quantity", "value": {"value": 100, "unit": "[degF]"}}],
+      "expect": [
+        {
+          "type": "Quantity",
+          "value": {
+            "value": 100,
+            "unit": "[degF]"
+          }
+        }
+      ],
       "comment": "Integer is implicitly converted to Decimal"
     },
     {
       "name": "quantity: calendar duration singular",
       "expr": "1 year",
       "input": {},
-      "expect": [{"type": "Quantity", "value": {"value": 1, "unit": "year"}}]
+      "expect": [
+        {
+          "type": "Quantity",
+          "value": {
+            "value": 1,
+            "unit": "year"
+          }
+        }
+      ]
     },
     {
       "name": "quantity: calendar duration plural",
       "expr": "4 days",
       "input": {},
-      "expect": [{"type": "Quantity", "value": {"value": 4, "unit": "day"}}],
+      "expect": [
+        {
+          "type": "Quantity",
+          "value": {
+            "value": 4,
+            "unit": "day"
+          }
+        }
+      ],
       "comment": "Plural form normalizes to singular in unit"
     },
     {
@@ -419,7 +686,12 @@
       "name": "empty collection in expression",
       "expr": "{}.count()",
       "input": {},
-      "expect": [{"type": "integer", "value": 0}]
+      "expect": [
+        {
+          "type": "integer",
+          "value": 0
+        }
+      ]
     }
   ]
 }

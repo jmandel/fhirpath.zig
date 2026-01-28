@@ -2,96 +2,130 @@
   "_spec_summary": [
     "Cross-type Date/DateTime comparison and implicit conversion.",
     "",
-    "=== IMPLICIT CONVERSION (Date → DateTime) ===",
-    "The FHIRPath spec §5.2 Type Conversion defines implicit and explicit conversions.",
-    "  - Date → DateTime: IMPLICIT conversion is supported",
-    "  - DateTime → Date: Requires EXPLICIT toDate() call",
+    "=== IMPLICIT CONVERSION (Date \u2192 DateTime) ===",
+    "The FHIRPath spec \u00a75.2 Type Conversion defines implicit and explicit conversions.",
+    "  - Date \u2192 DateTime: IMPLICIT conversion is supported",
+    "  - DateTime \u2192 Date: Requires EXPLICIT toDate() call",
     "",
     "When a Date is implicitly converted to DateTime (e.g., for comparison with a DateTime):",
     "  - Year, month, day are copied from the Date",
     "  - Time components are EMPTY (not set to zero)",
     "  - This is critical: a Date converted to DateTime is a PARTIAL DateTime",
-    "  - Spec §5.7.10: 'the result is a DateTime with the year, month, and day of the Date,",
+    "  - Spec \u00a75.7.10: 'the result is a DateTime with the year, month, and day of the Date,",
     "    and the time components empty (not set to zero)'",
     "",
+    "=== PARTIAL DATETIME LITERALS ===",
+    "The spec allows partial DateTime literals with just a 'T' suffix:",
+    "  - @2024T is a partial DateTime with only year",
+    "  - @2024-01T is a partial DateTime with year and month",
+    "  - @2024-01-15T is a partial DateTime with year, month, and day (no time)",
+    "This syntax distinguishes a partial DateTime from a Date literal. The 'T' suffix",
+    "indicates DateTime type but with time components empty (not specified).",
+    "Official tests confirm: @2015-02-04T.is(DateTime) = true",
+    "",
     "=== PRECISION AND COMPARISON ===",
-    "§5.6.3 Date/Time Comparison states:",
+    "\u00a75.6.3 Date/Time Comparison states:",
     "  - Comparison proceeds precision by precision (years, months, days, hours, etc.)",
-    "  - If precisions are equal at each level, comparison continues to the next level",
-    "  - If one value has a precision the other doesn't, result is empty ({})",
-    "  - The time components (seconds + milliseconds) are treated as a single decimal precision",
+    "  - If values differ at any precision, comparison stops and returns result",
+    "  - If one value has a precision the other does not, result is empty ({})",
+    "  - The seconds + milliseconds are treated as a single decimal precision",
     "",
-    "This means:",
-    "  @2024-01-15 (Date) vs @2024-01-15T10:30:00 (DateTime):",
-    "  - Date is implicitly converted to DateTime with empty time",
-    "  - Comparison proceeds through year, month, day (all equal)",
-    "  - Then: one has hour (10), other has no hour (empty time)",
-    "  - Result: empty ({}) - different precisions",
-    "",
-    "=== EQUALITY (=) vs EQUIVALENCE (~) ===",
-    "§5.6.1 Equality: Different precision → empty ({})",
-    "§5.6.2 Equivalence: Different precision → false",
+    "Key insight: Different precision ONLY returns empty when we need that precision",
+    "to determine the result. If values differ earlier (e.g., different years), we",
+    "can return a result without needing the differing precisions.",
     "",
     "Examples:",
-    "  @2024-01-15 = @2024-01-15T10:30:00  → {} (diff precision, Date has no time)",
-    "  @2024-01-15 ~ @2024-01-15T10:30:00  → false (diff precision)",
-    "  @2024-01-15 = @2024-01-15T00:00:00  → {} (Date has no time, even if DateTime is midnight)",
-    "  @2024-01-15T = @2024-01-15T10:30:00 → {} (partial DateTime vs full DateTime)",
+    "  @2024-01-15 (Date) vs @2024-01-15T10:30:00 (DateTime):",
+    "  - Date is implicitly converted to DateTime with empty time",
+    "  - Comparison: year equal, month equal, day equal",
+    "  - Then: one has hour (10), other has no hour (empty time)",
+    "  - Result: empty ({}) - cannot determine order without time",
+    "",
+    "  @2024-01-15 (Date) vs @2023-12-31T23:59:59 (DateTime):",
+    "  - Years differ: 2024 > 2023",
+    "  - Result: Date > DateTime (no need to check time precision)",
+    "",
+    "=== EQUALITY (=) vs EQUIVALENCE (~) ===",
+    "\u00a75.6.1 Equality: Different precision \u2192 empty ({})",
+    "\u00a75.6.2 Equivalence: Different precision \u2192 false",
+    "",
+    "Official test examples:",
+    "  testEquality19: @2012-04-15 = @2012-04-15T10:00:00 \u2192 {} (empty)",
+    "  testNEquality13: @2012-04-15 != @2012-04-15T10:00:00 \u2192 {} (empty)",
     "",
     "=== now() > today() SPECIAL CASE ===",
     "  now() returns a full-precision DateTime (including time)",
     "  today() returns a Date (no time component)",
     "  Comparing now() > today():",
     "    - today() is implicitly converted to DateTime with empty time",
-    "    - now() has full time precision",
-    "    - Different precisions → result is empty ({})",
+    "    - now() has full time precision, today() has no time",
+    "    - Same date portion, but different time precision",
+    "    - Result: empty ({}) per spec",
     "",
-    "This is counterintuitive but correct per spec: we cannot definitively say",
-    "whether 'right now' is greater than 'today' because 'today' lacks time precision.",
+    "Official test testDateTimeGreaterThanDate2 confirms: now() > today() \u2192 {} (empty)",
+    "",
+    "This is counterintuitive but correct: we cannot definitively say whether",
+    "'right now' is greater than 'today' because 'today' lacks time precision.",
     "",
     "=== SAME-DAY COMPARISON ===",
-    "To compare if a DateTime is 'on' a particular Date:",
+    "To compare if a DateTime is \"on\" a particular Date:",
     "  - Use dateTime.toDate() = date (explicit conversion, same precision)",
     "  - Or: dateTime >= date.toDateTime() and dateTime < (date + 1 day).toDateTime()",
     "",
-    "Spec refs: §5.2 (Type Conversion), §5.6.1 (Equality), §5.6.2 (Equivalence),",
-    "§5.6.3 (Comparison), §5.7.10 (toDateTime)"
+    "Spec refs: \u00a75.2 (Type Conversion), \u00a75.6.1 (Equality), \u00a75.6.2 (Equivalence),",
+    "\u00a75.6.3 (Comparison), \u00a75.7.10 (toDateTime)"
   ],
   "_todo": [
     "[ ] Improve passing rate (28/40 passing)",
     "[ ] Fix equality (=) to return empty when Date/DateTime precisions differ",
     "[ ] Fix comparison (<,>,<=,>=) to return empty (not error) for different precisions",
     "[ ] Fix toDateTime() to properly mark time components as empty",
+    "[ ] Implement implicit Date\u2192DateTime conversion in comparison operators",
     "[ ] Test now() > today() returns empty per spec (currently returns error)"
   ],
   "meta": {
-    "status": "drafted",
+    "status": "reviewed",
     "feature": "datetime-cross-type",
-    "source": "spec/index.md§5.2, §5.6"
+    "source": "spec/index.md\u00a75.2, \u00a75.6"
   },
   "cases": [
     {
-      "_section": "=== DATE → DATETIME IMPLICIT CONVERSION ==="
+      "_section": "=== DATE \u2192 DATETIME IMPLICIT CONVERSION ==="
     },
     {
       "name": "toDateTime: Date converts to DateTime with empty time",
       "expr": "@2024-01-15.toDateTime() = @2024-01-15",
       "input": {},
-      "expect": [{"type": "boolean", "value": true}],
-      "comment": "After toDateTime, the Date becomes partial DateTime (empty time). The Date operand is also implicitly converted to DateTime with empty time. Both have same year/month/day and both lack time (same precision) → true"
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ],
+      "comment": "After toDateTime, the Date becomes partial DateTime (empty time). The Date operand is also implicitly converted to DateTime with empty time. Both have same year/month/day and both lack time (same precision) \u2192 true"
     },
     {
       "name": "Date equals same-day Date (baseline)",
       "expr": "@2024-01-15 = @2024-01-15",
       "input": {},
-      "expect": [{"type": "boolean", "value": true}],
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ],
       "comment": "Same precision, same values"
     },
     {
       "name": "DateTime equals same DateTime (baseline)",
       "expr": "@2024-01-15T10:30:00 = @2024-01-15T10:30:00",
       "input": {},
-      "expect": [{"type": "boolean", "value": true}],
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ],
       "comment": "Same precision, same values"
     },
     {
@@ -102,7 +136,7 @@
       "expr": "@2024-01-15 = @2024-01-15T10:30:00",
       "input": {},
       "expect": [],
-      "comment": "Date has no time, DateTime has full time. After implicit conversion, comparing partial DateTime (no time) to full DateTime (with time) → empty"
+      "comment": "Date has no time, DateTime has full time. After implicit conversion, comparing partial DateTime (no time) to full DateTime (with time) \u2192 empty"
     },
     {
       "name": "equality: Date vs midnight DateTime returns empty",
@@ -146,35 +180,60 @@
       "name": "equivalence: Date vs DateTime returns false (different precision)",
       "expr": "@2024-01-15 ~ @2024-01-15T10:30:00",
       "input": {},
-      "expect": [{"type": "boolean", "value": false}],
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ],
       "comment": "Equivalence with different precision returns false, not empty"
     },
     {
       "name": "equivalence: Date vs midnight DateTime returns false",
       "expr": "@2024-01-15 ~ @2024-01-15T00:00:00",
       "input": {},
-      "expect": [{"type": "boolean", "value": false}],
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ],
       "comment": "Even midnight: precision difference means false"
     },
     {
       "name": "equivalence: DateTime vs Date returns false",
       "expr": "@2024-01-15T10:30:00 ~ @2024-01-15",
       "input": {},
-      "expect": [{"type": "boolean", "value": false}],
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ],
       "comment": "Order shouldn't matter"
     },
     {
       "name": "equivalence: partial DateTime vs full DateTime returns false",
       "expr": "@2024-01-15T10 ~ @2024-01-15T10:30:00",
       "input": {},
-      "expect": [{"type": "boolean", "value": false}],
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ],
       "comment": "Hour-only vs full time"
     },
     {
       "name": "equivalence: year-only vs full Date returns false",
       "expr": "@2024 ~ @2024-01-15",
       "input": {},
-      "expect": [{"type": "boolean", "value": false}],
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ],
       "comment": "Year vs full date"
     },
     {
@@ -185,14 +244,14 @@
       "expr": "@2024-01-15 > @2024-01-14T23:59:59",
       "input": {},
       "expect": [],
-      "comment": "Even though Jan 15 'feels' greater than end of Jan 14, precision differs → empty"
+      "comment": "Even though Jan 15 'feels' greater than end of Jan 14, precision differs \u2192 empty"
     },
     {
       "name": "less than: Date vs DateTime returns empty",
       "expr": "@2024-01-14 < @2024-01-15T00:00:01",
       "input": {},
       "expect": [],
-      "comment": "Different precisions → empty"
+      "comment": "Different precisions \u2192 empty"
     },
     {
       "name": "greater than: DateTime vs Date returns empty",
@@ -223,7 +282,7 @@
       "expr": "now() > today()",
       "input": {},
       "expect": [],
-      "comment": "Official test testDateTimeGreaterThanDate2 expects empty. now() has full DateTime precision, today() is Date → different precision comparison"
+      "comment": "Official test testDateTimeGreaterThanDate2 expects empty. now() has full DateTime precision, today() is Date \u2192 different precision comparison"
     },
     {
       "name": "now less than today returns empty (different precision)",
@@ -243,7 +302,12 @@
       "name": "now equivalent to today returns false (different precision)",
       "expr": "now() ~ today()",
       "input": {},
-      "expect": [{"type": "boolean", "value": false}],
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ],
       "comment": "Equivalence with different precision returns false"
     },
     {
@@ -260,28 +324,48 @@
       "name": "comparison: same-precision Dates work",
       "expr": "@2024-01-15 > @2024-01-14",
       "input": {},
-      "expect": [{"type": "boolean", "value": true}],
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ],
       "comment": "Same precision - comparison works"
     },
     {
       "name": "comparison: same-precision DateTimes work",
       "expr": "@2024-01-15T10:30:00 > @2024-01-15T10:29:00",
       "input": {},
-      "expect": [{"type": "boolean", "value": true}],
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ],
       "comment": "Same precision - comparison works"
     },
     {
       "name": "comparison: partial DateTimes with same precision",
       "expr": "@2024-01-15T10 > @2024-01-15T09",
       "input": {},
-      "expect": [{"type": "boolean", "value": true}],
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ],
       "comment": "Both hour-only - same precision, comparison works"
     },
     {
       "name": "comparison: year-only Dates with same precision",
       "expr": "@2024 > @2023",
       "input": {},
-      "expect": [{"type": "boolean", "value": true}],
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ],
       "comment": "Both year-only - same precision"
     },
     {
@@ -291,21 +375,36 @@
       "name": "toDate: DateTime to Date loses time precision",
       "expr": "@2024-01-15T10:30:00.toDate() = @2024-01-15",
       "input": {},
-      "expect": [{"type": "boolean", "value": true}],
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ],
       "comment": "toDate() extracts date part, now same precision"
     },
     {
       "name": "toDate: now() can be compared to today() after conversion",
       "expr": "now().toDate() = today()",
       "input": {},
-      "expect": [{"type": "boolean", "value": true}],
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ],
       "comment": "Both are Dates with same precision now"
     },
     {
       "name": "toDate: midnight DateTime equals Date after conversion",
       "expr": "@2024-01-15T00:00:00.toDate() = @2024-01-15",
       "input": {},
-      "expect": [{"type": "boolean", "value": true}],
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ],
       "comment": "Explicit toDate() makes precision match"
     },
     {
@@ -316,20 +415,30 @@
       "expr": "@2024-01-15.toDateTime() = @2024-01-15T10:30:00",
       "input": {},
       "expect": [],
-      "comment": "Date→DateTime has empty time, comparing to full DateTime → empty"
+      "comment": "Date\u2192DateTime has empty time, comparing to full DateTime \u2192 empty"
     },
     {
       "name": "toDateTime: two Dates converted compare as expected",
       "expr": "@2024-01-15.toDateTime() = @2024-01-14.toDateTime()",
       "input": {},
-      "expect": [{"type": "boolean", "value": false}],
-      "comment": "Both partial DateTimes (no time), different days → false"
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ],
+      "comment": "Both partial DateTimes (no time), different days \u2192 false"
     },
     {
       "name": "toDateTime: same Date converted equals itself",
       "expr": "@2024-01-15.toDateTime() = @2024-01-15.toDateTime()",
       "input": {},
-      "expect": [{"type": "boolean", "value": true}],
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ],
       "comment": "Same partial DateTime"
     },
     {
@@ -339,7 +448,12 @@
       "name": "time equals time (same precision)",
       "expr": "@T10:30:00 = @T10:30:00",
       "input": {},
-      "expect": [{"type": "boolean", "value": true}],
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ],
       "comment": "Time comparison baseline"
     },
     {
@@ -353,7 +467,12 @@
       "name": "time equivalence: different precision returns false",
       "expr": "@T10:30 ~ @T10:30:00",
       "input": {},
-      "expect": [{"type": "boolean", "value": false}],
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ],
       "comment": "Equivalence with different precision returns false"
     },
     {
@@ -363,21 +482,36 @@
       "name": "comparing Date with time-only partial DateTime",
       "expr": "@2024-01-15 = @2024-01-15T",
       "input": {},
-      "expect": [{"type": "boolean", "value": true}],
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ],
       "comment": "Spec says @2024-01-15T is valid partial DateTime (year/month/day, no time). Date implicitly converts to DateTime with empty time. Both have same precision (year/month/day only) so should be equal. Note: fhirpath.js crashes on @2024-01-15T syntax."
     },
     {
       "name": "millisecond precision treated as decimal",
       "expr": "@2024-01-15T10:30:00.000 = @2024-01-15T10:30:00",
       "input": {},
-      "expect": [{"type": "boolean", "value": true}],
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ],
       "comment": "Trailing zeros after decimal in seconds are ignored per spec"
     },
     {
       "name": "millisecond precision: non-zero vs zero seconds",
       "expr": "@2024-01-15T10:30:00.001 = @2024-01-15T10:30:00",
       "input": {},
-      "expect": [{"type": "boolean", "value": false}],
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ],
       "comment": "Different values at same precision"
     }
   ]

@@ -19,8 +19,8 @@
   "todo": [
     "[x] Implement empty() on collections (true for {}, false otherwise).",
     "[x] Implement exists() on collections (true for non-empty, false for {}).",
-    "[ ] Implement exists(criteria) as where(criteria).exists().",
-    "[ ] Add criteria-based tests once where() is supported.",
+    "[x] Implement exists(criteria) as where(criteria).exists().",
+    "[ ] Add criteria-based tests for exists(criteria).",
     "[x] Improve passing rate (8/8 passing)."
   ],
   "cases": [

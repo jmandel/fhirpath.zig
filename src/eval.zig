@@ -2181,7 +2181,29 @@ fn evalFunction(
     }
     if (std.mem.eql(u8, call.name, "exists")) {
         var out = ItemList.empty;
-        try out.append(ctx.allocator, makeBoolItem(ctx, input.len != 0));
+        if (call.args.len == 0) {
+            // exists() without criteria: true if collection is non-empty
+            try out.append(ctx.allocator, makeBoolItem(ctx, input.len != 0));
+            return out;
+        }
+        // exists(criteria): shorthand for where(criteria).exists()
+        // Return true if ANY element matches the criteria
+        if (call.args.len != 1) return error.InvalidFunction;
+        for (input, 0..) |it, idx| {
+            var criteria = try evalExpressionCtx(ctx, call.args[0], it, env, idx);
+            defer criteria.deinit(ctx.allocator);
+            if (criteria.items.len == 0) continue;
+            if (criteria.items.len != 1) return error.InvalidPredicate;
+            const crit = criteria.items[0];
+            if (!itemIsBool(ctx, crit)) return error.InvalidPredicate;
+            if (itemBoolValue(ctx, crit)) {
+                // Found at least one match
+                try out.append(ctx.allocator, makeBoolItem(ctx, true));
+                return out;
+            }
+        }
+        // No matches found
+        try out.append(ctx.allocator, makeBoolItem(ctx, false));
         return out;
     }
     if (std.mem.eql(u8, call.name, "toInteger")) {
@@ -2673,6 +2695,40 @@ fn evalFunction(
                 try out.append(ctx.allocator, it);
             }
         }
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "all")) {
+        if (call.args.len != 1) return error.InvalidFunction;
+        // Empty input collection returns true (vacuous truth)
+        if (input.len == 0) {
+            var out = ItemList.empty;
+            try out.append(ctx.allocator, makeBoolItem(ctx, true));
+            return out;
+        }
+        // Evaluate criteria for each element; all must return true
+        for (input, 0..) |it, idx| {
+            var criteria = try evalExpressionCtx(ctx, call.args[0], it, env, idx);
+            defer criteria.deinit(ctx.allocator);
+            // If criteria returns empty, that's not true, so all() returns false
+            if (criteria.items.len == 0) {
+                var out = ItemList.empty;
+                try out.append(ctx.allocator, makeBoolItem(ctx, false));
+                return out;
+            }
+            // Criteria must be singleton boolean
+            if (criteria.items.len != 1) return error.InvalidPredicate;
+            const crit = criteria.items[0];
+            if (!itemIsBool(ctx, crit)) return error.InvalidPredicate;
+            // If any criteria evaluates to false, return false
+            if (!itemBoolValue(ctx, crit)) {
+                var out = ItemList.empty;
+                try out.append(ctx.allocator, makeBoolItem(ctx, false));
+                return out;
+            }
+        }
+        // All criteria evaluated to true
+        var out = ItemList.empty;
+        try out.append(ctx.allocator, makeBoolItem(ctx, true));
         return out;
     }
     if (std.mem.eql(u8, call.name, "repeat")) {

@@ -45,7 +45,7 @@
     "Note: The function name 'all' is sometimes also called 'every' in other languages."
   ],
   "_todo": [
-    "[ ] Improve passing rate (0/29 passing) - pending all() implementation",
+    "[x] Improve passing rate (29/29 passing)",
     "[x] Verify empty input returns true per spec (covered by 'empty collection returns true' test)",
     "[x] Verify criteria using $this and $index work correctly (covered by $INDEX TESTS section)",
     "[x] Test with complex criteria expressions (covered by COMPLEX CRITERIA section)",
@@ -56,7 +56,7 @@
     "A: Implementation detail; spec doesn't mandate this but it's a reasonable optimization."
   ],
   "meta": {
-    "status": "reviewed"
+    "status": "implemented"
   },
   "cases": [
     {

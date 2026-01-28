@@ -69,12 +69,12 @@
     "  - {}.unescape('json') -> {}"
   ],
   "_todo": [
-    "[ ] Improve passing rate (0/51 passing) - functions not yet implemented",
-    "[ ] Verify hex encoding is lowercase per spec",
+    "[x] Improve passing rate (51/51 passing)",
+    "[x] Verify hex encoding is lowercase per spec",
     "[ ] Test Unicode string encoding/decoding",
-    "[ ] Test edge cases: empty string, single character",
+    "[x] Test edge cases: empty string, single character",
     "[ ] Test invalid format arguments",
-    "[ ] Test escape/unescape for special characters"
+    "[x] Test escape/unescape for special characters"
   ],
   "_open_questions": [
     "What happens if decode receives invalid encoded data (e.g., invalid base64)?",
@@ -82,7 +82,7 @@
     "Should escape('html') escape characters above 127? Spec says 'ideally'"
   ],
   "meta": {
-    "status": "drafted"
+    "status": "implemented"
   },
   "cases": [
     {
@@ -303,8 +303,14 @@
       "name": "escape json: backslash",
       "expr": "'path\\\\file'.escape('json')",
       "input": {},
-      "expect": [{"type": "string", "value": "path\\\\\\\\file"}],
-      "comment": "Single backslash becomes double backslash in JSON"
+      "expect": [{"type": "string", "value": "path\\\\file"}],
+      "comment": "Single backslash becomes double backslash in JSON. Input is 'path\\file' (1 backslash), output is 'path\\\\file' (2 backslashes)",
+      "_adjudicated": {
+        "our_old_value": [{"type": "string", "value": "path\\\\\\\\file"}],
+        "verdict": "theirs_correct",
+        "reason": "The test expected 4 backslashes but should be 2. Input 'path\\\\file' in FHIRPath is 'path\\file' (1 backslash). JSON-escaping 1 backslash produces 2 backslashes ('\\\\').",
+        "spec_ref": "§7.3 Additional String Functions (STU)"
+      }
     },
     {
       "name": "escape json: no special chars",

@@ -3927,6 +3927,294 @@ fn evalFunction(
         try out.appendSlice(ctx.allocator, input);
         return out;
     }
+    // encode(format: String) - Encodes string in hex, base64, or urlbase64 format
+    if (std.mem.eql(u8, call.name, "encode")) {
+        if (call.args.len != 1) return error.InvalidFunction;
+        if (input.len == 0) return ItemList.empty;
+        if (input.len > 1) return error.SingletonRequired;
+        const str = itemStringValue(ctx, input[0]) orelse return error.InvalidFunction;
+        const format = try evalStringArg(ctx, call.args[0], env);
+        if (format == null) return ItemList.empty;
+        var out = ItemList.empty;
+        if (std.mem.eql(u8, format.?, "hex")) {
+            // Hex encoding: each byte becomes two hex chars (lowercase)
+            if (str.len == 0) {
+                try out.append(ctx.allocator, makeStringItem(ctx, ""));
+                return out;
+            }
+            const hex_str = try ctx.allocator.alloc(u8, str.len * 2);
+            const hex_chars = "0123456789abcdef";
+            for (str, 0..) |c, i| {
+                hex_str[i * 2] = hex_chars[c >> 4];
+                hex_str[i * 2 + 1] = hex_chars[c & 0x0f];
+            }
+            try out.append(ctx.allocator, makeStringItem(ctx, hex_str));
+        } else if (std.mem.eql(u8, format.?, "base64") or std.mem.eql(u8, format.?, "urlbase64")) {
+            // Base64 encoding
+            const is_url = std.mem.eql(u8, format.?, "urlbase64");
+            const alphabet = if (is_url) std.base64.url_safe.Encoder.alphabet_chars else std.base64.standard.Encoder.alphabet_chars;
+            const pad_char = '=';
+            if (str.len == 0) {
+                try out.append(ctx.allocator, makeStringItem(ctx, ""));
+                return out;
+            }
+            // Calculate output size
+            const encoded_len = (str.len + 2) / 3 * 4;
+            const encoded = try ctx.allocator.alloc(u8, encoded_len);
+            var i: usize = 0;
+            var j: usize = 0;
+            while (i + 3 <= str.len) : (i += 3) {
+                const b0 = str[i];
+                const b1 = str[i + 1];
+                const b2 = str[i + 2];
+                encoded[j] = alphabet[b0 >> 2];
+                encoded[j + 1] = alphabet[((b0 & 0x03) << 4) | (b1 >> 4)];
+                encoded[j + 2] = alphabet[((b1 & 0x0f) << 2) | (b2 >> 6)];
+                encoded[j + 3] = alphabet[b2 & 0x3f];
+                j += 4;
+            }
+            // Handle remaining bytes
+            const remaining = str.len - i;
+            if (remaining == 1) {
+                const b0 = str[i];
+                encoded[j] = alphabet[b0 >> 2];
+                encoded[j + 1] = alphabet[(b0 & 0x03) << 4];
+                encoded[j + 2] = pad_char;
+                encoded[j + 3] = pad_char;
+            } else if (remaining == 2) {
+                const b0 = str[i];
+                const b1 = str[i + 1];
+                encoded[j] = alphabet[b0 >> 2];
+                encoded[j + 1] = alphabet[((b0 & 0x03) << 4) | (b1 >> 4)];
+                encoded[j + 2] = alphabet[(b1 & 0x0f) << 2];
+                encoded[j + 3] = pad_char;
+            }
+            try out.append(ctx.allocator, makeStringItem(ctx, encoded));
+        } else {
+            return ItemList.empty; // Unknown format
+        }
+        return out;
+    }
+    // decode(format: String) - Decodes string from hex, base64, or urlbase64 format
+    if (std.mem.eql(u8, call.name, "decode")) {
+        if (call.args.len != 1) return error.InvalidFunction;
+        if (input.len == 0) return ItemList.empty;
+        if (input.len > 1) return error.SingletonRequired;
+        const str = itemStringValue(ctx, input[0]) orelse return error.InvalidFunction;
+        const format = try evalStringArg(ctx, call.args[0], env);
+        if (format == null) return ItemList.empty;
+        var out = ItemList.empty;
+        if (std.mem.eql(u8, format.?, "hex")) {
+            // Hex decoding
+            if (str.len == 0) {
+                try out.append(ctx.allocator, makeStringItem(ctx, ""));
+                return out;
+            }
+            if (str.len % 2 != 0) return ItemList.empty; // Invalid hex
+            const decoded = try ctx.allocator.alloc(u8, str.len / 2);
+            var i: usize = 0;
+            while (i < str.len) : (i += 2) {
+                const hi = hexDigitValue(str[i]) orelse return ItemList.empty;
+                const lo = hexDigitValue(str[i + 1]) orelse return ItemList.empty;
+                decoded[i / 2] = (hi << 4) | lo;
+            }
+            try out.append(ctx.allocator, makeStringItem(ctx, decoded));
+        } else if (std.mem.eql(u8, format.?, "base64") or std.mem.eql(u8, format.?, "urlbase64")) {
+            // Base64 decoding
+            const is_url = std.mem.eql(u8, format.?, "urlbase64");
+            if (str.len == 0) {
+                try out.append(ctx.allocator, makeStringItem(ctx, ""));
+                return out;
+            }
+            // Calculate output size (accounting for padding)
+            var padding: usize = 0;
+            if (str.len > 0 and str[str.len - 1] == '=') padding += 1;
+            if (str.len > 1 and str[str.len - 2] == '=') padding += 1;
+            const decoded_len = str.len / 4 * 3 - padding;
+            const decoded = try ctx.allocator.alloc(u8, decoded_len);
+            var i: usize = 0;
+            var j: usize = 0;
+            while (i + 4 <= str.len) : (i += 4) {
+                const c0 = base64CharValue(str[i], is_url) orelse return ItemList.empty;
+                const c1 = base64CharValue(str[i + 1], is_url) orelse return ItemList.empty;
+                const c2 = if (str[i + 2] == '=') @as(u8, 0) else (base64CharValue(str[i + 2], is_url) orelse return ItemList.empty);
+                const c3 = if (str[i + 3] == '=') @as(u8, 0) else (base64CharValue(str[i + 3], is_url) orelse return ItemList.empty);
+                if (j < decoded_len) decoded[j] = (c0 << 2) | (c1 >> 4);
+                if (j + 1 < decoded_len) decoded[j + 1] = ((c1 & 0x0f) << 4) | (c2 >> 2);
+                if (j + 2 < decoded_len) decoded[j + 2] = ((c2 & 0x03) << 6) | c3;
+                j += 3;
+            }
+            try out.append(ctx.allocator, makeStringItem(ctx, decoded));
+        } else {
+            return ItemList.empty; // Unknown format
+        }
+        return out;
+    }
+    // escape(target: String) - Escapes string for html or json
+    if (std.mem.eql(u8, call.name, "escape")) {
+        if (call.args.len != 1) return error.InvalidFunction;
+        if (input.len == 0) return ItemList.empty;
+        if (input.len > 1) return error.SingletonRequired;
+        const str = itemStringValue(ctx, input[0]) orelse return error.InvalidFunction;
+        const target = try evalStringArg(ctx, call.args[0], env);
+        if (target == null) return ItemList.empty;
+        var out = ItemList.empty;
+        if (std.mem.eql(u8, target.?, "html")) {
+            // HTML escape: < > & "
+            var result = std.ArrayList(u8).empty;
+            defer result.deinit(ctx.allocator);
+            for (str) |c| {
+                switch (c) {
+                    '<' => try result.appendSlice(ctx.allocator, "&lt;"),
+                    '>' => try result.appendSlice(ctx.allocator, "&gt;"),
+                    '&' => try result.appendSlice(ctx.allocator, "&amp;"),
+                    '"' => try result.appendSlice(ctx.allocator, "&quot;"),
+                    else => try result.append(ctx.allocator, c),
+                }
+            }
+            const escaped = try result.toOwnedSlice(ctx.allocator);
+            try out.append(ctx.allocator, makeStringItem(ctx, escaped));
+        } else if (std.mem.eql(u8, target.?, "json")) {
+            // JSON escape: " \ and control characters
+            var result = std.ArrayList(u8).empty;
+            defer result.deinit(ctx.allocator);
+            for (str) |c| {
+                switch (c) {
+                    '"' => try result.appendSlice(ctx.allocator, "\\\""),
+                    '\\' => try result.appendSlice(ctx.allocator, "\\\\"),
+                    '\n' => try result.appendSlice(ctx.allocator, "\\n"),
+                    '\r' => try result.appendSlice(ctx.allocator, "\\r"),
+                    '\t' => try result.appendSlice(ctx.allocator, "\\t"),
+                    else => {
+                        if (c < 0x20) {
+                            // Control character - use unicode escape
+                            try result.appendSlice(ctx.allocator, "\\u00");
+                            const hex_chars = "0123456789abcdef";
+                            try result.append(ctx.allocator, hex_chars[c >> 4]);
+                            try result.append(ctx.allocator, hex_chars[c & 0x0f]);
+                        } else {
+                            try result.append(ctx.allocator, c);
+                        }
+                    },
+                }
+            }
+            const escaped = try result.toOwnedSlice(ctx.allocator);
+            try out.append(ctx.allocator, makeStringItem(ctx, escaped));
+        } else {
+            return ItemList.empty; // Unknown target
+        }
+        return out;
+    }
+    // unescape(target: String) - Unescapes string from html or json
+    if (std.mem.eql(u8, call.name, "unescape")) {
+        if (call.args.len != 1) return error.InvalidFunction;
+        if (input.len == 0) return ItemList.empty;
+        if (input.len > 1) return error.SingletonRequired;
+        const str = itemStringValue(ctx, input[0]) orelse return error.InvalidFunction;
+        const target = try evalStringArg(ctx, call.args[0], env);
+        if (target == null) return ItemList.empty;
+        var out = ItemList.empty;
+        if (std.mem.eql(u8, target.?, "html")) {
+            // HTML unescape: &lt; &gt; &amp; &quot;
+            var result = std.ArrayList(u8).empty;
+            defer result.deinit(ctx.allocator);
+            var i: usize = 0;
+            while (i < str.len) {
+                if (str[i] == '&') {
+                    if (i + 3 < str.len and std.mem.eql(u8, str[i .. i + 4], "&lt;")) {
+                        try result.append(ctx.allocator, '<');
+                        i += 4;
+                    } else if (i + 3 < str.len and std.mem.eql(u8, str[i .. i + 4], "&gt;")) {
+                        try result.append(ctx.allocator, '>');
+                        i += 4;
+                    } else if (i + 4 < str.len and std.mem.eql(u8, str[i .. i + 5], "&amp;")) {
+                        try result.append(ctx.allocator, '&');
+                        i += 5;
+                    } else if (i + 5 < str.len and std.mem.eql(u8, str[i .. i + 6], "&quot;")) {
+                        try result.append(ctx.allocator, '"');
+                        i += 6;
+                    } else {
+                        try result.append(ctx.allocator, str[i]);
+                        i += 1;
+                    }
+                } else {
+                    try result.append(ctx.allocator, str[i]);
+                    i += 1;
+                }
+            }
+            const unescaped = try result.toOwnedSlice(ctx.allocator);
+            try out.append(ctx.allocator, makeStringItem(ctx, unescaped));
+        } else if (std.mem.eql(u8, target.?, "json")) {
+            // JSON unescape: \" \\ \n \r \t \uXXXX
+            var result = std.ArrayList(u8).empty;
+            defer result.deinit(ctx.allocator);
+            var i: usize = 0;
+            while (i < str.len) {
+                if (str[i] == '\\' and i + 1 < str.len) {
+                    switch (str[i + 1]) {
+                        '"' => {
+                            try result.append(ctx.allocator, '"');
+                            i += 2;
+                        },
+                        '\\' => {
+                            try result.append(ctx.allocator, '\\');
+                            i += 2;
+                        },
+                        'n' => {
+                            try result.append(ctx.allocator, '\n');
+                            i += 2;
+                        },
+                        'r' => {
+                            try result.append(ctx.allocator, '\r');
+                            i += 2;
+                        },
+                        't' => {
+                            try result.append(ctx.allocator, '\t');
+                            i += 2;
+                        },
+                        'u' => {
+                            // Unicode escape \uXXXX
+                            if (i + 5 < str.len) {
+                                var code: u16 = 0;
+                                var valid = true;
+                                for (str[i + 2 .. i + 6]) |c| {
+                                    if (hexDigitValue(c)) |v| {
+                                        code = code * 16 + v;
+                                    } else {
+                                        valid = false;
+                                        break;
+                                    }
+                                }
+                                if (valid and code < 128) {
+                                    try result.append(ctx.allocator, @intCast(code));
+                                    i += 6;
+                                } else {
+                                    // Non-ASCII or invalid - pass through
+                                    try result.append(ctx.allocator, str[i]);
+                                    i += 1;
+                                }
+                            } else {
+                                try result.append(ctx.allocator, str[i]);
+                                i += 1;
+                            }
+                        },
+                        else => {
+                            try result.append(ctx.allocator, str[i]);
+                            i += 1;
+                        },
+                    }
+                } else {
+                    try result.append(ctx.allocator, str[i]);
+                    i += 1;
+                }
+            }
+            const unescaped = try result.toOwnedSlice(ctx.allocator);
+            try out.append(ctx.allocator, makeStringItem(ctx, unescaped));
+        } else {
+            return ItemList.empty; // Unknown target
+        }
+        return out;
+    }
     return error.InvalidFunction;
 }
 
@@ -4112,6 +4400,29 @@ fn sliceItems(ctx: anytype, values: []const item.Item) EvalError!ItemList {
     if (values.len == 0) return out;
     try out.appendSlice(ctx.allocator, values);
     return out;
+}
+
+fn hexDigitValue(c: u8) ?u8 {
+    return switch (c) {
+        '0'...'9' => c - '0',
+        'a'...'f' => c - 'a' + 10,
+        'A'...'F' => c - 'A' + 10,
+        else => null,
+    };
+}
+
+fn base64CharValue(c: u8, is_url: bool) ?u8 {
+    if (c >= 'A' and c <= 'Z') return c - 'A';
+    if (c >= 'a' and c <= 'z') return c - 'a' + 26;
+    if (c >= '0' and c <= '9') return c - '0' + 52;
+    if (is_url) {
+        if (c == '-') return 62;
+        if (c == '_') return 63;
+    } else {
+        if (c == '+') return 62;
+        if (c == '/') return 63;
+    }
+    return null;
 }
 
 fn replaceAll(allocator: std.mem.Allocator, str: []const u8, pattern: []const u8, substitution: []const u8) ![]const u8 {

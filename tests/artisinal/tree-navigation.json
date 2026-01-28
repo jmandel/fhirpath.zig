@@ -32,7 +32,7 @@
     "[ ] Add tests for duplicate descendant values across branches"
   ],
   "meta": {
-    "status": "drafted",
+    "status": "reviewed",
     "feature": "tree-navigation",
     "source": "spec/index.md#Tree navigation"
   },

@@ -779,10 +779,27 @@
       "input": {},
       "expect": [
         {
-          "type": "decimal",
-          "value": 1.0
+          "type": "string",
+          "value": "1.0"
         }
-      ]
+      ],
+      "_adjudicated": {
+        "fhirpath_js": [
+          {
+            "type": "string",
+            "value": "1"
+          }
+        ],
+        "our_old_value": [
+          {
+            "type": "decimal",
+            "value": 1.0
+          }
+        ],
+        "verdict": "ours_correct",
+        "reason": "The toString() specification defines the Decimal representation as (-)?#0.0#, and the official R5 tests assert 1.0.toString() yields \"1.0\". This preserves at least one fractional digit; dropping the trailing zero (\"1\") is not spec-conformant.",
+        "spec_ref": "String Conversion Functions — toString()"
+      }
     },
     {
       "name": "toString: boolean true",
@@ -801,10 +818,27 @@
       "input": {},
       "expect": [
         {
-          "type": "boolean",
-          "value": false
+          "type": "string",
+          "value": "false"
         }
-      ]
+      ],
+      "_adjudicated": {
+        "fhirpath_js": [
+          {
+            "type": "string",
+            "value": "false"
+          }
+        ],
+        "our_old_value": [
+          {
+            "type": "boolean",
+            "value": false
+          }
+        ],
+        "verdict": "theirs_correct",
+        "reason": "The toString() spec states Boolean values convert to the strings \"true\" and \"false\"; therefore the result is a string, not a Boolean.",
+        "spec_ref": "String Conversion Functions — toString()"
+      }
     },
     {
       "name": "toString: string passthrough",
@@ -1310,6 +1344,18 @@
           "value": true
         }
       ],
+      "_adjudicated": {
+        "fhirpath_js": [
+          {
+            "type": "boolean",
+            "value": false
+          }
+        ],
+        "our_old_value": null,
+        "verdict": "ours_correct",
+        "reason": "convertsToDateTime() returns true for Date, DateTime, or string values convertible to DateTime. A Date literal is explicitly included, so @2024-01-15 should yield true.",
+        "spec_ref": "DateTime Conversion Functions — convertsToDateTime()"
+      },
       "skip": "Parser: date/time literals cannot have method calls"
     },
     {

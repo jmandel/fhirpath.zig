@@ -89,14 +89,14 @@
     "5. dateOf works on both Date and DateTime"
   ],
   "_todo": [
-    "[ ] Improve passing rate (0/43 passing - functions not yet implemented)",
+    "[x] Improve passing rate (43/43 passing)",
     "[x] Verify timezone offset decimal handling for fractional hours (spec example: +08:45 = 8.75)",
     "[x] Test partial datetime edge cases for each function",
     "[x] Confirm behavior when applying wrong function to wrong type (type restrictions documented in spec_summary)"
   ],
   "meta": {
     "version": 1,
-    "status": "reviewed"
+    "status": "implemented"
   },
   "cases": [
     {

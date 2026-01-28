@@ -2380,6 +2380,420 @@ fn evalFunction(
 
         return out;
     }
+
+    // Date/DateTime/Time component extraction functions (STU)
+    if (std.mem.eql(u8, call.name, "yearOf")) {
+        if (call.args.len != 0) return error.InvalidFunction;
+        var out = ItemList.empty;
+        if (input.len == 0) return out;
+        if (input.len != 1) return error.SingletonRequired;
+        const it = input[0];
+        const val = itemToValue(ctx, it);
+
+        const date_id = ctx.types.getOrAdd("System.Date") catch 0;
+        const datetime_id = ctx.types.getOrAdd("System.DateTime") catch 0;
+
+        var text: ?[]const u8 = null;
+        if (val == .date) text = val.date;
+        if (val == .dateTime) text = val.dateTime;
+        if (text == null and (it.type_id == date_id or it.type_id == datetime_id)) {
+            if (val == .string) text = val.string;
+        }
+        if (text == null) return out;
+
+        const normalized = stripAtPrefix(text.?);
+        // Get date portion (before T if present)
+        const date_part = if (std.mem.indexOfScalar(u8, normalized, 'T')) |t_idx| normalized[0..t_idx] else normalized;
+        const parts = parseDateParts(date_part) orelse return out;
+        const year = std.fmt.parseInt(i64, parts.year, 10) catch return out;
+        try out.append(ctx.allocator, makeIntegerItem(ctx, year));
+        return out;
+    }
+
+    if (std.mem.eql(u8, call.name, "monthOf")) {
+        if (call.args.len != 0) return error.InvalidFunction;
+        var out = ItemList.empty;
+        if (input.len == 0) return out;
+        if (input.len != 1) return error.SingletonRequired;
+        const it = input[0];
+        const val = itemToValue(ctx, it);
+
+        const date_id = ctx.types.getOrAdd("System.Date") catch 0;
+        const datetime_id = ctx.types.getOrAdd("System.DateTime") catch 0;
+
+        var text: ?[]const u8 = null;
+        if (val == .date) text = val.date;
+        if (val == .dateTime) text = val.dateTime;
+        if (text == null and (it.type_id == date_id or it.type_id == datetime_id)) {
+            if (val == .string) text = val.string;
+        }
+        if (text == null) return out;
+
+        const normalized = stripAtPrefix(text.?);
+        const date_part = if (std.mem.indexOfScalar(u8, normalized, 'T')) |t_idx| normalized[0..t_idx] else normalized;
+        const parts = parseDateParts(date_part) orelse return out;
+        const month_str = parts.month orelse return out; // empty if not present
+        const month = std.fmt.parseInt(i64, month_str, 10) catch return out;
+        try out.append(ctx.allocator, makeIntegerItem(ctx, month));
+        return out;
+    }
+
+    if (std.mem.eql(u8, call.name, "dayOf")) {
+        if (call.args.len != 0) return error.InvalidFunction;
+        var out = ItemList.empty;
+        if (input.len == 0) return out;
+        if (input.len != 1) return error.SingletonRequired;
+        const it = input[0];
+        const val = itemToValue(ctx, it);
+
+        const date_id = ctx.types.getOrAdd("System.Date") catch 0;
+        const datetime_id = ctx.types.getOrAdd("System.DateTime") catch 0;
+
+        var text: ?[]const u8 = null;
+        if (val == .date) text = val.date;
+        if (val == .dateTime) text = val.dateTime;
+        if (text == null and (it.type_id == date_id or it.type_id == datetime_id)) {
+            if (val == .string) text = val.string;
+        }
+        if (text == null) return out;
+
+        const normalized = stripAtPrefix(text.?);
+        const date_part = if (std.mem.indexOfScalar(u8, normalized, 'T')) |t_idx| normalized[0..t_idx] else normalized;
+        const parts = parseDateParts(date_part) orelse return out;
+        const day_str = parts.day orelse return out; // empty if not present
+        const day = std.fmt.parseInt(i64, day_str, 10) catch return out;
+        try out.append(ctx.allocator, makeIntegerItem(ctx, day));
+        return out;
+    }
+
+    if (std.mem.eql(u8, call.name, "hourOf")) {
+        if (call.args.len != 0) return error.InvalidFunction;
+        var out = ItemList.empty;
+        if (input.len == 0) return out;
+        if (input.len != 1) return error.SingletonRequired;
+        const it = input[0];
+        const val = itemToValue(ctx, it);
+
+        const time_id = ctx.types.getOrAdd("System.Time") catch 0;
+        const datetime_id = ctx.types.getOrAdd("System.DateTime") catch 0;
+
+        var time_text: ?[]const u8 = null;
+        if (val == .time) {
+            time_text = val.time;
+        } else if (val == .dateTime) {
+            const normalized = stripAtPrefix(val.dateTime);
+            if (std.mem.indexOfScalar(u8, normalized, 'T')) |t_idx| {
+                time_text = normalized[t_idx + 1 ..];
+            }
+        } else if (it.type_id == time_id or it.type_id == datetime_id) {
+            if (val == .string) {
+                const normalized = stripAtPrefix(val.string);
+                if (std.mem.indexOfScalar(u8, normalized, 'T')) |t_idx| {
+                    time_text = normalized[t_idx + 1 ..];
+                } else if (normalized.len > 0 and normalized[0] == 'T') {
+                    time_text = normalized[1..];
+                } else {
+                    time_text = normalized;
+                }
+            }
+        }
+        if (time_text == null) return out;
+
+        const stripped = stripTimePrefix(time_text.?);
+        if (stripped.len == 0) return out; // partial datetime with no time components
+        const parts = parseTimePartsPartial(stripped) orelse return out;
+        const hour = std.fmt.parseInt(i64, parts.hour, 10) catch return out;
+        try out.append(ctx.allocator, makeIntegerItem(ctx, hour));
+        return out;
+    }
+
+    if (std.mem.eql(u8, call.name, "minuteOf")) {
+        if (call.args.len != 0) return error.InvalidFunction;
+        var out = ItemList.empty;
+        if (input.len == 0) return out;
+        if (input.len != 1) return error.SingletonRequired;
+        const it = input[0];
+        const val = itemToValue(ctx, it);
+
+        const time_id = ctx.types.getOrAdd("System.Time") catch 0;
+        const datetime_id = ctx.types.getOrAdd("System.DateTime") catch 0;
+
+        var time_text: ?[]const u8 = null;
+        if (val == .time) {
+            time_text = val.time;
+        } else if (val == .dateTime) {
+            const normalized = stripAtPrefix(val.dateTime);
+            if (std.mem.indexOfScalar(u8, normalized, 'T')) |t_idx| {
+                time_text = normalized[t_idx + 1 ..];
+            }
+        } else if (it.type_id == time_id or it.type_id == datetime_id) {
+            if (val == .string) {
+                const normalized = stripAtPrefix(val.string);
+                if (std.mem.indexOfScalar(u8, normalized, 'T')) |t_idx| {
+                    time_text = normalized[t_idx + 1 ..];
+                } else if (normalized.len > 0 and normalized[0] == 'T') {
+                    time_text = normalized[1..];
+                } else {
+                    time_text = normalized;
+                }
+            }
+        }
+        if (time_text == null) return out;
+
+        const stripped = stripTimePrefix(time_text.?);
+        if (stripped.len == 0) return out;
+        const parts = parseTimePartsPartial(stripped) orelse return out;
+        const minute_str = parts.minute orelse return out; // empty if not present
+        const minute = std.fmt.parseInt(i64, minute_str, 10) catch return out;
+        try out.append(ctx.allocator, makeIntegerItem(ctx, minute));
+        return out;
+    }
+
+    if (std.mem.eql(u8, call.name, "secondOf")) {
+        if (call.args.len != 0) return error.InvalidFunction;
+        var out = ItemList.empty;
+        if (input.len == 0) return out;
+        if (input.len != 1) return error.SingletonRequired;
+        const it = input[0];
+        const val = itemToValue(ctx, it);
+
+        const time_id = ctx.types.getOrAdd("System.Time") catch 0;
+        const datetime_id = ctx.types.getOrAdd("System.DateTime") catch 0;
+
+        var time_text: ?[]const u8 = null;
+        if (val == .time) {
+            time_text = val.time;
+        } else if (val == .dateTime) {
+            const normalized = stripAtPrefix(val.dateTime);
+            if (std.mem.indexOfScalar(u8, normalized, 'T')) |t_idx| {
+                time_text = normalized[t_idx + 1 ..];
+            }
+        } else if (it.type_id == time_id or it.type_id == datetime_id) {
+            if (val == .string) {
+                const normalized = stripAtPrefix(val.string);
+                if (std.mem.indexOfScalar(u8, normalized, 'T')) |t_idx| {
+                    time_text = normalized[t_idx + 1 ..];
+                } else if (normalized.len > 0 and normalized[0] == 'T') {
+                    time_text = normalized[1..];
+                } else {
+                    time_text = normalized;
+                }
+            }
+        }
+        if (time_text == null) return out;
+
+        const stripped = stripTimePrefix(time_text.?);
+        if (stripped.len == 0) return out;
+        const parts = parseTimePartsPartial(stripped) orelse return out;
+        const sec_str = parts.second orelse return out; // empty if not present
+        // Second may have fractional part, we want just the integer portion
+        const sec_parts = splitSecond(sec_str);
+        const second = std.fmt.parseInt(i64, sec_parts.whole, 10) catch return out;
+        try out.append(ctx.allocator, makeIntegerItem(ctx, second));
+        return out;
+    }
+
+    if (std.mem.eql(u8, call.name, "millisecondOf")) {
+        if (call.args.len != 0) return error.InvalidFunction;
+        var out = ItemList.empty;
+        if (input.len == 0) return out;
+        if (input.len != 1) return error.SingletonRequired;
+        const it = input[0];
+        const val = itemToValue(ctx, it);
+
+        const time_id = ctx.types.getOrAdd("System.Time") catch 0;
+        const datetime_id = ctx.types.getOrAdd("System.DateTime") catch 0;
+
+        var time_text: ?[]const u8 = null;
+        if (val == .time) {
+            time_text = val.time;
+        } else if (val == .dateTime) {
+            const normalized = stripAtPrefix(val.dateTime);
+            if (std.mem.indexOfScalar(u8, normalized, 'T')) |t_idx| {
+                time_text = normalized[t_idx + 1 ..];
+            }
+        } else if (it.type_id == time_id or it.type_id == datetime_id) {
+            if (val == .string) {
+                const normalized = stripAtPrefix(val.string);
+                if (std.mem.indexOfScalar(u8, normalized, 'T')) |t_idx| {
+                    time_text = normalized[t_idx + 1 ..];
+                } else if (normalized.len > 0 and normalized[0] == 'T') {
+                    time_text = normalized[1..];
+                } else {
+                    time_text = normalized;
+                }
+            }
+        }
+        if (time_text == null) return out;
+
+        const stripped = stripTimePrefix(time_text.?);
+        if (stripped.len == 0) return out;
+        const parts = parseTimePartsPartial(stripped) orelse return out;
+        const sec_str = parts.second orelse return out;
+        const sec_parts = splitSecond(sec_str);
+        const frac = sec_parts.frac orelse return out; // empty if no milliseconds
+        // Parse the fractional part as milliseconds (pad or truncate to 3 digits)
+        var ms_str: [3]u8 = undefined;
+        var i: usize = 0;
+        while (i < 3) : (i += 1) {
+            ms_str[i] = if (i < frac.len) frac[i] else '0';
+        }
+        const ms = std.fmt.parseInt(i64, &ms_str, 10) catch return out;
+        try out.append(ctx.allocator, makeIntegerItem(ctx, ms));
+        return out;
+    }
+
+    if (std.mem.eql(u8, call.name, "timezoneOffsetOf")) {
+        if (call.args.len != 0) return error.InvalidFunction;
+        var out = ItemList.empty;
+        if (input.len == 0) return out;
+        if (input.len != 1) return error.SingletonRequired;
+        const it = input[0];
+        const val = itemToValue(ctx, it);
+
+        const datetime_id = ctx.types.getOrAdd("System.DateTime") catch 0;
+
+        var text: ?[]const u8 = null;
+        if (val == .dateTime) text = val.dateTime;
+        if (text == null and it.type_id == datetime_id) {
+            if (val == .string) text = val.string;
+        }
+        if (text == null) return out;
+
+        const normalized = stripAtPrefix(text.?);
+        // Find the time portion
+        const t_idx = std.mem.indexOfScalar(u8, normalized, 'T') orelse return out;
+        const time_part = normalized[t_idx + 1 ..];
+
+        // Find timezone: look for Z, +, or - (but - in a position that indicates timezone)
+        var tz_start: ?usize = null;
+        var idx: usize = 0;
+        while (idx < time_part.len) : (idx += 1) {
+            const c = time_part[idx];
+            if (c == 'Z') {
+                tz_start = idx;
+                break;
+            }
+            if (c == '+') {
+                tz_start = idx;
+                break;
+            }
+            // For '-', we need to check if it's part of a time component (e.g., in seconds?) or timezone
+            // Timezone '-' comes after the full time, so it shouldn't be at position 0 or 1
+            if (c == '-' and idx >= 2) {
+                // Could be timezone if we've passed hour:minute or hour:minute:second
+                tz_start = idx;
+                break;
+            }
+        }
+        if (tz_start == null) return out; // no timezone present
+
+        const tz_str = time_part[tz_start.?..];
+        if (tz_str.len == 0) return out;
+
+        if (tz_str[0] == 'Z') {
+            try out.append(ctx.allocator, makeDecimalItemText(ctx, "0.0"));
+            return out;
+        }
+
+        // Parse +HH:MM or -HH:MM
+        if (tz_str.len < 6) return out; // need at least +HH:MM
+        const sign: f64 = if (tz_str[0] == '-') -1.0 else 1.0;
+        const hour_str = tz_str[1..3];
+        const minute_str = if (tz_str.len >= 6 and tz_str[3] == ':') tz_str[4..6] else return out;
+
+        const hour = std.fmt.parseInt(i32, hour_str, 10) catch return out;
+        const minute = std.fmt.parseInt(i32, minute_str, 10) catch return out;
+
+        const offset: f64 = sign * (@as(f64, @floatFromInt(hour)) + @as(f64, @floatFromInt(minute)) / 60.0);
+        try out.append(ctx.allocator, try makeDecimalItem(ctx, offset));
+        return out;
+    }
+
+    if (std.mem.eql(u8, call.name, "dateOf")) {
+        if (call.args.len != 0) return error.InvalidFunction;
+        var out = ItemList.empty;
+        if (input.len == 0) return out;
+        if (input.len != 1) return error.SingletonRequired;
+        const it = input[0];
+        const val = itemToValue(ctx, it);
+
+        const date_id = ctx.types.getOrAdd("System.Date") catch 0;
+        const datetime_id = ctx.types.getOrAdd("System.DateTime") catch 0;
+
+        if (val == .date) {
+            // Date returns itself
+            try out.append(ctx.allocator, it);
+            return out;
+        }
+
+        var text: ?[]const u8 = null;
+        if (val == .dateTime) text = val.dateTime;
+        if (text == null and (it.type_id == date_id or it.type_id == datetime_id)) {
+            if (val == .string) text = val.string;
+        }
+        if (text == null) return out;
+
+        const normalized = stripAtPrefix(text.?);
+        // Extract date portion (before T if present)
+        const date_part = if (std.mem.indexOfScalar(u8, normalized, 'T')) |t_idx| normalized[0..t_idx] else normalized;
+        // Verify it parses as a valid date
+        _ = parseDateParts(date_part) orelse return out;
+        const owned = try ctx.allocator.dupe(u8, date_part);
+        try out.append(ctx.allocator, makeDateItem(ctx, owned));
+        return out;
+    }
+
+    if (std.mem.eql(u8, call.name, "timeOf")) {
+        if (call.args.len != 0) return error.InvalidFunction;
+        var out = ItemList.empty;
+        if (input.len == 0) return out;
+        if (input.len != 1) return error.SingletonRequired;
+        const it = input[0];
+        const val = itemToValue(ctx, it);
+
+        const datetime_id = ctx.types.getOrAdd("System.DateTime") catch 0;
+
+        var text: ?[]const u8 = null;
+        if (val == .dateTime) text = val.dateTime;
+        if (text == null and it.type_id == datetime_id) {
+            if (val == .string) text = val.string;
+        }
+        if (text == null) return out;
+
+        const normalized = stripAtPrefix(text.?);
+        // Must have T for time component
+        const t_idx = std.mem.indexOfScalar(u8, normalized, 'T') orelse return out;
+        var time_part = normalized[t_idx + 1 ..];
+        if (time_part.len == 0) return out; // partial datetime with no time
+
+        // Strip timezone for the result
+        var tz_start: ?usize = null;
+        var idx: usize = 0;
+        while (idx < time_part.len) : (idx += 1) {
+            const c = time_part[idx];
+            if (c == 'Z' or c == '+') {
+                tz_start = idx;
+                break;
+            }
+            if (c == '-' and idx >= 2) {
+                tz_start = idx;
+                break;
+            }
+        }
+        if (tz_start) |tz| {
+            time_part = time_part[0..tz];
+        }
+
+        // Verify it parses as valid time
+        const parts = parseTimePartsPartial(time_part) orelse return out;
+        if (parts.hour.len == 0) return out;
+
+        const owned = try ctx.allocator.dupe(u8, time_part);
+        try out.append(ctx.allocator, makeTimeItem(ctx, owned));
+        return out;
+    }
+
     if (std.mem.eql(u8, call.name, "exp")) {
         if (input.len == 0) return ItemList.empty;
         if (input.len > 1) return error.SingletonRequired;

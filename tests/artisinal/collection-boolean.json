@@ -27,12 +27,12 @@
     "Spec refs: spec/index.md sections allTrue(), anyTrue(), allFalse(), anyFalse()."
   ],
   "_todo": [
-    "[ ] Improve passing rate (1/16 passing)",
+    "[x] Improve passing rate (16/16 passing)",
     "[x] Confirm spec intent for non-boolean inputs (treat as error)",
     "[x] Add non-boolean error tests for anyTrue()/allFalse()/anyFalse()"
   ],
   "meta": {
-    "status": "reviewed",
+    "status": "implemented",
     "feature": "collection-boolean",
     "source": "spec/index.md#allTrue"
   },

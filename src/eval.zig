@@ -1782,6 +1782,91 @@ fn evalFunction(
         try out.append(ctx.allocator, makeBoolItem(ctx, distinct.items.len == input.len));
         return out;
     }
+    // Collection boolean aggregation: allTrue, anyTrue, allFalse, anyFalse
+    if (std.mem.eql(u8, call.name, "allTrue")) {
+        if (call.args.len != 0) return error.InvalidFunction;
+        // Empty collection returns true (vacuous truth)
+        if (input.len == 0) {
+            var out = ItemList.empty;
+            try out.append(ctx.allocator, makeBoolItem(ctx, true));
+            return out;
+        }
+        // All items must be boolean; error if non-boolean found
+        for (input) |it| {
+            if (!itemIsBool(ctx, it)) return error.InvalidOperand;
+            if (!itemBoolValue(ctx, it)) {
+                var out = ItemList.empty;
+                try out.append(ctx.allocator, makeBoolItem(ctx, false));
+                return out;
+            }
+        }
+        var out = ItemList.empty;
+        try out.append(ctx.allocator, makeBoolItem(ctx, true));
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "anyTrue")) {
+        if (call.args.len != 0) return error.InvalidFunction;
+        // Empty collection returns false
+        if (input.len == 0) {
+            var out = ItemList.empty;
+            try out.append(ctx.allocator, makeBoolItem(ctx, false));
+            return out;
+        }
+        // All items must be boolean; error if non-boolean found
+        for (input) |it| {
+            if (!itemIsBool(ctx, it)) return error.InvalidOperand;
+            if (itemBoolValue(ctx, it)) {
+                var out = ItemList.empty;
+                try out.append(ctx.allocator, makeBoolItem(ctx, true));
+                return out;
+            }
+        }
+        var out = ItemList.empty;
+        try out.append(ctx.allocator, makeBoolItem(ctx, false));
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "allFalse")) {
+        if (call.args.len != 0) return error.InvalidFunction;
+        // Empty collection returns true (vacuous truth)
+        if (input.len == 0) {
+            var out = ItemList.empty;
+            try out.append(ctx.allocator, makeBoolItem(ctx, true));
+            return out;
+        }
+        // All items must be boolean; error if non-boolean found
+        for (input) |it| {
+            if (!itemIsBool(ctx, it)) return error.InvalidOperand;
+            if (itemBoolValue(ctx, it)) {
+                var out = ItemList.empty;
+                try out.append(ctx.allocator, makeBoolItem(ctx, false));
+                return out;
+            }
+        }
+        var out = ItemList.empty;
+        try out.append(ctx.allocator, makeBoolItem(ctx, true));
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "anyFalse")) {
+        if (call.args.len != 0) return error.InvalidFunction;
+        // Empty collection returns false
+        if (input.len == 0) {
+            var out = ItemList.empty;
+            try out.append(ctx.allocator, makeBoolItem(ctx, false));
+            return out;
+        }
+        // All items must be boolean; error if non-boolean found
+        for (input) |it| {
+            if (!itemIsBool(ctx, it)) return error.InvalidOperand;
+            if (!itemBoolValue(ctx, it)) {
+                var out = ItemList.empty;
+                try out.append(ctx.allocator, makeBoolItem(ctx, true));
+                return out;
+            }
+        }
+        var out = ItemList.empty;
+        try out.append(ctx.allocator, makeBoolItem(ctx, false));
+        return out;
+    }
     if (std.mem.eql(u8, call.name, "select")) {
         if (call.args.len != 1) return error.InvalidFunction;
         var out = ItemList.empty;

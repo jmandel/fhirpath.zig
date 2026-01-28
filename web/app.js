@@ -222,7 +222,7 @@ function scheduleRun() {
   rerunTimer = setTimeout(() => {
     runExpression();
     rerunTimer = null;
-  }, 120);
+  }, 30);
 }
 
 runBtn.addEventListener("click", runExpression);

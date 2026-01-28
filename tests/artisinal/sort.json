@@ -68,7 +68,7 @@
     "How do timezone differences affect DateTime sorting?"
   ],
   "meta": {
-    "status": "drafted"
+    "status": "reviewed"
   },
   "cases": [
     {
@@ -203,7 +203,7 @@
     },
     {
       "name": "sort: by object field ascending",
-      "expr": "items.sort(value)",
+      "expr": "items.sort(value).select(value)",
       "input": {
         "items": [
           {"value": 3, "name": "third"},
@@ -216,7 +216,7 @@
         {"type": "integer", "value": 2},
         {"type": "integer", "value": 3}
       ],
-      "comment": "Sort items by value field, return the sorted values"
+      "comment": "Sort items by value field, then project to get sorted values"
     },
     {
       "name": "sort: by object field descending",

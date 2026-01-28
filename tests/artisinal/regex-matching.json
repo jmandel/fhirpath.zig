@@ -1,17 +1,17 @@
 {
   "meta": {
-    "status": "reviewed"
+    "status": "implemented"
   },
   "_spec_summary": "Regex matching functions: matches(), matchesFull(), replaceMatches(). All use regular expressions (PCRE flavor recommended). Case-sensitive by default, use 'single line' mode, allow Unicode.\n\n## matches(regex : String, [flags : String]) : Boolean\n- Returns true if the value contains a match for the given regex\n- Use ^ and $ anchors to match entire string\n- Empty input or regex returns empty\n- Multiple items in input is an error\n- Optional flags: 'i' for case-insensitive, 'm' for multi-line mode\n\n## matchesFull(regex : String, [flags : String]) : Boolean (STU)\n- Returns true if the value COMPLETELY matches the regex\n- Implicitly anchored at start and end (^ and $ surround the pattern)\n- Empty input or regex returns empty\n- Multiple items in input is an error\n- Optional flags: 'i' for case-insensitive, 'm' for multi-line mode\n\n## replaceMatches(regex : String, substitution : String, [flags : String]) : String\n- Replaces each regex match with the substitution string\n- Substitution can use named capture groups: ${groupname}\n- Empty input, regex, or substitution returns empty\n- Multiple items in input is an error\n- Optional flags: 'i' for case-insensitive, 'm' for multi-line mode\n\n## Key behaviors:\n- Regex is interpreted as PCRE (most portable)\n- Case-sensitive unless 'i' flag provided\n- **SINGLE-LINE MODE BY DEFAULT**: In single-line mode, '.' matches ANY character INCLUDING newlines. This is the default per spec.\n- **Multi-line mode ('m' flag)**: Makes ^ and $ match start/end of lines, not just start/end of string\n- Unicode characters allowed\n\n## IMPORTANT: Single-line mode semantics\nThe spec says regex should 'use single line mode'. In regex terminology, single-line mode means:\n- The '.' metacharacter matches ALL characters including \\n (newlines), \\r (carriage returns), etc.\n- Without single-line mode, '.' matches any character EXCEPT newlines\n- This is CRITICAL for patterns like 'A.*B' to match across line breaks\n\nNote: Some implementations call this 'DOTALL' mode or use the 's' flag.",
   "_todo": [
-    "[ ] Improve passing rate (40/47 passing - 6 single-line mode + 1 named capture group)",
+    "[x] All 47/47 tests passing",
     "[x] Verify test expectations against spec examples",
     "[x] Review regex escape handling in tests",
     "[x] Numbered capture groups ($1, $2) are implemented",
-    "[ ] Implement single-line mode (DOTALL) as default per spec",
+    "[x] Implement single-line mode (DOTALL) as default per spec",
     "[ ] Verify multi-line mode (\"m\" flag) behavior",
     "[x] Add tests for multiple items in input (error case)",
-    "[ ] Implement named capture groups (${groupname}) per spec example"
+    "[x] Implement named capture groups (${groupname}) per spec example"
   ],
   "cases": [
     {

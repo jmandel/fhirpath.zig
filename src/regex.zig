@@ -92,14 +92,20 @@ fn applySubstitution(result: *std.ArrayList(u8), allocator: std.mem.Allocator, t
                 i += 2;
                 continue;
             }
-            // Check for ${n}
+            // Check for ${n} or ${name}
             if (substitution[i + 1] == '{') {
                 if (std.mem.indexOf(u8, substitution[i + 2 ..], "}")) |end_brace| {
                     const name = substitution[i + 2 .. i + 2 + end_brace];
                     if (name.len == 1 and name[0] >= '0' and name[0] <= '9') {
+                        // Numeric reference ${0}-${9}
                         const group_num = name[0] - '0';
                         if (group_num < ctx.capture_count) {
                             const cap = ctx.captures[group_num];
+                            try result.appendSlice(allocator, text[cap.start..cap.end]);
+                        }
+                    } else {
+                        // Named capture reference ${name}
+                        if (ctx.getCaptureByName(name)) |cap| {
                             try result.appendSlice(allocator, text[cap.start..cap.end]);
                         }
                     }
@@ -116,6 +122,7 @@ fn applySubstitution(result: *std.ArrayList(u8), allocator: std.mem.Allocator, t
 const Capture = struct {
     start: usize,
     end: usize,
+    name: ?[]const u8 = null, // For named capture groups
 };
 
 const MatchContext = struct {
@@ -129,9 +136,27 @@ const MatchContext = struct {
 
     fn addCapture(self: *MatchContext, start: usize, end: usize) void {
         if (self.capture_count < 10) {
-            self.captures[self.capture_count] = .{ .start = start, .end = end };
+            self.captures[self.capture_count] = .{ .start = start, .end = end, .name = null };
             self.capture_count += 1;
         }
+    }
+
+    fn addNamedCapture(self: *MatchContext, start: usize, end: usize, name: []const u8) void {
+        if (self.capture_count < 10) {
+            self.captures[self.capture_count] = .{ .start = start, .end = end, .name = name };
+            self.capture_count += 1;
+        }
+    }
+
+    fn getCaptureByName(self: *const MatchContext, name: []const u8) ?Capture {
+        for (self.captures[0..self.capture_count]) |cap| {
+            if (cap.name) |cap_name| {
+                if (std.mem.eql(u8, cap_name, name)) {
+                    return cap;
+                }
+            }
+        }
+        return null;
     }
 };
 
@@ -202,7 +227,12 @@ fn findAlternative(pattern: []const u8, start: usize) usize {
 }
 
 fn matchBranch(ctx: *MatchContext, branch: []const u8) bool {
-    var pat_pos: usize = 0;
+    return matchBranchAt(ctx, branch, 0);
+}
+
+/// Recursive backtracking matcher: matches branch starting at pat_pos
+fn matchBranchAt(ctx: *MatchContext, branch: []const u8, start_pat_pos: usize) bool {
+    var pat_pos = start_pat_pos;
 
     while (pat_pos < branch.len) {
         const c = branch[pat_pos];
@@ -234,20 +264,28 @@ fn matchBranch(ctx: *MatchContext, branch: []const u8) bool {
 
         // Handle groups
         if (c == '(') {
-            const group_start = ctx.text_pos;
             const group_end = findGroupEnd(branch, pat_pos);
-            const group_content = branch[pat_pos + 1 .. group_end];
+            var group_content = branch[pat_pos + 1 .. group_end];
+            var group_name: ?[]const u8 = null;
+
+            // Check for named group: (?<name>...)
+            if (group_content.len >= 3 and group_content[0] == '?' and group_content[1] == '<') {
+                // Find the closing >
+                if (std.mem.indexOf(u8, group_content[2..], ">")) |name_end| {
+                    group_name = group_content[2 .. 2 + name_end];
+                    group_content = group_content[3 + name_end ..];
+                }
+            }
 
             // Get quantifier after group
             const quant = parseQuantifier(branch, group_end + 1);
 
-            if (!matchQuantified(ctx, group_content, quant, true)) {
+            // For groups, we use a special backtracking that records captures
+            if (!matchGroupBacktrackNamed(ctx, group_content, quant, branch, quant.end, group_name)) {
                 return false;
             }
 
-            ctx.addCapture(group_start, ctx.text_pos);
-            pat_pos = quant.end;
-            continue;
+            return true; // Successfully matched rest via backtracking
         }
 
         // Parse atom and quantifier
@@ -255,11 +293,11 @@ fn matchBranch(ctx: *MatchContext, branch: []const u8) bool {
         const atom = branch[pat_pos..atom_end];
         const quant = parseQuantifier(branch, atom_end);
 
-        if (!matchQuantified(ctx, atom, quant, false)) {
+        if (!matchQuantifiedBacktrack(ctx, atom, quant, false, branch, quant.end)) {
             return false;
         }
 
-        pat_pos = quant.end;
+        return true; // Successfully matched rest via backtracking
     }
 
     return true;
@@ -366,38 +404,153 @@ fn parseQuantifier(pattern: []const u8, pos: usize) Quantifier {
     return .{ .min = 1, .max = 1, .end = pos };
 }
 
-fn matchQuantified(ctx: *MatchContext, atom: []const u8, quant: Quantifier, is_group: bool) bool {
+/// Match atom with backtracking: try greedy match, then backtrack if rest fails
+fn matchQuantifiedBacktrack(ctx: *MatchContext, atom: []const u8, quant: Quantifier, is_group: bool, branch: []const u8, next_pat_pos: usize) bool {
+    _ = is_group; // Groups handled separately by matchGroupBacktrack
     var count: usize = 0;
+    var positions: [256]usize = undefined; // Track text positions for backtracking
+    positions[0] = ctx.text_pos; // Position before any matches
 
     // Match minimum required
     while (count < quant.min) {
-        if (is_group) {
-            if (!matchBranch(ctx, atom)) return false;
-        } else {
-            if (!matchAtom(ctx, atom)) return false;
-        }
+        if (!matchAtom(ctx, atom)) return false;
         count += 1;
+        if (count < positions.len) {
+            positions[count] = ctx.text_pos;
+        }
     }
 
     // Match up to maximum (greedy)
     const max = quant.max orelse 1000; // Arbitrary large number
     while (count < max) {
         const saved_pos = ctx.text_pos;
-        if (is_group) {
-            if (!matchBranch(ctx, atom)) {
-                ctx.text_pos = saved_pos;
-                break;
-            }
-        } else {
-            if (!matchAtom(ctx, atom)) {
-                ctx.text_pos = saved_pos;
-                break;
-            }
+        if (!matchAtom(ctx, atom)) {
+            ctx.text_pos = saved_pos;
+            break;
         }
         count += 1;
+        if (count < positions.len) {
+            positions[count] = ctx.text_pos;
+        }
     }
 
-    return true;
+    // Try to match rest of pattern; backtrack if necessary
+    while (true) {
+        const saved_captures = ctx.capture_count;
+        if (matchBranchAt(ctx, branch, next_pat_pos)) {
+            return true; // Found a match!
+        }
+        ctx.capture_count = saved_captures;
+
+        // Backtrack: reduce count by 1 if possible
+        if (count == quant.min) {
+            return false; // Can't backtrack further
+        }
+        count -= 1;
+        if (count < positions.len) {
+            ctx.text_pos = positions[count];
+        } else {
+            return false; // Too many matches to track
+        }
+    }
+}
+
+/// Match a group with backtracking, recording captures properly
+fn matchGroupBacktrack(ctx: *MatchContext, group_content: []const u8, quant: Quantifier, branch: []const u8, next_pat_pos: usize) bool {
+    return matchGroupBacktrackNamed(ctx, group_content, quant, branch, next_pat_pos, null);
+}
+
+fn matchGroupBacktrackNamed(ctx: *MatchContext, group_content: []const u8, quant: Quantifier, branch: []const u8, next_pat_pos: usize, group_name: ?[]const u8) bool {
+    var count: usize = 0;
+    // Track both text positions and capture info for backtracking
+    var positions: [256]usize = undefined;
+    var capture_starts: [256]usize = undefined;
+    var capture_ends: [256]usize = undefined;
+    var capture_counts: [256]usize = undefined;
+
+    positions[0] = ctx.text_pos;
+    capture_counts[0] = ctx.capture_count;
+
+    // Match minimum required
+    while (count < quant.min) {
+        const group_start = ctx.text_pos;
+        if (!matchBranchAt(ctx, group_content, 0)) return false;
+        const group_end = ctx.text_pos;
+
+        // Record capture info for this iteration
+        if (count < capture_starts.len) {
+            capture_starts[count] = group_start;
+            capture_ends[count] = group_end;
+        }
+
+        count += 1;
+        if (count < positions.len) {
+            positions[count] = ctx.text_pos;
+            capture_counts[count] = ctx.capture_count;
+        }
+    }
+
+    // Match up to maximum (greedy)
+    const max = quant.max orelse 1000;
+    while (count < max) {
+        const saved_pos = ctx.text_pos;
+        const group_start = ctx.text_pos;
+        if (!matchBranchAt(ctx, group_content, 0)) {
+            ctx.text_pos = saved_pos;
+            break;
+        }
+        const group_end = ctx.text_pos;
+
+        if (count < capture_starts.len) {
+            capture_starts[count] = group_start;
+            capture_ends[count] = group_end;
+        }
+
+        count += 1;
+        if (count < positions.len) {
+            positions[count] = ctx.text_pos;
+            capture_counts[count] = ctx.capture_count;
+        }
+    }
+
+    // Try to match rest of pattern; backtrack if necessary
+    while (true) {
+        // Add captures for current successful match count
+        const saved_capture_count = if (count > 0 and count - 1 < capture_counts.len)
+            capture_counts[count - 1]
+        else
+            ctx.capture_count;
+
+        // Restore to capture state from before last successful match, then add the captures
+        ctx.capture_count = if (count > 0 and count < capture_counts.len) capture_counts[0] else ctx.capture_count;
+        // Add all the captures we've collected
+        var i: usize = 0;
+        while (i < count and i < capture_starts.len) : (i += 1) {
+            if (group_name) |name| {
+                ctx.addNamedCapture(capture_starts[i], capture_ends[i], name);
+            } else {
+                ctx.addCapture(capture_starts[i], capture_ends[i]);
+            }
+        }
+
+        if (matchBranchAt(ctx, branch, next_pat_pos)) {
+            return true; // Found a match!
+        }
+
+        // Restore captures before trying backtrack
+        ctx.capture_count = saved_capture_count;
+
+        // Backtrack: reduce count by 1 if possible
+        if (count == quant.min) {
+            return false; // Can't backtrack further
+        }
+        count -= 1;
+        if (count < positions.len) {
+            ctx.text_pos = positions[count];
+        } else {
+            return false; // Too many matches to track
+        }
+    }
 }
 
 fn matchAtom(ctx: *MatchContext, atom: []const u8) bool {
@@ -449,13 +602,10 @@ fn matchAtom(ctx: *MatchContext, atom: []const u8) bool {
     if (ctx.text_pos >= ctx.text.len) return false;
     const tc = ctx.text[ctx.text_pos];
 
-    // Dot - any char except newline
+    // Dot - any char (FHIRPath requires single-line mode where dot matches newline)
     if (c == '.') {
-        if (tc != '\n') {
-            ctx.text_pos += 1;
-            return true;
-        }
-        return false;
+        ctx.text_pos += 1;
+        return true;
     }
 
     // Character class [...]

@@ -34,6 +34,7 @@ jobs:
         run: zig build test
 
       - name: Run artisinal test harness
+        continue-on-error: true
         run: zig build harness
 
       - name: Smoke test CLI

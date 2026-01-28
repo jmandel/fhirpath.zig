@@ -4,6 +4,7 @@ const jsondoc = @import("jsondoc.zig");
 const node = @import("node.zig");
 const item = @import("item.zig");
 const schema = @import("schema.zig");
+const regex = @import("regex.zig");
 const JsonDocAdapter = @import("backends/jsondoc.zig").JsonDocAdapter;
 
 pub const ItemList = std.ArrayList(item.Item);
@@ -3914,6 +3915,51 @@ fn evalFunction(
         const replaced = try replaceAll(ctx.allocator, str, pattern.?, substitution.?);
         var out = ItemList.empty;
         try out.append(ctx.allocator, makeStringItem(ctx, replaced));
+        return out;
+    }
+    // Regex matching functions: matches, matchesFull, replaceMatches
+    if (std.mem.eql(u8, call.name, "matches")) {
+        if (call.args.len < 1 or call.args.len > 2) return error.InvalidFunction;
+        if (input.len == 0) return ItemList.empty;
+        if (input.len > 1) return error.SingletonRequired;
+        const str = itemStringValue(ctx, input[0]) orelse return error.InvalidFunction;
+        const pattern = try evalStringArg(ctx, call.args[0], env);
+        if (pattern == null) return ItemList.empty;
+        const flags_str = if (call.args.len == 2) try evalStringArg(ctx, call.args[1], env) else null;
+        const flags = regex.parseFlags(flags_str);
+        const re = regex.Regex.init(pattern.?, flags);
+        var out = ItemList.empty;
+        try out.append(ctx.allocator, makeBoolItem(ctx, re.matches(str)));
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "matchesFull")) {
+        if (call.args.len < 1 or call.args.len > 2) return error.InvalidFunction;
+        if (input.len == 0) return ItemList.empty;
+        if (input.len > 1) return error.SingletonRequired;
+        const str = itemStringValue(ctx, input[0]) orelse return error.InvalidFunction;
+        const pattern = try evalStringArg(ctx, call.args[0], env);
+        if (pattern == null) return ItemList.empty;
+        const flags_str = if (call.args.len == 2) try evalStringArg(ctx, call.args[1], env) else null;
+        const flags = regex.parseFlags(flags_str);
+        const re = regex.Regex.init(pattern.?, flags);
+        var out = ItemList.empty;
+        try out.append(ctx.allocator, makeBoolItem(ctx, re.matchesFull(str)));
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "replaceMatches")) {
+        if (call.args.len < 2 or call.args.len > 3) return error.InvalidFunction;
+        if (input.len == 0) return ItemList.empty;
+        if (input.len > 1) return error.SingletonRequired;
+        const str = itemStringValue(ctx, input[0]) orelse return error.InvalidFunction;
+        const pattern = try evalStringArg(ctx, call.args[0], env);
+        const substitution = try evalStringArg(ctx, call.args[1], env);
+        if (pattern == null or substitution == null) return ItemList.empty;
+        const flags_str = if (call.args.len == 3) try evalStringArg(ctx, call.args[2], env) else null;
+        const flags = regex.parseFlags(flags_str);
+        const re = regex.Regex.init(pattern.?, flags);
+        const result = try re.replaceAll(ctx.allocator, str, substitution.?);
+        var out = ItemList.empty;
+        try out.append(ctx.allocator, makeStringItem(ctx, result));
         return out;
     }
     if (std.mem.eql(u8, call.name, "trim")) {

@@ -71,6 +71,7 @@ body {
   padding: 48px clamp(24px, 6vw, 80px) 80px;
   max-width: 1200px;
   margin: 0 auto;
+  min-height: 100vh;
 }
 
 .hero {
@@ -162,6 +163,7 @@ h1 {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 20px;
+  align-items: stretch;
 }
 
 .panel {
@@ -169,14 +171,14 @@ h1 {
   border-radius: 18px;
   border: 1px solid rgba(255,255,255,0.08);
   padding: 18px;
-  min-height: 220px;
+  min-height: 320px;
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
 .panel.results {
-  min-height: 360px;
+  min-height: 420px;
 }
 
 .panel-header {
@@ -235,7 +237,7 @@ h1 {
 }
 
 .json-input {
-  min-height: 220px;
+  min-height: 320px;
   resize: vertical;
   line-height: 1.5;
 }

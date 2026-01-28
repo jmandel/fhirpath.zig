@@ -66,6 +66,7 @@ function renderChips() {
       loadExample(idx);
       for (const el of chipRow.children) el.classList.remove("active");
       chip.classList.add("active");
+      runExpression();
     });
     chipRow.appendChild(chip);
   });
@@ -189,7 +190,7 @@ async function runExpression() {
     let count = 0;
     for (const node of results) {
       count += 1;
-      const meta = `${node.meta.typeName || "(unknown)"} · typeId ${node.meta.typeId}`;
+      const meta = `${node.meta.typeName || "(unknown)"}`;
       const value = node.data ?? "<unavailable>";
       addResultCard({
         title: `Result ${count}`,

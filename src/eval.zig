@@ -908,6 +908,25 @@ fn evalFunction(
         try out.append(ctx.allocator, makeBoolItem(ctx, input.len != 0));
         return out;
     }
+    if (std.mem.eql(u8, call.name, "toInteger")) {
+        if (call.args.len != 0) return error.InvalidFunction;
+        var out = ItemList.empty;
+        if (input.len == 0) return out;
+        if (input.len != 1) return error.SingletonRequired;
+        if (convertToInteger(ctx, input[0])) |val| {
+            try out.append(ctx.allocator, makeIntegerItem(ctx, val));
+        }
+        return out;
+    }
+    if (std.mem.eql(u8, call.name, "convertsToInteger")) {
+        if (call.args.len != 0) return error.InvalidFunction;
+        var out = ItemList.empty;
+        if (input.len == 0) return out;
+        if (input.len != 1) return error.SingletonRequired;
+        const convertible = convertToInteger(ctx, input[0]) != null;
+        try out.append(ctx.allocator, makeBoolItem(ctx, convertible));
+        return out;
+    }
     if (std.mem.eql(u8, call.name, "not")) {
         // not() returns the boolean negation of the input
         // Per FHIRPath spec: non-boolean singleton is truthy, so not() returns false
@@ -1897,6 +1916,39 @@ fn itemToValue(ctx: anytype, it: item.Item) item.Value {
         };
     }
     return .{ .empty = {} };
+}
+
+fn convertToInteger(ctx: anytype, it: item.Item) ?i64 {
+    const val = itemToValue(ctx, it);
+    switch (val) {
+        .integer => |v| return v,
+        .boolean => |v| return if (v) 1 else 0,
+        .string => |s| return parseIntegerString(s),
+        .decimal => |s| {
+            const integer_type_id = ctx.types.getOrAdd("System.Integer") catch 0;
+            if (it.type_id != integer_type_id) return null;
+            return std.fmt.parseInt(i64, s, 10) catch null;
+        },
+        else => return null,
+    }
+}
+
+fn parseIntegerString(s: []const u8) ?i64 {
+    if (s.len == 0) return null;
+    var start: usize = 0;
+    var sign: i64 = 1;
+    if (s[0] == '+' or s[0] == '-') {
+        sign = if (s[0] == '-') -1 else 1;
+        start = 1;
+        if (start == s.len) return null;
+    }
+    var i: usize = start;
+    while (i < s.len) : (i += 1) {
+        const c = s[i];
+        if (c < '0' or c > '9') return null;
+    }
+    const magnitude = std.fmt.parseInt(i64, s[start..], 10) catch return null;
+    return magnitude * sign;
 }
 
 fn typeIdForNode(ctx: anytype, node_ref: @TypeOf(ctx.adapter.*).NodeRef) !u32 {

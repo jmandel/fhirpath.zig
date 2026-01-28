@@ -37,15 +37,15 @@
     "@2018-01-01T16:00:00+12:00 < @2018-01-01T15:00:00.0+10:00  // true (4pm+12 is earlier)"
   ],
   "_todo": [
-    "[ ] Improve passing rate (6/21 passing - requires timezone normalization for equality)",
-    "[ ] Test equality with different offsets same moment",
-    "[ ] Test comparison with different offsets",
-    "[ ] Test Z suffix handling",
-    "[ ] Test cross-date-boundary cases",
-    "[ ] Test no-timezone vs with-timezone comparison"
+    "[x] Improve passing rate (21/21 passing)",
+    "[x] Test equality with different offsets same moment",
+    "[x] Test comparison with different offsets",
+    "[x] Test Z suffix handling",
+    "[x] Test cross-date-boundary cases",
+    "[x] Test no-timezone vs with-timezone comparison"
   ],
   "meta": {
-    "status": "drafted",
+    "status": "implemented",
     "feature": "datetime-timezone",
     "source": "spec/index.md#comparison §6.3.6"
   },
@@ -85,11 +85,11 @@
       "_section": "=== GREATER THAN WITH TIMEZONE OFFSETS ==="
     },
     {
-      "name": "timezone: later UTC moment is greater",
-      "comment": "DST example from spec: 01:30-04:00 is later than 01:15-05:00",
+      "name": "timezone: UTC conversion for comparison",
+      "comment": "Per spec: 01:30-04:00 (05:30 UTC) < 01:15-05:00 (06:15 UTC)",
       "expr": "@2017-11-05T01:30:00.0-04:00 > @2017-11-05T01:15:00.0-05:00",
       "input": {},
-      "expect": [{"type": "boolean", "value": true}]
+      "expect": [{"type": "boolean", "value": false}]
     },
     {
       "name": "timezone: same moment not greater",
@@ -116,11 +116,11 @@
       "expect": [{"type": "boolean", "value": true}]
     },
     {
-      "name": "timezone: DST transition not less",
-      "comment": "01:30-04:00 is not less than 01:15-05:00 (both after accounting for offset)",
+      "name": "timezone: less than with UTC normalization",
+      "comment": "Per spec: 01:30-04:00 (05:30 UTC) < 01:15-05:00 (06:15 UTC) is true",
       "expr": "@2017-11-05T01:30:00.0-04:00 < @2017-11-05T01:15:00.0-05:00",
       "input": {},
-      "expect": [{"type": "boolean", "value": false}]
+      "expect": [{"type": "boolean", "value": true}]
     },
     {
       "name": "timezone: same moment not less",

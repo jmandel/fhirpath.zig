@@ -966,10 +966,33 @@ fn timeEquivalent(a: []const u8, b: []const u8) bool {
 }
 
 fn dateTimeEquivalent(a: []const u8, b: []const u8) bool {
-    const da = parseDateTimeParts(a) orelse return false;
-    const db = parseDateTimeParts(b) orelse return false;
-    if (!datePartsEquivalent(da.date, db.date)) return false;
-    return timePartsEquivalent(da.time, db.time);
+    // Normalize to UTC for comparison (respecting timezone offsets per spec)
+    const a_norm = normalizeToUtc(a) orelse return false;
+    const b_norm = normalizeToUtc(b) orelse return false;
+
+    // For equivalence, if precisions differ return false (not empty like equality)
+    if (a_norm.date_prec != b_norm.date_prec) return false;
+    if (a_norm.has_time != b_norm.has_time) return false;
+    if (a_norm.has_time and a_norm.time_prec != b_norm.time_prec) return false;
+
+    // Both must have timezone or both must not have timezone
+    if (a_norm.has_time and a_norm.has_tz != b_norm.has_tz) return false;
+
+    // Compare normalized values
+    if (a_norm.year != b_norm.year) return false;
+    if (a_norm.date_prec >= 1 and a_norm.month != b_norm.month) return false;
+    if (a_norm.date_prec >= 2 and a_norm.day != b_norm.day) return false;
+
+    if (a_norm.has_time) {
+        if (a_norm.time_prec >= 1 and a_norm.hour != b_norm.hour) return false;
+        if (a_norm.time_prec >= 2 and a_norm.minute != b_norm.minute) return false;
+        if (a_norm.time_prec >= 3) {
+            if (a_norm.second != b_norm.second) return false;
+            if (a_norm.millis != b_norm.millis) return false;
+        }
+    }
+
+    return true;
 }
 
 fn valueEquivalent(ctx: anytype, a_val: item.Value, a_type: u32, b_val: item.Value, b_type: u32) bool {
@@ -1250,56 +1273,18 @@ fn compareTimeStrings(a: []const u8, b: []const u8) i32 {
 ///   - If one value has a precision the other doesn't, result is empty (null)
 ///   - If values differ at any precision, comparison stops and returns result
 fn compareDateAndDateTime(a: []const u8, a_is_datetime: bool, b: []const u8, b_is_datetime: bool) ?i32 {
-    // Get date parts (everything before T, or whole string if no T)
-    const a_t = std.mem.indexOfScalar(u8, a, 'T');
-    const b_t = std.mem.indexOfScalar(u8, b, 'T');
+    // Use normalized comparison that handles timezone offsets correctly
+    const a_norm = normalizeToUtc(a) orelse return null;
+    const b_norm = normalizeToUtc(b) orelse return null;
 
-    const a_date = a[0 .. a_t orelse a.len];
-    const b_date = b[0 .. b_t orelse b.len];
-
-    // Determine date precisions (count hyphens: 0=year, 1=month, 2=day)
-    const a_date_prec = countDatePrecision(a_date);
-    const b_date_prec = countDatePrecision(b_date);
-
-    // Compare at shared date precision
-    const shared_date_prec = @min(a_date_prec, b_date_prec);
-    const cmp = compareDatePortionAtPrecision(a_date, b_date, shared_date_prec);
-    if (cmp != 0) return cmp;
-
-    // Date portions are equal at shared precision
-    // If date precisions differ, we need to check time precision to know if we can determine order
-    if (a_date_prec != b_date_prec) return null; // different date precision
-
-    // Both have same date precision - now check time
-    // Determine if each has time component
-    const a_has_time = a_t != null and a_t.? + 1 < a.len;
-    const b_has_time = b_t != null and b_t.? + 1 < b.len;
-
-    // For DateTime type with no time (e.g., Date converted to DateTime), treat as no time
-    const a_datetime_with_time = a_is_datetime and a_has_time;
-    const b_datetime_with_time = b_is_datetime and b_has_time;
-
+    // Adjust has_time based on whether this is actually a DateTime type
     // A Date type never has time; a DateTime may or may not have time
-    // For implicit Date->DateTime conversion, Date becomes DateTime with empty time
-    const a_effectively_has_time = a_datetime_with_time;
-    const b_effectively_has_time = b_datetime_with_time;
+    var a_adj = a_norm;
+    var b_adj = b_norm;
+    if (!a_is_datetime) a_adj.has_time = false;
+    if (!b_is_datetime) b_adj.has_time = false;
 
-    // If neither has time, they're equal at date precision
-    if (!a_effectively_has_time and !b_effectively_has_time) return 0;
-
-    // If one has time and other doesn't, precision differs - return empty
-    if (a_effectively_has_time != b_effectively_has_time) return null;
-
-    // Both have time - compare time portions
-    const a_time = stripTimezone(a[a_t.? + 1 ..]);
-    const b_time = stripTimezone(b[b_t.? + 1 ..]);
-
-    const a_time_prec = timePrecisionLevel(a_time);
-    const b_time_prec = timePrecisionLevel(b_time);
-
-    if (a_time_prec != b_time_prec) return null; // different time precision
-
-    return compareTimeStrings(a_time, b_time);
+    return compareNormalized(a_adj, b_adj);
 }
 
 /// Count date precision by number of hyphens (0=year, 1=month, 2=day)
@@ -1378,6 +1363,254 @@ fn stripTimezone(t: []const u8) []const u8 {
     if (t.len > 0 and t[t.len - 1] == 'Z') return t[0 .. t.len - 1];
     if (t.len >= 6 and (t[t.len - 6] == '+' or t[t.len - 6] == '-')) return t[0 .. t.len - 6];
     return t;
+}
+
+/// Timezone offset info: offset in minutes and whether present
+const TimezoneInfo = struct {
+    has_tz: bool,
+    offset_mins: i32, // minutes from UTC (positive = east, negative = west)
+};
+
+/// Extract timezone offset from a time string.
+/// Returns (has_tz, offset_minutes) where offset is minutes from UTC.
+/// Z means +00:00. +HH:MM is positive, -HH:MM is negative.
+fn extractTimezone(t: []const u8) TimezoneInfo {
+    if (t.len == 0) return .{ .has_tz = false, .offset_mins = 0 };
+
+    // Check for Z suffix
+    if (t[t.len - 1] == 'Z') return .{ .has_tz = true, .offset_mins = 0 };
+
+    // Check for +/-HH:MM at end (6 chars)
+    if (t.len >= 6) {
+        const sign_pos = t.len - 6;
+        const sign = t[sign_pos];
+        if (sign == '+' or sign == '-') {
+            // Parse HH:MM
+            const hh = std.fmt.parseInt(i32, t[sign_pos + 1 .. sign_pos + 3], 10) catch return .{ .has_tz = false, .offset_mins = 0 };
+            const mm = std.fmt.parseInt(i32, t[sign_pos + 4 .. sign_pos + 6], 10) catch return .{ .has_tz = false, .offset_mins = 0 };
+            var offset = hh * 60 + mm;
+            if (sign == '-') offset = -offset;
+            return .{ .has_tz = true, .offset_mins = offset };
+        }
+    }
+
+    return .{ .has_tz = false, .offset_mins = 0 };
+}
+
+/// Convert a datetime string to UTC-normalized components for comparison.
+/// Returns null if the datetime cannot be parsed.
+const NormalizedDateTime = struct {
+    // Date components
+    year: i32,
+    month: i32, // 1-12 or 0 if not specified
+    day: i32, // 1-31 or 0 if not specified
+    // Time components (only valid if has_time)
+    has_time: bool,
+    hour: i32, // 0-23
+    minute: i32, // 0-59
+    second: i32, // 0-59
+    millis: i32, // 0-999
+    // Precision info
+    date_prec: u8, // 0=year, 1=month, 2=day
+    time_prec: u8, // 1=hour, 2=minute, 3=seconds (includes millis)
+    // Timezone
+    has_tz: bool,
+};
+
+fn normalizeToUtc(dt: []const u8) ?NormalizedDateTime {
+    var result: NormalizedDateTime = .{
+        .year = 0,
+        .month = 0,
+        .day = 0,
+        .has_time = false,
+        .hour = 0,
+        .minute = 0,
+        .second = 0,
+        .millis = 0,
+        .date_prec = 0,
+        .time_prec = 0,
+        .has_tz = false,
+    };
+
+    // Find T separator
+    const t_pos = std.mem.indexOfScalar(u8, dt, 'T');
+    const date_part = dt[0 .. t_pos orelse dt.len];
+
+    // Parse date: YYYY[-MM[-DD]]
+    result.year = std.fmt.parseInt(i32, date_part[0..4], 10) catch return null;
+    result.date_prec = 0; // year
+
+    if (date_part.len >= 7 and date_part[4] == '-') {
+        result.month = std.fmt.parseInt(i32, date_part[5..7], 10) catch return null;
+        result.date_prec = 1; // month
+
+        if (date_part.len >= 10 and date_part[7] == '-') {
+            result.day = std.fmt.parseInt(i32, date_part[8..10], 10) catch return null;
+            result.date_prec = 2; // day
+        }
+    }
+
+    // Parse time if present
+    if (t_pos) |tp| {
+        if (tp + 1 >= dt.len) return result; // No time after T
+
+        const time_full = dt[tp + 1 ..];
+        const tz_info = extractTimezone(time_full);
+        result.has_tz = tz_info.has_tz;
+
+        const time_part = stripTimezone(time_full);
+        if (time_part.len == 0) return result;
+
+        result.has_time = true;
+
+        // Parse time: HH[:MM[:SS[.fff]]]
+        if (time_part.len >= 2) {
+            result.hour = std.fmt.parseInt(i32, time_part[0..2], 10) catch return null;
+            result.time_prec = 1; // hour
+        }
+
+        if (time_part.len >= 5 and time_part[2] == ':') {
+            result.minute = std.fmt.parseInt(i32, time_part[3..5], 10) catch return null;
+            result.time_prec = 2; // minute
+        }
+
+        if (time_part.len >= 8 and time_part[5] == ':') {
+            result.second = std.fmt.parseInt(i32, time_part[6..8], 10) catch return null;
+            result.time_prec = 3; // seconds
+
+            // Parse milliseconds
+            if (time_part.len > 8 and time_part[8] == '.') {
+                // Get digits after decimal
+                var end: usize = 9;
+                while (end < time_part.len and time_part[end] >= '0' and time_part[end] <= '9') {
+                    end += 1;
+                }
+                if (end > 9) {
+                    // Pad or truncate to 3 digits
+                    var frac_str: [3]u8 = .{ '0', '0', '0' };
+                    const frac_len = @min(end - 9, 3);
+                    for (0..frac_len) |i| {
+                        frac_str[i] = time_part[9 + i];
+                    }
+                    result.millis = std.fmt.parseInt(i32, &frac_str, 10) catch 0;
+                }
+            }
+        }
+
+        // Apply timezone offset to normalize to UTC
+        if (tz_info.has_tz and tz_info.offset_mins != 0) {
+            // Subtract offset to get UTC
+            // E.g., 15:00+02:00 -> 13:00 UTC
+            result.minute -= tz_info.offset_mins;
+
+            // Handle minute overflow/underflow
+            while (result.minute < 0) {
+                result.minute += 60;
+                result.hour -= 1;
+            }
+            while (result.minute >= 60) {
+                result.minute -= 60;
+                result.hour += 1;
+            }
+
+            // Handle hour overflow/underflow
+            while (result.hour < 0) {
+                result.hour += 24;
+                result.day -= 1;
+            }
+            while (result.hour >= 24) {
+                result.hour -= 24;
+                result.day += 1;
+            }
+
+            // Handle day overflow/underflow (simplified - use 30-day months for comparison)
+            if (result.day <= 0) {
+                result.month -= 1;
+                if (result.month <= 0) {
+                    result.month = 12;
+                    result.year -= 1;
+                }
+                result.day += daysInMonthNorm(result.year, result.month);
+            }
+            const max_day = daysInMonthNorm(result.year, result.month);
+            if (result.day > max_day) {
+                result.day -= max_day;
+                result.month += 1;
+                if (result.month > 12) {
+                    result.month = 1;
+                    result.year += 1;
+                }
+            }
+        }
+    }
+
+    return result;
+}
+
+fn daysInMonthNorm(year: i32, month: i32) i32 {
+    // Use the existing daysInMonth but convert types
+    if (month < 1 or month > 12) return 30; // fallback
+    return @intCast(daysInMonth(year, @intCast(@as(u32, @intCast(month)))) orelse 30);
+}
+
+fn compareNormalized(a: NormalizedDateTime, b: NormalizedDateTime) ?i32 {
+    // Compare date components at shared precision
+    const shared_date_prec = @min(a.date_prec, b.date_prec);
+
+    // Year
+    if (a.year < b.year) return -1;
+    if (a.year > b.year) return 1;
+
+    // Month (if both have month precision)
+    if (shared_date_prec >= 1) {
+        if (a.month < b.month) return -1;
+        if (a.month > b.month) return 1;
+    }
+
+    // Day (if both have day precision)
+    if (shared_date_prec >= 2) {
+        if (a.day < b.day) return -1;
+        if (a.day > b.day) return 1;
+    }
+
+    // Date portions equal at shared precision
+    if (a.date_prec != b.date_prec) return null; // different date precision
+
+    // Check time presence
+    if (!a.has_time and !b.has_time) return 0; // both date-only
+    if (a.has_time != b.has_time) return null; // one has time, other doesn't
+
+    // Both have time - check timezone compatibility
+    // If one has TZ and other doesn't, result is unknown
+    if (a.has_tz != b.has_tz) return null;
+
+    // Compare time at shared precision
+    const shared_time_prec = @min(a.time_prec, b.time_prec);
+
+    // Hour
+    if (shared_time_prec >= 1) {
+        if (a.hour < b.hour) return -1;
+        if (a.hour > b.hour) return 1;
+    }
+
+    // Minute
+    if (shared_time_prec >= 2) {
+        if (a.minute < b.minute) return -1;
+        if (a.minute > b.minute) return 1;
+    }
+
+    // Seconds+millis (combined precision)
+    if (shared_time_prec >= 3) {
+        if (a.second < b.second) return -1;
+        if (a.second > b.second) return 1;
+        if (a.millis < b.millis) return -1;
+        if (a.millis > b.millis) return 1;
+    }
+
+    // Time portions equal at shared precision
+    if (a.time_prec != b.time_prec) return null;
+
+    return 0;
 }
 
 /// Compare two decimal number strings, treating trailing zeros as equal.

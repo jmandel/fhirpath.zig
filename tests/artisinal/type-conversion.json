@@ -322,7 +322,7 @@
       "expr": "(-1).toBoolean()",
       "input": {},
       "expect": [],
-      "comment": "Parser: parenthesized expressions not supported"
+      "comment": "Blocked: parser doesn't yet support parenthesized expressions"
     },
     {
       "name": "toBoolean: decimal 1.0",
@@ -763,7 +763,7 @@
           "value": -1
         }
       ],
-      "comment": "Parser: parenthesized expressions not supported"
+      "comment": "Blocked: parser doesn't yet support parenthesized expressions"
     },
     {
       "name": "toString: decimal",
@@ -1322,7 +1322,7 @@
         }
       ],
       "_note": "Spec example: extracts date part directly, no TZ adjustment",
-      "comment": "Parser: date/time literals cannot have method calls"
+      "comment": "Blocked: parser doesn't yet support method calls on date/time literals"
     },
     {
       "name": "convertsToDate: DateTime always true",
@@ -1334,7 +1334,7 @@
           "value": true
         }
       ],
-      "comment": "Parser: date/time literals cannot have method calls"
+      "comment": "Blocked: parser doesn't yet support method calls on date/time literals"
     },
     {
       "name": "toDateTime: Date promoted to DateTime",
@@ -1347,7 +1347,7 @@
         }
       ],
       "_note": "Time components empty (not set to zero), so output is partial",
-      "comment": "Parser: date/time literals cannot have method calls"
+      "comment": "Blocked: parser doesn't yet support method calls on date/time literals"
     },
     {
       "name": "convertsToDateTime: Date always true",
@@ -1371,7 +1371,7 @@
         "reason": "convertsToDateTime() returns true for Date, DateTime, or string values convertible to DateTime. A Date literal is explicitly included, so @2024-01-15 should yield true.",
         "spec_ref": "DateTime Conversion Functions — convertsToDateTime()"
       },
-      "comment": "Parser: date/time literals cannot have method calls"
+      "comment": "Blocked: parser doesn't yet support method calls on date/time literals"
     },
     {
       "name": "toDateTime: string with partial (year only)",
@@ -1420,7 +1420,7 @@
           }
         }
       ],
-      "comment": "Parser: parenthesized expressions not supported"
+      "comment": "Blocked: parser doesn't yet support parenthesized expressions"
     },
     {
       "name": "toString: Date removes @ prefix",
@@ -1433,7 +1433,7 @@
         }
       ],
       "_note": "Spec example: @2020-01-01.toString() returns '2020-01-01' (no @)",
-      "comment": "Parser: date/time literals cannot have method calls"
+      "comment": "Blocked: parser doesn't yet support method calls on date/time literals"
     },
     {
       "name": "toString: DateTime removes @ prefix",
@@ -1446,7 +1446,7 @@
         }
       ],
       "_note": "Spec: output is ISO format without @ prefix",
-      "comment": "Parser: date/time literals cannot have method calls"
+      "comment": "Blocked: parser doesn't yet support method calls on date/time literals"
     },
     {
       "name": "toString: Time removes @T prefix",
@@ -1459,7 +1459,7 @@
         }
       ],
       "_note": "Spec example: @T10:30:00.000.toString() returns '10:30:00.000'",
-      "comment": "Parser: date/time literals cannot have method calls"
+      "comment": "Blocked: parser doesn't yet support method calls on date/time literals"
     },
     {
       "name": "toString: quantity UCUM unit with quotes",
@@ -1475,7 +1475,7 @@
         }
       ],
       "_note": "Spec: UCUM units include quotes in string representation",
-      "comment": "Parser: parenthesized expressions not supported"
+      "comment": "Blocked: parser doesn't yet support parenthesized expressions"
     },
     {
       "name": "toString: quantity calendar duration without quotes",
@@ -1488,7 +1488,7 @@
         }
       ],
       "_note": "Spec: calendar duration units don't include quotes",
-      "comment": "Parser: parenthesized expressions not supported"
+      "comment": "Blocked: parser doesn't yet support parenthesized expressions"
     },
     {
       "name": "convertsToString: quantity always true",
@@ -1500,7 +1500,7 @@
           "value": true
         }
       ],
-      "comment": "Parser: parenthesized expressions not supported"
+      "comment": "Blocked: parser doesn't yet support parenthesized expressions"
     },
     {
       "name": "convertsToString: Date always true",
@@ -1512,7 +1512,7 @@
           "value": true
         }
       ],
-      "comment": "Parser: date/time literals cannot have method calls"
+      "comment": "Blocked: parser doesn't yet support method calls on date/time literals"
     },
     {
       "name": "convertsToString: DateTime always true",
@@ -1524,7 +1524,7 @@
           "value": true
         }
       ],
-      "comment": "Parser: date/time literals cannot have method calls"
+      "comment": "Blocked: parser doesn't yet support method calls on date/time literals"
     },
     {
       "name": "convertsToString: Time always true",
@@ -1536,7 +1536,7 @@
           "value": true
         }
       ],
-      "comment": "Parser: date/time literals cannot have method calls"
+      "comment": "Blocked: parser doesn't yet support method calls on date/time literals"
     },
     {
       "name": "toBoolean: decimal 1.00 (equivalent to 1.0)",

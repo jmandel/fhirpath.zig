@@ -79,9 +79,6 @@ Goal: make artisinal tests pass.
 ```bash
 # Random failing test
 zig build harness 2>&1 | grep '^\[FAIL\]' | shuf -n 1
-
-# Random skipped test
-jq -r '.cases[]? | select(.skip) | "\(.name): \(.skip)"' tests/artisinal/*.json | shuf -n 1
 ```
 Pick one and expand from there.
 
@@ -90,7 +87,7 @@ Pick one and expand from there.
 2. **Fix it first**: Implement the minimal fix for JUST that one test
 3. Run harness to confirm the fix works
 4. **Then expand**: Check if the fix also passes related tests (same function, similar patterns)
-5. Remove `skip` from any tests that now pass
+5. Update any `comment` fields that reference now-fixed limitations
 
 **Scope discipline**:
 - Do NOT try to understand the full system before fixing one test
@@ -100,7 +97,7 @@ Pick one and expand from there.
 
 **Dependency chains**: Some features depend on more basic features. If your sampled failure requires unimplemented dependencies:
 1. Identify what's missing (e.g., "toQuantity needs quantity literal parsing")
-2. Check if that dependency has tests - search for related failures/skips
+2. Check if that dependency has tests - search for related failures or comments
 3. Pivot to implementing the dependency instead
 4. Return STEP COMPLETE - you made progress on a real blocker
 
@@ -114,7 +111,6 @@ zig build harness                    # summary of all artisinal
 zig build harness -- -n 5            # show first 5 failures
 zig build harness -- -F string       # filter by filename (string-*.json)
 zig build harness -- -t divide       # filter by test name
-grep -r '"skip":' tests/artisinal/   # find skipped tests
 ```
 
 **Discipline**:
@@ -156,7 +152,7 @@ The harness supports both artisinal and official test formats. It auto-detects b
 | `inputfile` | string | Path to input file (alternative to `input`) |
 | `expect` or `outputs` | array | Expected output items |
 | `env` | object | Environment variables (keys without `%` prefix) |
-| `skip` | string | Skip test with this reason |
+| `comment` | string | Free-form note about the test (not used by harness) |
 | `expect_error` | boolean | If true, expect parse or eval error |
 | `unordered` | boolean | Compare results as unordered set |
 | `mode` | string | Parsing mode (for FHIR-specific tests) |
@@ -164,7 +160,7 @@ The harness supports both artisinal and official test formats. It auto-detects b
 **Notes:**
 - Use either `input` (inline) or `inputfile` (file reference), not both
 - `env` keys should be bare names (e.g., `"root"` not `"%root"`)
-- `skip` should explain why the test is skipped (e.g., parser limitation)
+- `comment` is for human-readable notes; update or remove comments when they become stale
 - Tests with `predicate: true` are filtered out during JSON generation (not supported)
 
 ### Expecting errors
@@ -182,19 +178,21 @@ Use `expect_error: true` when the expression should fail to parse or evaluate:
 
 The test passes if parse or eval throws an error. It fails if the expression succeeds.
 
-### Skipping tests
+### Test comments
 
-Use `skip` with a reason string for tests that can't run yet:
+Use `comment` to add context about a test. The harness ignores this field—it's purely for documentation:
 
 ```json
 {
   "name": "parenthesized expression",
   "expr": "(1 + 2) * 3",
   "input": {},
-  "skip": "Parser: parenthesized expressions not supported",
+  "comment": "Parser: parenthesized expressions not yet supported",
   "expect": [{"type": "integer", "value": "9"}]
 }
 ```
+
+**Maintaining comments**: When you implement a feature or fix a bug, check if any `comment` fields reference that work. Update or remove comments that are no longer accurate.
 
 ### Spec documentation in artisinal files (critical)
 The `_spec_summary` field is not just a brief note—it should be a **thorough, standalone explanation** of how this part of the spec works. Include:

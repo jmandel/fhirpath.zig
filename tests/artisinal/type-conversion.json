@@ -39,7 +39,7 @@
       "  - Integer or Decimal: passthrough (Integer promoted to Decimal)",
       "  - String: must match regex (\\+|-)?\\d+(\\.\\d+)?",
       "      '3.14'\u21923.14, '42'\u219242, '-0.5'\u2192-0.5",
-      "      '1.a'\u2192empty",
+      "      '1.a'\u2192empty, '.5'\u2192empty, '1.'\u2192empty",
       "  - Boolean: true\u21921.0, false\u21920.0",
       "Other types \u2192 empty",
       "",

@@ -35,12 +35,17 @@ const examples = [
     },
   },
   {
-    label: "Observation values",
-    expr: "valueQuantity.value",
+    label: "Observation quantity",
+    expr: "valueQuantity",
     json: {
       resourceType: "Observation",
       status: "final",
-      valueQuantity: { value: 5.4, unit: "mmol/L" },
+      valueQuantity: {
+        value: 5.4,
+        unit: "mmol/L",
+        system: "http://unitsofmeasure.org",
+        code: "mmol/L",
+      },
     },
   },
   {

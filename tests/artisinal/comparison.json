@@ -34,7 +34,7 @@
     "Spec refs: Operations -> Equality / Equivalent / Comparison sections (spec/index.md)."
   ],
   "_todo": [
-    "[ ] Improve passing rate (35/61 passing) - gaps in decimal/date/time equality, equivalence, and date/time comparison",
+    "[ ] Improve passing rate (40/61 passing) - gaps in decimal/date/time equality and date/time comparison",
     "[ ] Implement equality/equivalence operators (=, !=, ~, !~) with collection semantics",
     "[ ] Implement comparison operators (<, <=, >, >=) with singleton/type checks",
     "[ ] Implement date/time precision + timezone comparison rules",

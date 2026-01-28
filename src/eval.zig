@@ -355,12 +355,32 @@ fn evalEquivalence(
         try out.append(ctx.allocator, makeBoolItem(ctx, false));
         return out;
     }
-    for (left, 0..) |l, i| {
-        if (!itemsEquivalent(ctx, l, right[i])) {
+    if (left.len == 1) {
+        try out.append(ctx.allocator, makeBoolItem(ctx, itemsEquivalent(ctx, left[0], right[0])));
+        return out;
+    }
+
+    // Multi-item collections compare without regard to order (cardinality must match).
+    const used = try ctx.allocator.alloc(bool, right.len);
+    defer ctx.allocator.free(used);
+    @memset(used, false);
+
+    for (left) |l| {
+        var matched = false;
+        for (right, 0..) |r, i| {
+            if (used[i]) continue;
+            if (itemsEquivalent(ctx, l, r)) {
+                used[i] = true;
+                matched = true;
+                break;
+            }
+        }
+        if (!matched) {
             try out.append(ctx.allocator, makeBoolItem(ctx, false));
             return out;
         }
     }
+
     try out.append(ctx.allocator, makeBoolItem(ctx, true));
     return out;
 }
@@ -380,10 +400,314 @@ fn evalNotEquivalence(
     return out;
 }
 
+fn isWhitespaceChar(c: u8) bool {
+    return c == ' ' or c == '\t' or c == '\n' or c == '\r';
+}
+
+fn stringEquivalent(a: []const u8, b: []const u8) bool {
+    if (a.len != b.len) return false;
+    for (a, 0..) |ca, idx| {
+        const cb = b[idx];
+        if (isWhitespaceChar(ca) and isWhitespaceChar(cb)) continue;
+        if (std.ascii.toLower(ca) != std.ascii.toLower(cb)) return false;
+    }
+    return true;
+}
+
+fn decimalNormScale(text: []const u8) ?u32 {
+    const scale = decimalScale(text) orelse return null;
+    if (scale == 0) return 0;
+    var norm = scale;
+    var remaining = scale;
+    var i: isize = @intCast(text.len - 1);
+    while (i >= 0 and remaining > 0) : (i -= 1) {
+        const c = text[@intCast(i)];
+        if (c == '.') continue;
+        if (c != '0') break;
+        norm -= 1;
+        remaining -= 1;
+    }
+    return norm;
+}
+
+fn pow10i128(exp: u32) ?i128 {
+    var result: i128 = 1;
+    var i: u32 = 0;
+    while (i < exp) : (i += 1) {
+        const mul = @mulWithOverflow(result, 10);
+        if (mul[1] != 0) return null;
+        result = mul[0];
+    }
+    return result;
+}
+
+fn decimalRoundedScaled(text: []const u8, target_scale: u32) ?i128 {
+    const scale = decimalScale(text) orelse return null;
+    if (scale == target_scale) return parseDecimalScaled(text, scale);
+    if (scale < target_scale) return parseDecimalScaled(text, target_scale);
+
+    const scaled = parseDecimalScaled(text, scale) orelse return null;
+    const diff: u32 = scale - target_scale;
+    const div = pow10i128(diff) orelse return null;
+
+    const negative = scaled < 0;
+    const abs_val: i128 = if (negative) -scaled else scaled;
+    var quotient: i128 = @divTrunc(abs_val, div);
+    const remainder: i128 = @mod(abs_val, div);
+
+    const twice = @mulWithOverflow(remainder, 2);
+    if (twice[1] != 0) return null;
+    if (twice[0] >= div) quotient += 1;
+
+    return if (negative) -quotient else quotient;
+}
+
+fn decimalEquivalentText(a: []const u8, b: []const u8) bool {
+    const scale_a = decimalNormScale(a) orelse return false;
+    const scale_b = decimalNormScale(b) orelse return false;
+    const target: u32 = if (scale_a < scale_b) scale_a else scale_b;
+    const scaled_a = decimalRoundedScaled(a, target) orelse return false;
+    const scaled_b = decimalRoundedScaled(b, target) orelse return false;
+    return scaled_a == scaled_b;
+}
+
+fn decimalEqualText(a: []const u8, b: []const u8) bool {
+    const scale_a = decimalScale(a) orelse return false;
+    const scale_b = decimalScale(b) orelse return false;
+    const target: u32 = if (scale_a > scale_b) scale_a else scale_b;
+    const scaled_a = parseDecimalScaled(a, target) orelse return false;
+    const scaled_b = parseDecimalScaled(b, target) orelse return false;
+    return scaled_a == scaled_b;
+}
+
+const DateParts = struct {
+    year: []const u8,
+    month: ?[]const u8,
+    day: ?[]const u8,
+};
+
+const TimeParts = struct {
+    hour: []const u8,
+    minute: []const u8,
+    second: ?[]const u8,
+    zone: ?[]const u8,
+};
+
+const DateTimeParts = struct {
+    date: DateParts,
+    time: TimeParts,
+};
+
+fn parseDateParts(text: []const u8) ?DateParts {
+    if (text.len == 0) return null;
+    var it = std.mem.splitScalar(u8, text, '-');
+    const year = it.next() orelse return null;
+    const month = it.next();
+    const day = it.next();
+    if (it.next() != null) return null;
+    return .{ .year = year, .month = month, .day = day };
+}
+
+fn parseTimeParts(text: []const u8) ?TimeParts {
+    if (text.len == 0) return null;
+    var tz_index: ?usize = null;
+    var idx: usize = 0;
+    while (idx < text.len) : (idx += 1) {
+        const c = text[idx];
+        if (c == 'Z' or c == '+' or c == '-') {
+            tz_index = idx;
+            break;
+        }
+    }
+    const time_part = if (tz_index) |pos| text[0..pos] else text;
+    const zone_part = if (tz_index) |pos| text[pos..] else null;
+
+    var it = std.mem.splitScalar(u8, time_part, ':');
+    const hour = it.next() orelse return null;
+    const minute = it.next() orelse return null;
+    const second = it.next();
+    if (it.next() != null) return null;
+
+    return .{
+        .hour = hour,
+        .minute = minute,
+        .second = second,
+        .zone = zone_part,
+    };
+}
+
+fn parseDateTimeParts(text: []const u8) ?DateTimeParts {
+    const t_index = std.mem.indexOfScalar(u8, text, 'T') orelse return null;
+    const date_part = text[0..t_index];
+    const time_part = text[t_index + 1 ..];
+    const date = parseDateParts(date_part) orelse return null;
+    const time = parseTimeParts(time_part) orelse return null;
+    return .{ .date = date, .time = time };
+}
+
+fn datePartsEquivalent(a: DateParts, b: DateParts) bool {
+    if (!std.mem.eql(u8, a.year, b.year)) return false;
+    if ((a.month == null) != (b.month == null)) return false;
+    if (a.month) |m| {
+        if (!std.mem.eql(u8, m, b.month.?)) return false;
+    }
+    if ((a.day == null) != (b.day == null)) return false;
+    if (a.day) |d| {
+        if (!std.mem.eql(u8, d, b.day.?)) return false;
+    }
+    return true;
+}
+
+fn timePartsEquivalent(a: TimeParts, b: TimeParts) bool {
+    if ((a.zone == null) != (b.zone == null)) return false;
+    if (a.zone) |z| {
+        if (!std.mem.eql(u8, z, b.zone.?)) return false;
+    }
+    if (!std.mem.eql(u8, a.hour, b.hour)) return false;
+    if (!std.mem.eql(u8, a.minute, b.minute)) return false;
+    if ((a.second == null) != (b.second == null)) return false;
+    if (a.second) |sec| {
+        return decimalEqualText(sec, b.second.?);
+    }
+    return true;
+}
+
+fn dateEquivalent(a: []const u8, b: []const u8) bool {
+    const pa = parseDateParts(a) orelse return false;
+    const pb = parseDateParts(b) orelse return false;
+    return datePartsEquivalent(pa, pb);
+}
+
+fn timeEquivalent(a: []const u8, b: []const u8) bool {
+    const ta = parseTimeParts(a) orelse return false;
+    const tb = parseTimeParts(b) orelse return false;
+    return timePartsEquivalent(ta, tb);
+}
+
+fn dateTimeEquivalent(a: []const u8, b: []const u8) bool {
+    const da = parseDateTimeParts(a) orelse return false;
+    const db = parseDateTimeParts(b) orelse return false;
+    if (!datePartsEquivalent(da.date, db.date)) return false;
+    return timePartsEquivalent(da.time, db.time);
+}
+
+fn valueEquivalent(ctx: anytype, a_val: item.Value, a_type: u32, b_val: item.Value, b_type: u32) bool {
+    if (a_val == .empty or b_val == .empty) return a_val == .empty and b_val == .empty;
+
+    const date_id = ctx.types.getOrAdd("System.Date") catch 0;
+    const time_id = ctx.types.getOrAdd("System.Time") catch 0;
+    const datetime_id = ctx.types.getOrAdd("System.DateTime") catch 0;
+    const string_id = ctx.types.getOrAdd("System.String") catch 0;
+
+    const a_is_date = a_val == .date or a_type == date_id;
+    const b_is_date = b_val == .date or b_type == date_id;
+    if (a_is_date or b_is_date) {
+        if (!(a_is_date and b_is_date)) return false;
+        const a_text = if (a_val == .date) a_val.date else if (a_val == .string) a_val.string else return false;
+        const b_text = if (b_val == .date) b_val.date else if (b_val == .string) b_val.string else return false;
+        return dateEquivalent(a_text, b_text);
+    }
+
+    const a_is_time = a_val == .time or a_type == time_id;
+    const b_is_time = b_val == .time or b_type == time_id;
+    if (a_is_time or b_is_time) {
+        if (!(a_is_time and b_is_time)) return false;
+        const a_text = if (a_val == .time) a_val.time else if (a_val == .string) a_val.string else return false;
+        const b_text = if (b_val == .time) b_val.time else if (b_val == .string) b_val.string else return false;
+        return timeEquivalent(a_text, b_text);
+    }
+
+    const a_is_datetime = a_val == .dateTime or a_type == datetime_id;
+    const b_is_datetime = b_val == .dateTime or b_type == datetime_id;
+    if (a_is_datetime or b_is_datetime) {
+        if (!(a_is_datetime and b_is_datetime)) return false;
+        const a_text = if (a_val == .dateTime) a_val.dateTime else if (a_val == .string) a_val.string else return false;
+        const b_text = if (b_val == .dateTime) b_val.dateTime else if (b_val == .string) b_val.string else return false;
+        return dateTimeEquivalent(a_text, b_text);
+    }
+
+    const a_numeric = a_val == .integer or a_val == .decimal;
+    const b_numeric = b_val == .integer or b_val == .decimal;
+    if (a_numeric and b_numeric) {
+        var buf_a: [64]u8 = undefined;
+        var buf_b: [64]u8 = undefined;
+        const text_a = switch (a_val) {
+            .integer => std.fmt.bufPrint(&buf_a, "{d}", .{a_val.integer}) catch return false,
+            .decimal => a_val.decimal,
+            else => return false,
+        };
+        const text_b = switch (b_val) {
+            .integer => std.fmt.bufPrint(&buf_b, "{d}", .{b_val.integer}) catch return false,
+            .decimal => b_val.decimal,
+            else => return false,
+        };
+        return decimalEquivalentText(text_a, text_b);
+    }
+
+    const a_is_string = a_val == .string or a_type == string_id;
+    const b_is_string = b_val == .string or b_type == string_id;
+    if (a_is_string and b_is_string) {
+        const a_text = switch (a_val) {
+            .string => a_val.string,
+            else => return false,
+        };
+        const b_text = switch (b_val) {
+            .string => b_val.string,
+            else => return false,
+        };
+        return stringEquivalent(a_text, b_text);
+    }
+
+    if (a_val == .boolean and b_val == .boolean) return a_val.boolean == b_val.boolean;
+    if (a_val == .quantity and b_val == .quantity) return valueEqual(a_val, b_val);
+
+    return false;
+}
+
 fn itemsEquivalent(ctx: anytype, a: item.Item, b: item.Item) bool {
-    // For now, use same logic as equality
-    // TODO: Implement proper equivalence (case-insensitive strings, etc.)
-    return itemsEqual(ctx, a, b);
+    const A = @TypeOf(ctx.adapter.*);
+    const a_is_node = a.data_kind == .node_ref and a.node != null;
+    const b_is_node = b.data_kind == .node_ref and b.node != null;
+
+    if (a_is_node and b_is_node) {
+        const a_ref = nodeRefFromRaw(A, a.node.?);
+        const b_ref = nodeRefFromRaw(A, b.node.?);
+        const kind_a = A.kind(ctx.adapter, a_ref);
+        const kind_b = A.kind(ctx.adapter, b_ref);
+        if (kind_a != kind_b) return false;
+        return switch (kind_a) {
+            .null => true,
+            .bool => A.boolean(ctx.adapter, a_ref) == A.boolean(ctx.adapter, b_ref),
+            .number => decimalEquivalentText(A.numberText(ctx.adapter, a_ref), A.numberText(ctx.adapter, b_ref)),
+            .string => blk: {
+                const text_a = A.string(ctx.adapter, a_ref);
+                const text_b = A.string(ctx.adapter, b_ref);
+                const date_id = ctx.types.getOrAdd("System.Date") catch 0;
+                const time_id = ctx.types.getOrAdd("System.Time") catch 0;
+                const datetime_id = ctx.types.getOrAdd("System.DateTime") catch 0;
+                if (a.type_id == date_id and b.type_id == date_id) break :blk dateEquivalent(text_a, text_b);
+                if (a.type_id == time_id and b.type_id == time_id) break :blk timeEquivalent(text_a, text_b);
+                if (a.type_id == datetime_id and b.type_id == datetime_id) break :blk dateTimeEquivalent(text_a, text_b);
+                break :blk stringEquivalent(text_a, text_b);
+            },
+            .array, .object => nodeEqual(ctx, a_ref, b_ref),
+        };
+    }
+
+    if (a_is_node or b_is_node) {
+        if (a_is_node) {
+            const a_ref = nodeRefFromRaw(A, a.node.?);
+            const kind_a = A.kind(ctx.adapter, a_ref);
+            if (kind_a == .array or kind_a == .object) return false;
+        }
+        if (b_is_node) {
+            const b_ref = nodeRefFromRaw(A, b.node.?);
+            const kind_b = A.kind(ctx.adapter, b_ref);
+            if (kind_b == .array or kind_b == .object) return false;
+        }
+    }
+
+    return valueEquivalent(ctx, itemToValue(ctx, a), a.type_id, itemToValue(ctx, b), b.type_id);
 }
 
 const CompareOp = enum { lt, le, gt, ge };

@@ -1,0 +1,249 @@
+{
+  "_spec_summary": [
+    "Collection membership functions: subsetOf() and supersetOf().",
+    "",
+    "=== CORE BEHAVIOR ===",
+    "- subsetOf(other) returns true if every item in the input collection is a member of the other collection.",
+    "- supersetOf(other) returns true if every item in the other collection is a member of the input collection.",
+    "- Membership is determined using the equals (=) operator (not equivalence ~).",
+    "- Conceptually, subsetOf tests each input item for membership in other with a default of true; supersetOf tests each item in other with a default of true.",
+    "",
+    "=== TYPE HANDLING ===",
+    "- Items may be of any type, but comparisons use equals semantics (same type or implicitly convertible types).",
+    "- If comparing items would result in an equality error (incompatible types), evaluation likely signals an error; filter incompatible items first (spec does not spell this out).",
+    "",
+    "=== EMPTY COLLECTION SEMANTICS ===",
+    "- subsetOf: empty input => true; non-empty input with empty other => false.",
+    "- supersetOf: empty other => true; empty input with non-empty other => false.",
+    "- Both empty => true for both functions.",
+    "",
+    "=== ORDERING & DUPLICATES ===",
+    "- Order is irrelevant; membership checks do not depend on input ordering.",
+    "- Duplicates do not require multiplicity in the other collection; each item is tested for membership using equals.",
+    "",
+    "=== EDGE CASES ===",
+    "- Because equals can return empty for some partial date/time comparisons, membership outcomes in those cases are unspecified here; avoid such inputs unless spec clarifies.",
+    "",
+    "=== RELATIONSHIPS ===",
+    "- A.subsetOf(B) is logically equivalent to B.supersetOf(A).",
+    "",
+    "Spec refs: spec/index.md subsetOf/supersetOf; equality semantics in spec/index.md#equals (membership uses =).",
+    "Direct quote: \"Returns true if all items in the input collection are members of the collection passed as the other argument.\""
+  ],
+  "_todo": [
+    "[ ] Improve passing rate (0/11 passing)",
+    "[ ] Add tests for complex object equality (same structure, different order)",
+    "[ ] Clarify behavior when equals returns empty (e.g., partial date/time comparisons)"
+  ],
+  "meta": {
+    "status": "drafted",
+    "feature": "subset-superset",
+    "source": "spec/index.md#subsetOf"
+  },
+  "cases": [
+    {
+      "name": "subsetOf: all items present",
+      "expr": "items.subsetOf(other)",
+      "input": {
+        "items": [
+          1,
+          2
+        ],
+        "other": [
+          1,
+          2,
+          3
+        ]
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "subsetOf: missing item yields false",
+      "expr": "items.subsetOf(other)",
+      "input": {
+        "items": [
+          1,
+          4
+        ],
+        "other": [
+          1,
+          2,
+          3
+        ]
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ]
+    },
+    {
+      "name": "subsetOf: empty input is true",
+      "expr": "items.subsetOf(other)",
+      "input": {
+        "items": [],
+        "other": [
+          1
+        ]
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "subsetOf: empty other is false when input non-empty",
+      "expr": "items.subsetOf(other)",
+      "input": {
+        "items": [
+          1
+        ],
+        "other": []
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ]
+    },
+    {
+      "name": "subsetOf: duplicates in input do not require multiplicity",
+      "expr": "items.subsetOf(other)",
+      "input": {
+        "items": [
+          1,
+          1,
+          2
+        ],
+        "other": [
+          1,
+          2
+        ]
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "supersetOf: input covers other",
+      "expr": "items.supersetOf(other)",
+      "input": {
+        "items": [
+          1,
+          2,
+          3
+        ],
+        "other": [
+          1,
+          2
+        ]
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "supersetOf: missing item yields false",
+      "expr": "items.supersetOf(other)",
+      "input": {
+        "items": [
+          1,
+          2
+        ],
+        "other": [
+          1,
+          2,
+          3
+        ]
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ]
+    },
+    {
+      "name": "supersetOf: empty other is true",
+      "expr": "items.supersetOf(other)",
+      "input": {
+        "items": [
+          1
+        ],
+        "other": []
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "supersetOf: empty input is false when other non-empty",
+      "expr": "items.supersetOf(other)",
+      "input": {
+        "items": [],
+        "other": [
+          1
+        ]
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ]
+    },
+    {
+      "name": "supersetOf: duplicates in other do not require multiplicity",
+      "expr": "items.supersetOf(other)",
+      "input": {
+        "items": [
+          1,
+          2
+        ],
+        "other": [
+          1,
+          1,
+          2
+        ]
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "subsetOf/supersetOf: both empty are true",
+      "expr": "items.subsetOf(other) and items.supersetOf(other)",
+      "input": {
+        "items": [],
+        "other": []
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    }
+  ]
+}

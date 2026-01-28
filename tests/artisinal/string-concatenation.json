@@ -48,14 +48,14 @@
     "  - Section 5.8.7 & (String concatenation) - string concatenation with &"
   ],
   "_todo": [
-    "[ ] Improve passing rate (31/39 passing)",
+    "[x] Passing rate 39/39 (100%)",
     "[x] Verify & treats empty as empty string",
-    "[ ] Implement + string concatenation (currently returns empty for strings)",
-    "[ ] Implement error signaling for multiple items with & (currently accepts them)",
-    "[ ] Verify + propagates empty to empty (blocked by + string impl)"
+    "[x] Implement + string concatenation",
+    "[x] Implement error signaling for multiple items with &",
+    "[x] Verify + propagates empty to empty"
   ],
   "meta": {
-    "status": "drafted"
+    "status": "implemented"
   },
   "cases": [
     {
@@ -143,28 +143,28 @@
       "expr": "'a' + 'b'",
       "input": {},
       "expect": [{"type": "string", "value": "ab"}],
-      "comment": "Blocked: + operator doesn't handle strings yet - returns empty"
+      "comment": "String concatenation with + operator"
     },
     {
       "name": "+ string: three strings",
       "expr": "'a' + 'b' + 'c'",
       "input": {},
       "expect": [{"type": "string", "value": "abc"}],
-      "comment": "Blocked: + operator doesn't handle strings yet - returns empty"
+      "comment": "String concatenation with + operator"
     },
     {
       "name": "+ string: longer strings",
       "expr": "'ABC' + 'DEF'",
       "input": {},
       "expect": [{"type": "string", "value": "ABCDEF"}],
-      "comment": "Blocked: + operator doesn't handle strings yet - returns empty"
+      "comment": "String concatenation with + operator"
     },
     {
       "name": "+ string: with spaces",
       "expr": "'hello' + ' ' + 'world'",
       "input": {},
       "expect": [{"type": "string", "value": "hello world"}],
-      "comment": "Blocked: + operator doesn't handle strings yet - returns empty"
+      "comment": "String concatenation with + operator"
     },
     {
       "_section": "=== + WITH EMPTY COLLECTION (KEY DIFFERENCE FROM &) ==="
@@ -249,7 +249,7 @@
       "expr": "first + '-' + last",
       "input": {"first": "John", "last": "Doe"},
       "expect": [{"type": "string", "value": "John-Doe"}],
-      "comment": "Blocked: + operator doesn't handle strings yet - returns empty"
+      "comment": "String concatenation with + operator"
     },
     {
       "name": "+ with one missing path returns empty",
@@ -286,28 +286,28 @@
       "expect": [{"type": "boolean", "value": true}]
     },
     {
-      "_section": "=== ERROR CONDITIONS (spec requires error, impl differs) ==="
+      "_section": "=== ERROR CONDITIONS ==="
     },
     {
       "name": "& with multiple items on left is error",
       "expr": "('a' | 'b') & 'c'",
       "input": {},
       "expect_error": true,
-      "comment": "Per spec/R5: multiple items should signal error. Implementation currently accepts."
+      "comment": "Per spec/R5: multiple items signals singleton error"
     },
     {
       "name": "& with multiple items on right is error",
       "expr": "'a' & ('b' | 'c')",
       "input": {},
       "expect_error": true,
-      "comment": "Per spec/R5: multiple items should signal error. Implementation currently accepts."
+      "comment": "Per spec/R5: multiple items signals singleton error"
     },
     {
       "name": "+ string with multiple items is error",
       "expr": "('a' | 'b') + 'c'",
       "input": {},
       "expect_error": true,
-      "comment": "Per spec: multiple items should signal error. Blocked by + string impl."
+      "comment": "Per spec: multiple items signals singleton error"
     },
     {
       "_section": "=== SPECIAL CHARACTERS ==="

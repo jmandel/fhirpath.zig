@@ -1510,10 +1510,20 @@ fn evalArithmetic(
     op: ArithOp,
 ) EvalError!ItemList {
     var out = ItemList.empty;
-    if (left.len != 1 or right.len != 1) return out;
+    // Empty propagates
+    if (left.len == 0 or right.len == 0) return out;
+    // Multi-item is an error per spec: singleton evaluation of collections
+    if (left.len > 1 or right.len > 1) return error.SingletonRequired;
 
     const va = itemToValue(ctx, left[0]);
     const vb = itemToValue(ctx, right[0]);
+
+    // String concatenation with + operator
+    if (op == .add and va == .string and vb == .string) {
+        const result = try std.fmt.allocPrint(ctx.allocator, "{s}{s}", .{ va.string, vb.string });
+        try out.append(ctx.allocator, makeStringItem(ctx, result));
+        return out;
+    }
 
     // Integer arithmetic
     if (va == .integer and vb == .integer) {
@@ -2279,6 +2289,9 @@ fn evalConcat(
     right: []const item.Item,
 ) EvalError!ItemList {
     var out = ItemList.empty;
+
+    // Multi-item is an error per spec: singleton evaluation of collections
+    if (left.len > 1 or right.len > 1) return error.SingletonRequired;
 
     // Get string values, treating empty as empty string
     const left_str = if (left.len == 0) "" else blk: {
@@ -5048,6 +5061,8 @@ fn evalStringArg(ctx: anytype, expr: ast.Expr, env: ?*Env) EvalError!?[]const u8
     var result = try evalExpressionCtx(ctx, expr, makeEmptyItem(ctx), env, null);
     defer result.deinit(ctx.allocator);
     if (result.items.len == 0) return null;
+    // Multi-item is an error per spec: singleton evaluation of collections
+    if (result.items.len > 1) return error.SingletonRequired;
     return itemStringValue(ctx, result.items[0]);
 }
 
@@ -5058,6 +5073,8 @@ fn evalIntegerArg(ctx: anytype, expr: ast.Expr, env: ?*Env) EvalError!?i64 {
     var result = try evalExpressionCtx(ctx, expr, makeEmptyItem(ctx), env, null);
     defer result.deinit(ctx.allocator);
     if (result.items.len == 0) return null;
+    // Multi-item is an error per spec: singleton evaluation of collections
+    if (result.items.len > 1) return error.SingletonRequired;
     const val = itemToValue(ctx, result.items[0]);
     return switch (val) {
         .integer => |i| i,
@@ -5088,6 +5105,8 @@ fn evalDecimalArg(ctx: anytype, expr: ast.Expr, env: ?*Env) EvalError!?f64 {
     var result = try evalExpressionCtx(ctx, expr, makeEmptyItem(ctx), env, null);
     defer result.deinit(ctx.allocator);
     if (result.items.len == 0) return null;
+    // Multi-item is an error per spec: singleton evaluation of collections
+    if (result.items.len > 1) return error.SingletonRequired;
     return itemToFloat(ctx, result.items[0]);
 }
 

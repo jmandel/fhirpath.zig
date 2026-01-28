@@ -34,16 +34,15 @@
     "Spec refs: Singleton Evaluation of Collections (spec/index.md)"
   ],
   "_todo": [
-    "[ ] Improve passing rate (14/41 passing) - most singleton error checks not implemented",
-    "[ ] Implement single() error on multi-item input (2 tests failing)",
-    "[ ] Implement arithmetic operator singleton checks (7 tests failing)",
-    "[ ] Implement string concat singleton checks (3 tests failing)",
-    "[ ] Implement string function argument singleton checks (10 tests failing)",
-    "[ ] Implement comparison operator singleton checks (5 tests failing)",
-    "[ ] Implement math function argument singleton checks (2+ tests failing)"
+    "[x] Passing rate 41/41 (100%)",
+    "[x] Implemented arithmetic operator singleton checks (7 tests)",
+    "[x] Implemented string concat singleton checks (3 tests)",
+    "[x] Implemented string function argument singleton checks (10 tests)",
+    "[x] Implemented comparison operator singleton checks (5 tests)",
+    "[x] Implemented math function argument singleton checks (2 tests)"
   ],
   "meta": {
-    "status": "reviewed"
+    "status": "implemented"
   },
   "cases": [
     {

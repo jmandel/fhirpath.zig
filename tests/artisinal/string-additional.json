@@ -71,7 +71,7 @@
     "Does join require all elements to be strings, or does it convert automatically?"
   ],
   "meta": {
-    "status": "drafted"
+    "status": "reviewed"
   },
   "cases": [
     {

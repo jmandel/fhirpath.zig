@@ -90,8 +90,17 @@ def normalize_output(out_type: str, value: str) -> dict:
     """Normalize output values - strip FHIRPath literal prefixes since type is explicit."""
     result = {"type": out_type}
     
+    # Boolean: convert to actual boolean
+    if out_type == "boolean":
+        result["value"] = value.lower() == "true"
+    # Integer: convert to actual int
+    elif out_type == "integer":
+        result["value"] = int(value)
+    # Decimal: convert to actual float
+    elif out_type == "decimal":
+        result["value"] = float(value)
     # Date/DateTime/Time: strip @ prefix (and @T for time)
-    if out_type in ("date", "dateTime"):
+    elif out_type in ("date", "dateTime"):
         if value.startswith("@"):
             value = value[1:]
         result["value"] = value

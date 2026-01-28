@@ -61,8 +61,24 @@ Goal: expand coverage by discovering gaps organically.
 **Finding gaps** - sample randomly and let understanding emerge:
 - Skim a random section of the FHIRPath spec (`spec/index.md`) and note functions/operators without artisinal coverage.
 - Browse `tests/r5/tests-fhir-r5.json` randomly and find test patterns we haven't captured.
-- Run `zig build harness -- -i tests/r5/input -q tests/r5/tests-fhir-r5.json` to see overall r5 pass rate and spot areas needing work.
+- Run `zig build harness -- -m models/r5/model.bin -q tests/r5/tests-fhir-r5.json` to see overall R5 pass rate.
 - Compare what exists in `tests/artisinal/` against what the spec describes.
+
+**Mining R5 failures for work items** - the official tests surface real gaps:
+```bash
+# See failure breakdown (parse errors, eval errors, mismatches)
+zig build harness -- -m models/r5/model.bin tests/r5/tests-fhir-r5.json -q 2>&1 | grep -E "(TOTAL|Pass rate)"
+
+# Sample some mismatches to understand patterns
+zig build harness -- -m models/r5/model.bin tests/r5/tests-fhir-r5.json -n 30 2>&1 | grep -B2 "reason: mismatch" | grep "expr:"
+
+# Find which functions appear most in failures
+zig build harness -- -m models/r5/model.bin tests/r5/tests-fhir-r5.json -n 300 2>&1 | grep -B2 "reason: mismatch" | grep "expr:" | grep -oE '\.[a-zA-Z]+\(' | sort | uniq -c | sort -rn | head -15
+
+# Check tests expecting errors that we don't throw
+zig build harness -- -m models/r5/model.bin tests/r5/tests-fhir-r5.json -n 100 2>&1 | grep -B2 "expected error but succeeded"
+```
+Pick a cluster (e.g., "15 failures on `.is()` type checking") and create artisinal tests for that feature.
 
 **Writing new tests**:
 - Read the spec section(s) that define the correct behavior.

@@ -1,0 +1,214 @@
+{
+  "meta": {
+    "status": "drafted"
+  },
+  "_spec_summary": "Regex matching functions: matches(), matchesFull(), replaceMatches(). All use regular expressions (PCRE flavor recommended). Case-sensitive by default, use 'single line' mode, allow Unicode.\n\n## matches(regex : String, [flags : String]) : Boolean\n- Returns true if the value contains a match for the given regex\n- Use ^ and $ anchors to match entire string\n- Empty input or regex returns empty\n- Multiple items in input is an error\n- Optional flags: 'i' for case-insensitive, 'm' for multi-line mode\n\n## matchesFull(regex : String, [flags : String]) : Boolean (STU)\n- Returns true if the value COMPLETELY matches the regex\n- Implicitly anchored at start and end (^ and $ surround the pattern)\n- Empty input or regex returns empty\n- Multiple items in input is an error\n- Optional flags: 'i' for case-insensitive, 'm' for multi-line mode\n\n## replaceMatches(regex : String, substitution : String, [flags : String]) : String\n- Replaces each regex match with the substitution string\n- Substitution can use named capture groups: ${groupname}\n- Empty input, regex, or substitution returns empty\n- Multiple items in input is an error\n- Optional flags: 'i' for case-insensitive, 'm' for multi-line mode\n\n## Key behaviors:\n- Regex is interpreted as PCRE (most portable)\n- Case-sensitive unless 'i' flag provided\n- Single-line mode by default (. doesn't match newlines unless multiline)\n- Unicode characters allowed",
+  "_todo": [
+    "[ ] Improve passing rate (0/32 passing, eval errors - functions not implemented)",
+    "[ ] Verify regex escape handling in tests",
+    "[ ] Check named capture group support"
+  ],
+  "cases": [
+    {
+      "name": "matches: simple substring pattern",
+      "expr": "'http://fhir.org/guides/cqf/common/Library/FHIR-ModelInfo|4.0.1'.matches('Library')",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Spec example: partial match returns true"
+    },
+    {
+      "name": "matches: anchored pattern fails on longer string",
+      "expr": "'N8000123123'.matches('^N[0-9]{8}$')",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}],
+      "comment": "Spec example: anchored to require exact 8 digits, but string has 10"
+    },
+    {
+      "name": "matches: unanchored pattern succeeds on partial match",
+      "expr": "'N8000123123'.matches('N[0-9]{8}')",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Spec example: unanchored, matches first 9 chars"
+    },
+    {
+      "name": "matches: no match returns false",
+      "expr": "'hello world'.matches('xyz')",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}]
+    },
+    {
+      "name": "matches: case sensitive by default",
+      "expr": "'Hello'.matches('hello')",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}]
+    },
+    {
+      "name": "matches: case insensitive with i flag",
+      "expr": "'Hello'.matches('hello', 'i')",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "matches: digit pattern",
+      "expr": "'abc123def'.matches('[0-9]+')",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "matches: dot matches any char",
+      "expr": "'abc'.matches('a.c')",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "matches: empty input returns empty",
+      "expr": "{}.matches('pattern')",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "matches: empty regex returns empty",
+      "expr": "'test'.matches({})",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "matches: word boundary",
+      "expr": "'hello world'.matches('\\\\bworld\\\\b')",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Word boundary matches 'world' as complete word"
+    },
+    {
+      "name": "matches: alternation",
+      "expr": "'cat'.matches('cat|dog')",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "matchesFull: exact match required",
+      "expr": "'http://fhir.org/guides/cqf/common/Library/FHIR-ModelInfo|4.0.1'.matchesFull('Library')",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}],
+      "comment": "Spec example: matchesFull requires entire string to match"
+    },
+    {
+      "name": "matchesFull: fails on partial match",
+      "expr": "'N8000123123'.matchesFull('N[0-9]{8}')",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}],
+      "comment": "Spec example: 10 digits doesn't match pattern for 8"
+    },
+    {
+      "name": "matchesFull: exact digit count succeeds",
+      "expr": "'N8000123123'.matchesFull('N[0-9]{10}')",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Spec example: 10 digits matches pattern for 10"
+    },
+    {
+      "name": "matchesFull: entire string must match",
+      "expr": "'hello'.matchesFull('hello')",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "matchesFull: pattern at start fails",
+      "expr": "'hello world'.matchesFull('hello')",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}]
+    },
+    {
+      "name": "matchesFull: case insensitive with i flag",
+      "expr": "'HELLO'.matchesFull('hello', 'i')",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "matchesFull: empty input returns empty",
+      "expr": "{}.matchesFull('pattern')",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "matchesFull: empty regex returns empty",
+      "expr": "'test'.matchesFull({})",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "matchesFull: wildcard pattern",
+      "expr": "'abc123'.matchesFull('.*')",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "matchesFull: mixed pattern",
+      "expr": "'abc123'.matchesFull('[a-z]+[0-9]+')",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "replaceMatches: simple replacement",
+      "expr": "'aaabaa'.replaceMatches('aa', '\"aa\"')",
+      "input": {},
+      "expect": [{"type": "string", "value": "\"aa\"ab\"aa\""}],
+      "comment": "Spec example: surrounds aa matches with quotes"
+    },
+    {
+      "name": "replaceMatches: no match leaves string unchanged",
+      "expr": "'hello'.replaceMatches('xyz', 'replaced')",
+      "input": {},
+      "expect": [{"type": "string", "value": "hello"}]
+    },
+    {
+      "name": "replaceMatches: replace all occurrences",
+      "expr": "'aaa'.replaceMatches('a', 'b')",
+      "input": {},
+      "expect": [{"type": "string", "value": "bbb"}]
+    },
+    {
+      "name": "replaceMatches: empty input returns empty",
+      "expr": "{}.replaceMatches('a', 'b')",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "replaceMatches: empty regex returns empty",
+      "expr": "'test'.replaceMatches({}, 'x')",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "replaceMatches: empty substitution returns empty",
+      "expr": "'test'.replaceMatches('e', {})",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "replaceMatches: case insensitive with i flag",
+      "expr": "'Hello HELLO hello'.replaceMatches('hello', 'hi', 'i')",
+      "input": {},
+      "expect": [{"type": "string", "value": "hi hi hi"}]
+    },
+    {
+      "name": "replaceMatches: digit replacement",
+      "expr": "'abc123def'.replaceMatches('[0-9]+', 'NUM')",
+      "input": {},
+      "expect": [{"type": "string", "value": "abcNUMdef"}]
+    },
+    {
+      "name": "replaceMatches: remove matches",
+      "expr": "'a1b2c3'.replaceMatches('[0-9]', '')",
+      "input": {},
+      "expect": [{"type": "string", "value": "abc"}]
+    },
+    {
+      "name": "replaceMatches: capture group substitution",
+      "expr": "'abc'.replaceMatches('(.)(.)(.)','$3$2$1')",
+      "input": {},
+      "expect": [{"type": "string", "value": "cba"}],
+      "comment": "Reverses string using numbered capture groups"
+    }
+  ]
+}

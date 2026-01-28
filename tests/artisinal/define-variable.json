@@ -1,0 +1,186 @@
+{
+  "_spec_summary": [
+    "defineVariable(name: String [, expr: expression]) - Variable Definition Function",
+    "STATUS: Standard for Trial Use (STU)",
+    "",
+    "=== CORE BEHAVIOR ===",
+    "Defines a variable named `name` that is accessible in subsequent expressions.",
+    "- If `expr` is provided: variable has the value of evaluating `expr`",
+    "- If `expr` is omitted: variable has the value of the input collection",
+    "- IMPORTANT: The function does NOT change the input; output equals input collection",
+    "- Variables are accessed using the %name syntax (e.g., %myVar)",
+    "",
+    "=== PASS-THROUGH SEMANTICS ===",
+    "defineVariable is a pass-through function:",
+    "  input.defineVariable('x', someValue).foo() is equivalent to input.foo()",
+    "The variable is defined as a side effect, but the collection flows through unchanged.",
+    "This allows chaining: input.defineVariable('a').defineVariable('b', otherExpr).select(...)",
+    "",
+    "=== VARIABLE SCOPING ===",
+    "Variables are scoped to the expression context where they're defined:",
+    "- Functions that take expression arguments (select, where, etc.) create new scopes",
+    "- Variables defined inside such expressions are only visible within that scope",
+    "- Variables defined at outer scope ARE visible in inner scopes",
+    "- After the expression completes, temporary variables are popped off the stack",
+    "",
+    "=== ERROR CONDITIONS ===",
+    "- If the name already exists in the CURRENT expression scope: error is signaled",
+    "- Shadowing is allowed: inner scope can define same name as outer scope",
+    "- Empty name string ('') behavior is implementation-defined",
+    "",
+    "=== RELATIONSHIP TO ITERATION VARIABLES ===",
+    "Iteration variables ($this, $index, $total) are separate from user-defined variables.",
+    "Both %name (user variables) and $name (iteration variables) exist in the same expression.",
+    "User variables defined in an iteration scope are reset for each iteration.",
+    "",
+    "=== COMMON PATTERNS ===",
+    "1. Capture context for use in nested selections:",
+    "   patient.defineVariable('p').contact.select(%p.name.first() & ' knows ' & name)",
+    "",
+    "2. Capture intermediate calculation:",
+    "   values.defineVariable('total', sum()).select($this / %total * 100)",
+    "",
+    "3. Multiple variable definitions:",
+    "   input.defineVariable('a', x).defineVariable('b', y).select(%a + %b)",
+    "",
+    "=== SPEC EXAMPLE (ConceptMap) ===",
+    "group.select(",
+    "  defineVariable('grp')",
+    "  .select(",
+    "    element.select(",
+    "      defineVariable('src')",
+    "      .target.select(",
+    "        %grp.source & '#' & %src.code",
+    "        & ' ' & equivalence & ' '",
+    "        & %grp.target & '#' & code",
+    "      )",
+    "    )",
+    "  )",
+    ")"
+  ],
+  "_todo": [
+    "[ ] Improve passing rate (0/13 passing) - defineVariable not yet implemented",
+    "[ ] Implement defineVariable function in evaluator",
+    "[ ] Implement variable scoping in expression contexts",
+    "[ ] Add error tests for duplicate variable names in same scope",
+    "[ ] Test variable shadowing in nested scopes"
+  ],
+  "meta": {
+    "status": "drafted"
+  },
+  "cases": [
+    {
+      "_section": "=== BASIC VARIABLE DEFINITION ==="
+    },
+    {
+      "name": "defineVariable: basic string value",
+      "expr": "defineVariable('v1', 'value1').select(%v1)",
+      "input": {},
+      "expect": [{"type": "string", "value": "value1"}],
+      "comment": "Define variable with literal string, access via %v1"
+    },
+    {
+      "name": "defineVariable: integer value",
+      "expr": "defineVariable('num', 42).select(%num)",
+      "input": {},
+      "expect": [{"type": "integer", "value": 42}]
+    },
+    {
+      "name": "defineVariable: decimal value",
+      "expr": "defineVariable('dec', 3.14).select(%dec)",
+      "input": {},
+      "expect": [{"type": "decimal", "value": 3.14}]
+    },
+    {
+      "name": "defineVariable: boolean value",
+      "expr": "defineVariable('flag', true).select(%flag)",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "defineVariable: empty collection value",
+      "expr": "defineVariable('empty', {}).select(%empty.empty())",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Variable can hold empty collection"
+    },
+    {
+      "_section": "=== PASS-THROUGH SEMANTICS ==="
+    },
+    {
+      "name": "defineVariable: returns input unchanged",
+      "expr": "a.defineVariable('x', 'ignored')",
+      "input": {"a": [1, 2, 3]},
+      "expect": [
+        {"type": "integer", "value": 1},
+        {"type": "integer", "value": 2},
+        {"type": "integer", "value": 3}
+      ],
+      "comment": "defineVariable passes through input collection unchanged"
+    },
+    {
+      "name": "defineVariable: without expr uses input value",
+      "expr": "a.defineVariable('items').select(%items.count())",
+      "input": {"a": [1, 2, 3]},
+      "expect": [{"type": "integer", "value": 3}],
+      "comment": "When no expr provided, variable captures the input collection"
+    },
+    {
+      "_section": "=== VARIABLE ACCESS IN NESTED CONTEXTS ==="
+    },
+    {
+      "name": "defineVariable: access from select expression",
+      "expr": "items.defineVariable('all').select($this + %all.count())",
+      "input": {"items": [1, 2]},
+      "expect": [
+        {"type": "integer", "value": 3},
+        {"type": "integer", "value": 4}
+      ],
+      "comment": "Variable defined outside select is accessible inside"
+    },
+    {
+      "name": "defineVariable: multiple variables in sequence",
+      "expr": "defineVariable('a', 10).defineVariable('b', 20).select(%a + %b)",
+      "input": {},
+      "expect": [{"type": "integer", "value": 30}],
+      "comment": "Multiple defineVariable calls can chain"
+    },
+    {
+      "_section": "=== VARIABLE WITH PATH EXPRESSIONS ==="
+    },
+    {
+      "name": "defineVariable: capture path result",
+      "expr": "defineVariable('firstName', name.first()).select(%firstName)",
+      "input": {"name": ["Alice", "Bob"]},
+      "expect": [{"type": "string", "value": "Alice"}],
+      "comment": "Variable captures result of path navigation"
+    },
+    {
+      "name": "defineVariable: use in calculation",
+      "expr": "values.defineVariable('total', sum()).select(($this / %total) * 100)",
+      "input": {"values": [25, 75]},
+      "expect": [
+        {"type": "decimal", "value": 25.0},
+        {"type": "decimal", "value": 75.0}
+      ],
+      "comment": "Calculate percentage of total using captured sum"
+    },
+    {
+      "_section": "=== SCOPE AND ISOLATION ==="
+    },
+    {
+      "name": "defineVariable: variable not visible before definition",
+      "expr": "select(%undefined).count()",
+      "input": {"a": 1},
+      "expect_error": true,
+      "comment": "Referencing undefined variable should error"
+    },
+    {
+      "name": "defineVariable: variable scope limited to expression",
+      "expr": "a.where(defineVariable('temp', $this > 5).select(%temp).first()).count()",
+      "input": {"a": [3, 7, 10]},
+      "expect": [{"type": "integer", "value": 2}],
+      "comment": "Variable defined inside where is scoped to that expression"
+    }
+  ]
+}

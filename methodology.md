@@ -429,67 +429,102 @@ python wiggum/scripts/upstream.py reported <slug> --url "..."
 
 ## CROSS_CHECK mode
 
-Compare our artisinal tests against fhirpath.js reference implementation and adjudicate differences through careful spec analysis.
+Compare our artisinal tests against multiple reference FHIRPath implementations and adjudicate differences through holistic analysis.
 
-**Goal**: Ensure our expected values are correct per the FHIRPath specification, using fhirpath.js as a reference point for discovering potential issues.
+**Goal**: Ensure our expected values are correct by comparing against multiple engines (fhirpath.js, Firely .NET, HAPI FHIR), the FHIRPath spec, and official R5 tests.
 
-**Setup**: Run `cd vendor/fhirpath.js && bun install` once to install fhirpath.js.
+**Reference engines**:
+- `fhirpath.js` - JavaScript implementation (fast, good coverage)
+- `Firely .NET` - C#/.NET implementation (requires FHIR resources, not plain JSON)
+- `HAPI FHIR` - Java implementation (slow startup ~22s, but authoritative)
 
-**Steps**:
-1. The mode chooser will give you a sample of unadjudicated differences (typically 3)
-2. For each difference, **carefully review the FHIRPath spec**:
-   a. Find the relevant section in `spec/index.md` (search for function name, operator, or concept)
-   b. Read the full specification text, including any notes, examples, and edge cases
-   c. Check if there are related official tests in `tests/r5/tests-fhir-r5.json`
-   d. Determine the correct behavior according to the spec
-3. Add an `_adjudicated` annotation documenting your findings
-4. If our test was wrong, fix the expected value AND record the old value
-
-**Key principle**: The spec is the source of truth, not fhirpath.js. fhirpath.js may have bugs or different interpretations. Your job is to determine what the spec actually says.
-
-**Running manually**:
+**Setup**:
 ```bash
-python scripts/cross_check.py              # all unadjudicated diffs
-python scripts/cross_check.py -n 100       # limit to 100 tests
-python scripts/cross_check.py math         # filter by filename
-python scripts/cross_check.py --sample 3   # random sample of 3 diffs
+cd vendor/fhirpath.js && bun install          # JavaScript engine
+cd vendor/fhirpath.net/FhirPathRunner && dotnet build  # .NET engine  
+cd vendor/fhirpath.hapi && mvn package        # Java engine
 ```
 
-**Adjudication annotation format** (add to the test case):
+**Running the adjudication sampler**:
+```bash
+python scripts/adjudicate.py                  # Sample 5 disagreements (default)
+python scripts/adjudicate.py --sample 3       # Sample 3 disagreements
+python scripts/adjudicate.py --skip-slow      # Skip HAPI for faster iteration
+python scripts/adjudicate.py comparison       # Filter by filename pattern
+```
+
+The sampler:
+1. Runs fast engines (js, net) on all unadjudicated tests (~3s for 1500 tests)
+2. Finds disagreements where at least one engine returns a different non-error result
+3. Samples N disagreements randomly
+4. Runs all engines (including slow HAPI) only on the sampled items
+5. Outputs a detailed report showing all engine results
+
+**Adjudication process**:
+
+For each sampled disagreement:
+
+1. **Review all engine results** - Note which engines agree/disagree and who errors
+2. **Check the FHIRPath spec** (`spec/index.md`) - Find the relevant section, read carefully
+3. **Check official R5 tests** - Search `tests/r5/tests-fhir-r5.json` for similar cases
+4. **Form a judgment** - Determine correct behavior based on evidence
+5. **Document your findings** - Add `_adjudicated` annotation with reasoning
+
+**Key principles**:
+- The spec is the primary authority, but it can be ambiguous or incomplete
+- Engine consensus is informative but not definitive (all engines can be wrong)
+- Official tests are strong evidence but may themselves have bugs
+- When uncertain, document the ambiguity honestly rather than forcing a verdict
+- Firely .NET errors on non-FHIR JSON are expected (not a real disagreement)
+
+**Adjudication annotation format**:
 ```json
 {
   "name": "round: negative decimal rounds away from zero",
   "expr": "(-3.5).round()",
   "expect": [{"type": "integer", "value": -4}],
   "_adjudicated": {
-    "fhirpath_js": [{"type": "number", "value": -3}],
+    "engines": {
+      "fhirpath_js": [{"type": "number", "value": -3}],
+      "firely_net": [{"type": "integer", "value": -4}],
+      "hapi_fhir": [{"type": "integer", "value": -4}]
+    },
     "our_old_value": null,
     "verdict": "ours_correct",
-    "reason": "Spec §5.7.2 says 'a decimal value less than or equal to -0.5 and greater than -1.0 will round to -1', implying rounding away from zero. -3.5 should round to -4, not -3.",
-    "spec_ref": "§5.7.2 round()"
+    "reason": "Spec §5.7.2 defines rounding behavior. Two of three engines agree with us. fhirpath.js appears to use JavaScript's default rounding which rounds toward zero.",
+    "spec_ref": "§5.7.2 round()",
+    "official_test": null
   }
 }
 ```
 
 **Adjudication fields**:
-- `fhirpath_js`: What fhirpath.js returned (copy exactly from cross_check output)
+- `engines`: Results from each engine (copy from adjudicate.py output)
 - `our_old_value`: Our previous expected value if we changed it (null if unchanged)
 - `verdict`: One of the values below
-- `reason`: Detailed explanation citing the spec
-- `spec_ref`: Section reference (e.g., "§5.7.2 round()" or "§6.3 Type Functions")
+- `reason`: Detailed explanation with evidence from spec, engines, and tests
+- `spec_ref`: Section reference (e.g., "§5.7.2 round()")
+- `official_test`: Name of relevant official test if found (null if none)
 
 **Verdict values**:
-- `ours_correct` - our expected value is correct per spec, fhirpath.js is wrong or has a bug
-- `theirs_correct` - fhirpath.js is correct per spec, we fixed our test (record old value)
-- `both_valid` - spec is ambiguous, both interpretations are defensible (explain why)
-- `js_limitation` - difference due to JS limitations (e.g., Number type can't distinguish int/decimal)
+- `ours_correct` - our expected value is correct based on spec/evidence
+- `theirs_correct` - we were wrong, fixed our test (record old value in `our_old_value`)
+- `spec_ambiguous` - spec doesn't clearly define behavior, document interpretations
+- `engines_disagree` - engines disagree, no clear answer, we made a reasonable choice
+- `engine_limitation` - difference due to engine limitations (e.g., JS Number type, .NET requires FHIR resources)
 
-**Spec review checklist**:
-- [ ] Found the relevant spec section
-- [ ] Read the full function/operator description
-- [ ] Checked for edge cases mentioned in the spec
-- [ ] Looked for related examples in the spec
-- [ ] Checked official tests for similar cases
-- [ ] Documented reasoning with spec citations
+**Evidence strength (strongest to weakest)**:
+1. Explicit spec text with examples
+2. Official R5 test with matching case
+3. Multiple engines agreeing
+4. Spec text requiring interpretation
+5. Single engine behavior
 
-**Note**: The cross_check.py script automatically skips tests with `_adjudicated` annotations.
+**When you can't determine the answer**:
+It's okay to adjudicate with `spec_ambiguous` or `engines_disagree`. Document:
+- What the spec says (or doesn't say)
+- How each engine behaves
+- Why we chose our current expected value
+- What would be needed to resolve the ambiguity (e.g., "needs HL7 clarification")
+
+**Note**: The adjudicate.py script automatically skips tests with `_adjudicated` annotations.

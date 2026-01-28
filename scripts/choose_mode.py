@@ -279,9 +279,13 @@ def main() -> int:
             print("Bug Title:", chosen.get("title", ""))
 
     if mode == "CROSS_CHECK":
-        print("\nCROSS_CHECK: Compare artisinal tests against fhirpath.js and adjudicate differences.")
-        print("Run: python scripts/cross_check.py --sample 3")
-        print("See methodology.md for adjudication format.")
+        print("\nCROSS_CHECK: Compare artisinal tests against multiple reference engines and adjudicate.")
+        print("Run: python scripts/adjudicate.py --sample 3")
+        print("This samples disagreements using fast engines (js, net), then gets all engine results.")
+        print("See methodology.md CROSS_CHECK section for adjudication format.")
+        print("\nAlternatives:")
+        print("  --skip-slow    Skip HAPI for faster iteration")
+        print("  --sample N     Change sample size")
 
     return 0
 

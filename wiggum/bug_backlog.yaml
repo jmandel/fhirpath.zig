@@ -97,7 +97,7 @@ bugs:
     updated: 2026-01-28
     tags: [fhir, types]
   - slug: tree-traversal-functions
-    status: open
+    status: resolved
     severity: medium
     title: Implement repeat() and descendants() tree traversal
     description: repeat(expr) and descendants() not implemented. ~8 R5 failures. Spec §5.2.
@@ -169,7 +169,7 @@ bugs:
     updated: 2026-01-28
     tags: [types, eval, schema]
   - slug: typeidfornode-string-heuristics-are-too-loose
-    status: open
+    status: resolved
     severity: low
     title: typeIdForNode string heuristics are too loose
     description: typeIdForNode guesses string types via isDate (has dash), isDateTime (has T), isTime (has colon). These match normal strings like PleasantVille, VT, 555-1234. Should use proper date/time patterns. Secondary to schema-aware traversal fix but affects no-schema fallback.

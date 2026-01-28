@@ -7240,17 +7240,77 @@ fn isInteger(raw: []const u8) bool {
     return std.mem.indexOfScalar(u8, raw, '.') == null and std.mem.indexOfAny(u8, raw, "eE") == null;
 }
 
+/// Detect ISO-8601 dateTime: must start with YYYY-MM-DD and contain 'T'
+/// Examples: "2020-01-15T12:00:00", "2020-01-15T12:00:00Z", "2020-01-15T12:00:00+05:00"
 fn isDateTime(s: []const u8) bool {
-    return std.mem.indexOfScalar(u8, s, 'T') != null;
+    // Minimum length: YYYY-MM-DDTHH:MM = 16 chars, but allow YYYY-MM-DDT... = 11 minimum
+    if (s.len < 11) return false;
+    // Must contain 'T' after the date part
+    const t_pos = std.mem.indexOfScalar(u8, s, 'T') orelse return false;
+    // 'T' must come after a valid date portion (at least YYYY-MM-DD = 10 chars)
+    if (t_pos < 10) return false;
+    // Validate date portion before T
+    return isValidDatePrefix(s[0..t_pos]);
 }
 
+/// Detect ISO-8601 date: YYYY, YYYY-MM, or YYYY-MM-DD without time component
 fn isDate(s: []const u8) bool {
+    // Minimum length: YYYY = 4 chars
+    if (s.len < 4) return false;
+    // Must not contain 'T' (that would be dateTime)
     if (std.mem.indexOfScalar(u8, s, 'T') != null) return false;
-    return std.mem.indexOfScalar(u8, s, '-') != null;
+    return isValidDatePrefix(s);
 }
 
+/// Validate an ISO-8601 date prefix (before the 'T' for dateTime, or entire string for date)
+/// Accepts: YYYY, YYYY-MM, YYYY-MM-DD
+fn isValidDatePrefix(s: []const u8) bool {
+    if (s.len < 4) return false;
+    // First 4 chars must be digits (year)
+    for (s[0..4]) |c| {
+        if (c < '0' or c > '9') return false;
+    }
+    if (s.len == 4) return true; // YYYY
+    // If longer, must have hyphen after year
+    if (s.len < 5 or s[4] != '-') return false;
+    // After YYYY-, we need at least MM (2 more chars)
+    if (s.len < 7) return false;
+    // Check month digits
+    for (s[5..7]) |c| {
+        if (c < '0' or c > '9') return false;
+    }
+    if (s.len == 7) return true; // YYYY-MM
+    // If longer, must have hyphen after month
+    if (s.len < 8 or s[7] != '-') return false;
+    // After YYYY-MM-, we need at least DD (2 more chars)
+    if (s.len < 10) return false;
+    // Check day digits
+    for (s[8..10]) |c| {
+        if (c < '0' or c > '9') return false;
+    }
+    // YYYY-MM-DD (may have trailing timezone for dateTime, handled by caller)
+    return true;
+}
+
+/// Detect ISO-8601 time: HH:MM or HH:MM:SS (without date, not starting with 'T')
 fn isTime(s: []const u8) bool {
-    return std.mem.indexOfScalar(u8, s, ':') != null and std.mem.indexOfScalar(u8, s, 'T') == null;
+    // Time format: HH:MM or HH:MM:SS
+    // Minimum length: HH:MM = 5 chars
+    if (s.len < 5) return false;
+    // Must contain ':' and NOT contain 'T' (would be dateTime)
+    if (std.mem.indexOfScalar(u8, s, ':') == null) return false;
+    if (std.mem.indexOfScalar(u8, s, 'T') != null) return false;
+    // First 2 chars must be digits (hour)
+    for (s[0..2]) |c| {
+        if (c < '0' or c > '9') return false;
+    }
+    // Third char must be ':'
+    if (s[2] != ':') return false;
+    // Chars 3-4 must be digits (minute)
+    for (s[3..5]) |c| {
+        if (c < '0' or c > '9') return false;
+    }
+    return true;
 }
 
 // ============================================================================

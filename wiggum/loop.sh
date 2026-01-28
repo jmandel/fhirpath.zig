@@ -196,7 +196,14 @@ PY
     break
   fi
 
-  if [[ "$STATUS" != "STEP COMPLETE" ]]; then
+  # Check if user interrupted (Ctrl-C = SIGINT = exit code 130)
+  if [[ "$LLM_EXIT" -eq 130 ]]; then
+    echo "$(date -Is) User interrupted (Ctrl-C), exiting without revert" >> "$ERROR_LOG"
+    break
+  fi
+
+  # Revert on STEP FAILED or LLM_ERROR (but not UNKNOWN - could be partial progress)
+  if [[ "$STATUS" == "STEP FAILED" || "$STATUS" == "LLM_ERROR" ]]; then
     echo "$(date -Is) Resetting to $BEFORE (status=$STATUS)" >> "$ERROR_LOG"
     # Preserve upstream-issues.yaml across resets (tracking upstream bugs is valuable even on failed steps)
     UPSTREAM_FILE="$ROOT/wiggum/upstream-issues.yaml"

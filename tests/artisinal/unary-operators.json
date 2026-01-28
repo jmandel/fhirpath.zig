@@ -1,0 +1,481 @@
+{
+  "meta": {
+    "status": "drafted",
+    "spec_sections": [
+      "5.1.4 (Integer, Decimal, Quantity literals)",
+      "6.7 (Math - implicit context)",
+      "6.8 (Operator precedence)"
+    ]
+  },
+  "_spec_summary": [
+    "=== UNARY + AND - OPERATORS ===",
+    "",
+    "The unary + (identity) and - (negation) operators apply to numeric types.",
+    "",
+    "=== UNARY NEGATION (-) ===",
+    "Negates a numeric value. The result has the same type as the input.",
+    "  - For Integer: returns the negative of the integer",
+    "  - For Decimal: returns the negative of the decimal",
+    "  - For Quantity: returns a quantity with negated value (unit unchanged)",
+    "",
+    "CRITICAL: The minus sign in '-5' is NOT part of the integer literal!",
+    "The expression '-5' is parsed as: unary_negate(5).",
+    "This is important for understanding the following behavior.",
+    "",
+    "=== UNARY IDENTITY (+) ===",
+    "Returns the value unchanged. The + operator is rarely used explicitly",
+    "but is allowed by the grammar for symmetry with -.",
+    "  +5 evaluates to 5",
+    "  +3.14 evaluates to 3.14",
+    "",
+    "=== PRECEDENCE (CRITICAL) ===",
+    "Unary + and - have precedence level #03 in the FHIRPath operator table:",
+    "  #01 . (invocation)",
+    "  #02 [] (indexer)",
+    "  #03 unary + and -  <-- HERE",
+    "  #04 *, /, div, mod",
+    "  ...",
+    "",
+    "Because '.' has HIGHER precedence than unary '-', this expression:",
+    "  -7.combine(3)",
+    "is parsed as:",
+    "  -(7.combine(3))  // ERROR - can't negate a list!",
+    "NOT as:",
+    "  (-7).combine(3)  // Would be { -7, 3 }",
+    "",
+    "To apply unary minus to just the 7, use parentheses:",
+    "  (-7).combine(3)  // { -7, 3 }",
+    "",
+    "=== EMPTY INPUT ===",
+    "Per general FHIRPath rules for single-input operators:",
+    "  - Empty input returns empty",
+    "  - Multiple items signal error",
+    "",
+    "=== TYPE BEHAVIOR ===",
+    "  - Integer input: returns Integer",
+    "  - Decimal input: returns Decimal",
+    "  - Quantity input: returns Quantity with same unit",
+    "",
+    "=== DOUBLE NEGATION ===",
+    "  -(-5) = 5",
+    "  -(-(3.14)) = 3.14",
+    "",
+    "=== EDGE CASES ===",
+    "  - -0 = 0 (integer)",
+    "  - -0.0 = 0.0 (decimal, preserves type)",
+    "  - -0 'mg' = 0 'mg' (quantity)"
+  ],
+  "_todo": [
+    "[ ] Improve passing rate (27/33 passing)",
+    "[ ] Test unary negation on integers",
+    "[ ] Test unary negation on decimals",
+    "[ ] Test unary negation on quantities",
+    "[ ] Test unary identity (+) operator",
+    "[ ] Test precedence with method invocation (.)",
+    "[ ] Test double negation",
+    "[ ] Test empty input returns empty",
+    "[ ] Test with parenthesized expressions"
+  ],
+  "cases": [
+    {
+      "_section": "=== UNARY NEGATION ON INTEGERS ==="
+    },
+    {
+      "name": "unary minus: negate positive integer",
+      "expr": "(-5)",
+      "input": {},
+      "expect": [
+        {
+          "type": "integer",
+          "value": -5
+        }
+      ]
+    },
+    {
+      "name": "unary minus: negate negative integer (double negation)",
+      "expr": "-(-5)",
+      "input": {},
+      "expect": [
+        {
+          "type": "integer",
+          "value": 5
+        }
+      ]
+    },
+    {
+      "name": "unary minus: negate zero integer",
+      "expr": "(-0)",
+      "input": {},
+      "expect": [
+        {
+          "type": "integer",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "name": "unary minus: large positive integer",
+      "expr": "(-2147483647)",
+      "input": {},
+      "expect": [
+        {
+          "type": "integer",
+          "value": -2147483647
+        }
+      ]
+    },
+    {
+      "_section": "=== UNARY NEGATION ON DECIMALS ==="
+    },
+    {
+      "name": "unary minus: negate positive decimal",
+      "expr": "(-3.14)",
+      "input": {},
+      "expect": [
+        {
+          "type": "decimal",
+          "value": -3.14
+        }
+      ]
+    },
+    {
+      "name": "unary minus: negate negative decimal",
+      "expr": "-(-3.14)",
+      "input": {},
+      "expect": [
+        {
+          "type": "decimal",
+          "value": 3.14
+        }
+      ]
+    },
+    {
+      "name": "unary minus: negate zero decimal",
+      "expr": "(-0.0)",
+      "input": {},
+      "expect": [
+        {
+          "type": "decimal",
+          "value": 0.0
+        }
+      ]
+    },
+    {
+      "name": "unary minus: negate decimal preserves precision",
+      "expr": "(-1.500)",
+      "input": {},
+      "expect": [
+        {
+          "type": "decimal",
+          "value": -1.5
+        }
+      ],
+      "comment": "Precision may be normalized; key is type preserved"
+    },
+    {
+      "_section": "=== UNARY NEGATION ON QUANTITIES ==="
+    },
+    {
+      "name": "unary minus: negate quantity",
+      "expr": "-(10 'mg')",
+      "input": {},
+      "expect": [
+        {
+          "type": "Quantity",
+          "value": {
+            "value": -10,
+            "unit": "mg"
+          }
+        }
+      ]
+    },
+    {
+      "name": "unary minus: negate negative quantity",
+      "expr": "-((-10 'mg'))",
+      "input": {},
+      "expect": [
+        {
+          "type": "Quantity",
+          "value": {
+            "value": 10,
+            "unit": "mg"
+          }
+        }
+      ]
+    },
+    {
+      "name": "unary minus: negate zero quantity",
+      "expr": "-(0 'kg')",
+      "input": {},
+      "expect": [
+        {
+          "type": "Quantity",
+          "value": {
+            "value": 0,
+            "unit": "kg"
+          }
+        }
+      ]
+    },
+    {
+      "name": "unary minus: calendar duration quantity",
+      "expr": "-(1 day)",
+      "input": {},
+      "expect": [
+        {
+          "type": "Quantity",
+          "value": {
+            "value": -1,
+            "unit": "day"
+          }
+        }
+      ]
+    },
+    {
+      "_section": "=== UNARY IDENTITY (+) ==="
+    },
+    {
+      "name": "unary plus: positive integer unchanged",
+      "expr": "(+5)",
+      "input": {},
+      "expect": [
+        {
+          "type": "integer",
+          "value": 5
+        }
+      ]
+    },
+    {
+      "name": "unary plus: positive decimal unchanged",
+      "expr": "(+3.14)",
+      "input": {},
+      "expect": [
+        {
+          "type": "decimal",
+          "value": 3.14
+        }
+      ]
+    },
+    {
+      "name": "unary plus: already negative integer",
+      "expr": "+((-5))",
+      "input": {},
+      "expect": [
+        {
+          "type": "integer",
+          "value": -5
+        }
+      ],
+      "comment": "Unary + does not change sign"
+    },
+    {
+      "name": "unary plus: zero",
+      "expr": "(+0)",
+      "input": {},
+      "expect": [
+        {
+          "type": "integer",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "_section": "=== PRECEDENCE WITH INVOCATION ==="
+    },
+    {
+      "name": "precedence: parenthesized negation before method",
+      "expr": "(-5).abs()",
+      "input": {},
+      "expect": [
+        {
+          "type": "integer",
+          "value": 5
+        }
+      ],
+      "comment": "With parens, -5 is passed to abs(), result is 5"
+    },
+    {
+      "name": "precedence: negation after abs",
+      "expr": "-(5.abs())",
+      "input": {},
+      "expect": [
+        {
+          "type": "integer",
+          "value": -5
+        }
+      ],
+      "comment": "5.abs() = 5, then negated to -5"
+    },
+    {
+      "name": "precedence: double parens double negation",
+      "expr": "-((-5).abs())",
+      "input": {},
+      "expect": [
+        {
+          "type": "integer",
+          "value": -5
+        }
+      ],
+      "comment": "(-5).abs() = 5, then negated to -5"
+    },
+    {
+      "_section": "=== EMPTY INPUT ==="
+    },
+    {
+      "name": "unary minus: empty input returns empty",
+      "expr": "-{}",
+      "input": {},
+      "expect": [],
+      "comment": "Empty collection negated is empty"
+    },
+    {
+      "name": "unary plus: empty input returns empty",
+      "expr": "+{}",
+      "input": {},
+      "expect": [],
+      "comment": "Empty collection with unary + is empty"
+    },
+    {
+      "name": "unary minus: missing field returns empty",
+      "expr": "-value",
+      "input": {},
+      "expect": []
+    },
+    {
+      "_section": "=== CHAINED WITH OTHER OPERATORS ==="
+    },
+    {
+      "name": "negation in arithmetic: -a + b",
+      "expr": "(-5) + 3",
+      "input": {},
+      "expect": [
+        {
+          "type": "integer",
+          "value": -2
+        }
+      ]
+    },
+    {
+      "name": "negation in arithmetic: a + -b",
+      "expr": "5 + (-3)",
+      "input": {},
+      "expect": [
+        {
+          "type": "integer",
+          "value": 2
+        }
+      ]
+    },
+    {
+      "name": "negation in subtraction: -a - b",
+      "expr": "(-5) - 3",
+      "input": {},
+      "expect": [
+        {
+          "type": "integer",
+          "value": -8
+        }
+      ]
+    },
+    {
+      "name": "negation in multiplication",
+      "expr": "(-2) * 3",
+      "input": {},
+      "expect": [
+        {
+          "type": "integer",
+          "value": -6
+        }
+      ]
+    },
+    {
+      "name": "negation in division",
+      "expr": "(-6) / 2",
+      "input": {},
+      "expect": [
+        {
+          "type": "decimal",
+          "value": -3.0
+        }
+      ]
+    },
+    {
+      "_section": "=== COMPARISON WITH NEGATIVE VALUES ==="
+    },
+    {
+      "name": "comparison: negative < positive",
+      "expr": "(-5) < 5",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "comparison: negative = negative",
+      "expr": "(-5) = (-5)",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "comparison: more negative < less negative",
+      "expr": "(-10) < (-5)",
+      "input": {},
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "_section": "=== FROM INPUT DATA ==="
+    },
+    {
+      "name": "negate field value",
+      "expr": "(-value)",
+      "input": {
+        "value": 42
+      },
+      "expect": [
+        {
+          "type": "integer",
+          "value": -42
+        }
+      ]
+    },
+    {
+      "name": "negate decimal field",
+      "expr": "(-price)",
+      "input": {
+        "price": 19.99
+      },
+      "expect": [
+        {
+          "type": "decimal",
+          "value": -19.99
+        }
+      ]
+    },
+    {
+      "name": "negate already negative field",
+      "expr": "(-balance)",
+      "input": {
+        "balance": -100
+      },
+      "expect": [
+        {
+          "type": "integer",
+          "value": 100
+        }
+      ]
+    }
+  ]
+}

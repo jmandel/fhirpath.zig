@@ -41,6 +41,9 @@ SHELLEY_SERVER="${SHELLEY_SERVER:-http://localhost:9999}"
 SHELLEY_MODEL="${SHELLEY_MODEL:-}"
 SHELLEY_USER="${SHELLEY_USER:-wiggum}"
 
+# Gemini settings (when LLM_BACKEND=gemini)
+GEMINI_MODEL="${GEMINI_MODEL:-gemini-3-pro-preview}"
+
 run_llm() {
   local cwd="$1"
   # Prompt comes via stdin
@@ -59,6 +62,10 @@ run_llm() {
         args+=(-model "$SHELLEY_MODEL")
       fi
       "${args[@]}"
+      ;;
+    gemini)
+      cd "$cwd"
+      gemini -p "" --yolo --output-format text --model "$GEMINI_MODEL"
       ;;
     *)
       echo "Unknown LLM_BACKEND: $LLM_BACKEND" >&2

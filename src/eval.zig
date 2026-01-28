@@ -1956,6 +1956,107 @@ fn evalFunction(
         current.deinit(ctx.allocator);
         return out;
     }
+    // children() returns the immediate child nodes of each input item
+    if (std.mem.eql(u8, call.name, "children")) {
+        if (call.args.len != 0) return error.InvalidFunction;
+        var out = ItemList.empty;
+        errdefer out.deinit(ctx.allocator);
+        const A = @TypeOf(ctx.adapter.*);
+
+        for (input) |it| {
+            // Only node_ref items can have children
+            if (it.data_kind != .node_ref or it.node == null) continue;
+            const ref = nodeRefFromRaw(A, it.node.?);
+            const k = A.kind(ctx.adapter, ref);
+
+            switch (k) {
+                .object => {
+                    // Object children are the values of all fields
+                    var iter = A.objectIter(ctx.adapter, ref);
+                    while (iter.next()) |entry| {
+                        const child_item = try itemFromNode(ctx, entry.value);
+                        try out.append(ctx.allocator, child_item);
+                    }
+                },
+                .array => {
+                    // Array children are the array elements
+                    const len = A.arrayLen(ctx.adapter, ref);
+                    for (0..len) |i| {
+                        const elem_ref = A.arrayAt(ctx.adapter, ref, i);
+                        const child_item = try itemFromNode(ctx, elem_ref);
+                        try out.append(ctx.allocator, child_item);
+                    }
+                },
+                // Primitives have no children
+                .string, .number, .bool, .null => {},
+            }
+        }
+        return out;
+    }
+    // descendants() returns all descendant nodes (children, grandchildren, etc.)
+    // Spec: descendants() is defined as repeat(children())
+    // Note: Arrays are transparent in FHIRPath - we traverse into array elements
+    // but don't include the array itself as a descendant node.
+    if (std.mem.eql(u8, call.name, "descendants")) {
+        if (call.args.len != 0) return error.InvalidFunction;
+        var out = ItemList.empty;
+        errdefer out.deinit(ctx.allocator);
+        if (input.len == 0) return out;
+
+        const A = @TypeOf(ctx.adapter.*);
+
+        // BFS queue for traversal
+        var queue = ItemList.empty;
+        errdefer queue.deinit(ctx.allocator);
+        try queue.appendSlice(ctx.allocator, input);
+
+        var idx: usize = 0;
+        while (idx < queue.items.len) : (idx += 1) {
+            const it = queue.items[idx];
+            // Only node_ref items can have children
+            if (it.data_kind != .node_ref or it.node == null) continue;
+            const ref = nodeRefFromRaw(A, it.node.?);
+            const k = A.kind(ctx.adapter, ref);
+
+            switch (k) {
+                .object => {
+                    var iter = A.objectIter(ctx.adapter, ref);
+                    while (iter.next()) |entry| {
+                        const child_ref = entry.value;
+                        const child_kind = A.kind(ctx.adapter, child_ref);
+                        if (child_kind == .array) {
+                            // Arrays are transparent - include elements directly
+                            const arr_len = A.arrayLen(ctx.adapter, child_ref);
+                            for (0..arr_len) |i| {
+                                const elem_ref = A.arrayAt(ctx.adapter, child_ref, i);
+                                const elem_item = try itemFromNode(ctx, elem_ref);
+                                try out.append(ctx.allocator, elem_item);
+                                try queue.append(ctx.allocator, elem_item);
+                            }
+                        } else {
+                            const child_item = try itemFromNode(ctx, child_ref);
+                            try out.append(ctx.allocator, child_item);
+                            try queue.append(ctx.allocator, child_item);
+                        }
+                    }
+                },
+                .array => {
+                    // Arrays are transparent - include elements without including the array
+                    const len = A.arrayLen(ctx.adapter, ref);
+                    for (0..len) |i| {
+                        const elem_ref = A.arrayAt(ctx.adapter, ref, i);
+                        const child_item = try itemFromNode(ctx, elem_ref);
+                        try out.append(ctx.allocator, child_item);
+                        try queue.append(ctx.allocator, child_item);
+                    }
+                },
+                .string, .number, .bool, .null => {},
+            }
+        }
+
+        queue.deinit(ctx.allocator);
+        return out;
+    }
     if (std.mem.eql(u8, call.name, "sum")) {
         if (call.args.len != 0) return error.InvalidFunction;
         if (input.len == 0) return ItemList.empty;

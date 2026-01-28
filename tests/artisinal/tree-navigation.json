@@ -27,12 +27,12 @@
     "Spec refs: spec/index.md \"Tree navigation\" (children(), descendants()) and notes on undefined order for children/descendants."
   ],
   "_todo": [
-    "[ ] Improve passing rate (0/7 passing) - children()/descendants() eval errors",
+    "[x] Improve passing rate (7/7 passing) - children()/descendants() implemented",
     "[ ] Add tests for order-dependent operations returning errors if policy enforces undefined order",
     "[ ] Add tests for duplicate descendant values across branches"
   ],
   "meta": {
-    "status": "reviewed",
+    "status": "implemented",
     "feature": "tree-navigation",
     "source": "spec/index.md#Tree navigation"
   },

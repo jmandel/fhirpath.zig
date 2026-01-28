@@ -1,0 +1,122 @@
+{
+  "meta": {
+    "status": "drafted",
+    "spec_sections": ["5.11.1 (trace)"]
+  },
+  "_spec_summary": {
+    "overview": "trace(name : String [, projection : Expression]) : collection is a debugging/logging function that adds a string representation of the input collection to a diagnostic log, then returns the input collection unchanged.",
+    "core_behavior": {
+      "returns_input": "The function ALWAYS returns its input collection unchanged. This is the key testable behavior.",
+      "logging": "Adds a String representation of the input to a diagnostic log using 'name' as the log label. How this log is surfaced is implementation-defined.",
+      "projection": "If the optional projection expression is provided, the trace logs the result of evaluating that projection on the input, but STILL returns the original input unchanged."
+    },
+    "parameters": {
+      "name": "Required. A String that serves as the label/identifier in the log output.",
+      "projection": "Optional. An expression evaluated against the input whose result is logged instead of the input itself."
+    },
+    "empty_input": "If input is empty, returns empty (and logs empty collection).",
+    "multiple_items": "Works with collections of any size; returns all items unchanged.",
+    "type_agnostic": "Works with any type of collection element.",
+    "spec_example": "contained.where(criteria).trace('unmatched', id).empty() - traces only the id elements of the filtered result, but where receives the full filtered collection.",
+    "use_case": "Primarily for debugging FHIRPath expressions during development. In production, the logging may be disabled or directed to appropriate channels.",
+    "chaining": "Because trace() returns its input unchanged, it can be inserted anywhere in a chain without affecting the result: expr.trace('x').count() == expr.count()"
+  },
+  "_todo": [
+    "[ ] Improve passing rate (0/15 passing)",
+    "[ ] Implement trace() function in evaluator",
+    "[ ] Consider whether logging side-effects should be testable"
+  ],
+  "cases": [
+    {
+      "name": "trace - returns single integer unchanged",
+      "expr": "1.trace('value')",
+      "input": {},
+      "expect": [{"type": "integer", "value": 1}]
+    },
+    {
+      "name": "trace - returns string unchanged",
+      "expr": "'hello'.trace('msg')",
+      "input": {},
+      "expect": [{"type": "string", "value": "hello"}]
+    },
+    {
+      "name": "trace - returns boolean unchanged",
+      "expr": "true.trace('flag')",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "trace - returns empty collection unchanged",
+      "expr": "{}.trace('empty')",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "trace - returns collection unchanged",
+      "expr": "(1 | 2 | 3).trace('numbers').count()",
+      "input": {},
+      "expect": [{"type": "integer", "value": 3}]
+    },
+    {
+      "name": "trace - preserves values in chain",
+      "expr": "(1 | 2 | 3).trace('data').first()",
+      "input": {},
+      "expect": [{"type": "integer", "value": 1}]
+    },
+    {
+      "name": "trace - with path navigation",
+      "expr": "name.trace('names').count()",
+      "input": {"name": ["Alice", "Bob"]},
+      "expect": [{"type": "integer", "value": 2}]
+    },
+    {
+      "name": "trace - with projection returns input not projection",
+      "expr": "items.trace('ids', id).count()",
+      "input": {"items": [{"id": 1, "value": "a"}, {"id": 2, "value": "b"}]},
+      "expect": [{"type": "integer", "value": 2}],
+      "comment": "The projection 'id' is logged but the full items are returned"
+    },
+    {
+      "name": "trace - chained multiple times",
+      "expr": "1.trace('first').trace('second')",
+      "input": {},
+      "expect": [{"type": "integer", "value": 1}]
+    },
+    {
+      "name": "trace - in where clause",
+      "expr": "(1 | 2 | 3 | 4).where($this > 2).trace('filtered').count()",
+      "input": {},
+      "expect": [{"type": "integer", "value": 2}]
+    },
+    {
+      "name": "trace - with select",
+      "expr": "(1 | 2).select($this * 2).trace('doubled').first()",
+      "input": {},
+      "expect": [{"type": "integer", "value": 2}]
+    },
+    {
+      "name": "trace - does not affect result equality",
+      "expr": "(1 | 2).trace('x') = (1 | 2)",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "trace - decimal value unchanged",
+      "expr": "3.14.trace('pi')",
+      "input": {},
+      "expect": [{"type": "decimal", "value": 3.14}]
+    },
+    {
+      "name": "trace - date value unchanged",
+      "expr": "@2024-01-15.trace('date')",
+      "input": {},
+      "expect": [{"type": "date", "value": "2024-01-15"}]
+    },
+    {
+      "name": "trace - quantity value unchanged",
+      "expr": "10 'mg'.trace('dose')",
+      "input": {},
+      "expect": [{"type": "Quantity", "value": {"value": 10, "unit": "mg"}}]
+    }
+  ]
+}

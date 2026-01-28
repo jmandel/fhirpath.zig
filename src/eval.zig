@@ -1600,6 +1600,15 @@ fn evalFunction(
         try out.append(ctx.allocator, makeBoolItem(ctx, convertible));
         return out;
     }
+    if (std.mem.eql(u8, call.name, "convertsToString")) {
+        if (call.args.len != 0) return error.InvalidFunction;
+        var out = ItemList.empty;
+        if (input.len == 0) return out;
+        if (input.len != 1) return error.SingletonRequired;
+        const convertible = canConvertToString(ctx, input[0]);
+        try out.append(ctx.allocator, makeBoolItem(ctx, convertible));
+        return out;
+    }
     if (std.mem.eql(u8, call.name, "not")) {
         // not() returns the boolean negation of the input
         // Per FHIRPath spec: non-boolean singleton is truthy, so not() returns false
@@ -2901,6 +2910,16 @@ fn convertToBoolean(ctx: anytype, it: item.Item) ?bool {
         },
         else => return null,
     }
+}
+
+fn canConvertToString(ctx: anytype, it: item.Item) bool {
+    const val = itemToValue(ctx, it);
+    switch (val) {
+        .boolean, .integer, .decimal, .string, .date, .time, .dateTime, .quantity => return true,
+        else => {},
+    }
+    const quantity_type_id = ctx.types.getOrAdd("System.Quantity") catch 0;
+    return it.type_id == quantity_type_id;
 }
 
 fn parseIntegerString(s: []const u8) ?i64 {

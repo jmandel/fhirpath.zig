@@ -117,9 +117,9 @@ def choose_mode(state: dict, params: dict, seed: int | None, bugs: list[dict]):
     floor = float(params.get("floor", 0.15))
     max_floor = 1.0 / (4.0 if bugs else 3.0)
     floor = clamp(floor, 0.0, max_floor)
-    explore_scale = float(params.get("explore_scale", 10.0))
+    explore_scale = float(params.get("explore_scale", 15.0))
     if explore_scale <= 0:
-        explore_scale = 10.0
+        explore_scale = 15.0
     bug_scale = float(params.get("bug_scale", 6.0))
     if bug_scale <= 0:
         bug_scale = 6.0

@@ -56,24 +56,20 @@ By default the script derives this state from `tests/artisinal/*.json` using `me
 The chooser derives state from the repository. If any internal state file is used by tooling, it should live under `wiggum/`.
 
 ### EXPLORE
-Goal: expand coverage.
-- Pick a capability seen in official tests that has no artisinal file yet.
-- **Finding gaps** (pick one approach):
-  ```bash
-  # See r5 pass rate and identify failing functions
-  zig build harness -- -i tests/r5/input -q tests/r5/tests-fhir-r5.json
+Goal: expand coverage by discovering gaps organically.
 
-  # Find functions in r5 tests not covered by artisinal files
-  jq -r '.tests[].expression' tests/r5/tests-fhir-r5.json | grep -oE '\.[a-zA-Z]+\(' | sort -u
-  ```
-  - Compare r5 functions against `ls tests/artisinal/` to find gaps.
-  - Pick a failing r5 test and reverse-engineer into artisinal tests.
-  - Read a spec section with little artisinal coverage.
+**Finding gaps** - sample randomly and let understanding emerge:
+- Skim a random section of the FHIRPath spec (`spec/index.md`) and note functions/operators without artisinal coverage.
+- Browse `tests/r5/tests-fhir-r5.json` randomly and find test patterns we haven't captured.
+- Run `zig build harness -- -i tests/r5/input -q tests/r5/tests-fhir-r5.json` to see overall r5 pass rate and spot areas needing work.
+- Compare what exists in `tests/artisinal/` against what the spec describes.
+
+**Writing new tests**:
 - Read the spec section(s) that define the correct behavior.
 - Write a new artisinal test file with:
   - A short "what the spec says" note in your own words.
   - A TODO checklist for follow‑up work.
-  - A set of tests that cover both normal and edge cases.
+  - A set of tests covering normal and edge cases.
   - Any explicit assumptions or open questions.
 
 ### DEVELOP

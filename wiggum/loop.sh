@@ -47,7 +47,7 @@ run_llm() {
   case "$LLM_BACKEND" in
     claude)
       cd "$cwd"
-      claude -p --dangerously-skip-permissions --model "$CLAUDE_MODEL"
+      claude -p --dangerously-skip-permissions --model "$CLAUDE_MODEL" --verbose
       ;;
     codex)
       codex exec --dangerously-bypass-approvals-and-sandbox -C "$cwd" -

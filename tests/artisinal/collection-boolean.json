@@ -27,9 +27,9 @@
     "Spec refs: spec/index.md sections allTrue(), anyTrue(), allFalse(), anyFalse()."
   ],
   "_todo": [
-    "[ ] Improve passing rate (1/13 passing)",
+    "[ ] Improve passing rate (1/16 passing)",
     "[x] Confirm spec intent for non-boolean inputs (treat as error)",
-    "[ ] Add non-boolean error tests for anyTrue()/allFalse()/anyFalse()"
+    "[x] Add non-boolean error tests for anyTrue()/allFalse()/anyFalse()"
   ],
   "meta": {
     "status": "reviewed",
@@ -230,6 +230,30 @@
           "value": false
         }
       ]
+    },
+    {
+      "name": "anyTrue: non-boolean input errors",
+      "expr": "items.anyTrue()",
+      "input": {
+        "items": [false, 42]
+      },
+      "expect_error": true
+    },
+    {
+      "name": "allFalse: non-boolean input errors",
+      "expr": "items.allFalse()",
+      "input": {
+        "items": [false, "not a bool"]
+      },
+      "expect_error": true
+    },
+    {
+      "name": "anyFalse: non-boolean input errors",
+      "expr": "items.anyFalse()",
+      "input": {
+        "items": [true, 1.5]
+      },
+      "expect_error": true
     }
   ]
 }

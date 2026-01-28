@@ -30,4 +30,7 @@ else
   echo "Warning: models/r4/model.bin not found; skipping" >&2
 fi
 
+python3 scripts/build_tests_json.py "$OUT_DIR/tests.json"
+node scripts/build_lab_report.mjs "$OUT_DIR/labreport-r5.json" || echo "Warning: lab report generation failed" >&2
+
 echo "Web demo assembled in $OUT_DIR"

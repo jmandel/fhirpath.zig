@@ -1,0 +1,240 @@
+{
+  "_spec_summary": [
+    "Collection boolean aggregation functions: allTrue(), anyTrue(), allFalse(), anyFalse().",
+    "",
+    "=== CORE BEHAVIOR ===",
+    "- allTrue() returns true if every item in the input collection is true.",
+    "- anyTrue() returns true if any item in the input collection is true.",
+    "- allFalse() returns true if every item in the input collection is false.",
+    "- anyFalse() returns true if any item in the input collection is false.",
+    "- These functions operate over the whole collection and are designed for multi-item inputs.",
+    "",
+    "=== EMPTY COLLECTION SEMANTICS ===",
+    "- allTrue({}) = true",
+    "- anyTrue({}) = false",
+    "- allFalse({}) = true",
+    "- anyFalse({}) = false",
+    "",
+    "=== TYPE HANDLING ===",
+    "- Spec says the input is a collection of Boolean values; it does not describe coercion.",
+    "- Official tests include (true | 'foo').allTrue() => false, implying non-boolean items are treated as false.",
+    "- Behavior for other functions with non-boolean inputs is not explicitly specified.",
+    "",
+    "=== RELATIONSHIPS ===",
+    "- allTrue() is equivalent to not(anyFalse()) for pure boolean inputs.",
+    "- anyTrue() is equivalent to not(allFalse()) for pure boolean inputs.",
+    "",
+    "Spec refs: spec/index.md sections allTrue(), anyTrue(), allFalse(), anyFalse()."
+  ],
+  "_todo": [
+    "[ ] Improve passing rate (0/13 passing)",
+    "[ ] Confirm spec intent for non-boolean inputs beyond allTrue()",
+    "[ ] Add mixed-type tests for anyTrue()/allFalse()/anyFalse() once behavior is clarified"
+  ],
+  "meta": {
+    "status": "drafted",
+    "feature": "collection-boolean",
+    "source": "spec/index.md#allTrue"
+  },
+  "cases": [
+    {
+      "name": "allTrue: all items true",
+      "expr": "items.allTrue()",
+      "input": {
+        "items": [
+          true,
+          true
+        ]
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "allTrue: contains false",
+      "expr": "items.allTrue()",
+      "input": {
+        "items": [
+          true,
+          false,
+          true
+        ]
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ]
+    },
+    {
+      "name": "allTrue: empty collection returns true",
+      "expr": "items.allTrue()",
+      "input": {
+        "items": []
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "allTrue: non-boolean treated as false",
+      "expr": "items.allTrue()",
+      "input": {
+        "items": [
+          true,
+          "foo"
+        ]
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ]
+    },
+    {
+      "name": "anyTrue: at least one true",
+      "expr": "items.anyTrue()",
+      "input": {
+        "items": [
+          false,
+          true,
+          false
+        ]
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "anyTrue: all false",
+      "expr": "items.anyTrue()",
+      "input": {
+        "items": [
+          false,
+          false
+        ]
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ]
+    },
+    {
+      "name": "anyTrue: empty collection returns false",
+      "expr": "items.anyTrue()",
+      "input": {
+        "items": []
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ]
+    },
+    {
+      "name": "allFalse: all items false",
+      "expr": "items.allFalse()",
+      "input": {
+        "items": [
+          false,
+          false
+        ]
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "allFalse: contains true",
+      "expr": "items.allFalse()",
+      "input": {
+        "items": [
+          false,
+          true
+        ]
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ]
+    },
+    {
+      "name": "allFalse: empty collection returns true",
+      "expr": "items.allFalse()",
+      "input": {
+        "items": []
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "anyFalse: at least one false",
+      "expr": "items.anyFalse()",
+      "input": {
+        "items": [
+          true,
+          false,
+          true
+        ]
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "anyFalse: all true",
+      "expr": "items.anyFalse()",
+      "input": {
+        "items": [
+          true,
+          true
+        ]
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ]
+    },
+    {
+      "name": "anyFalse: empty collection returns false",
+      "expr": "items.anyFalse()",
+      "input": {
+        "items": []
+      },
+      "expect": [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ]
+    }
+  ]
+}

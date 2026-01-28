@@ -23,7 +23,7 @@
     "=== CONTAINS (containership) ===",
     "Syntax: collection contains element",
     "  - Converse of 'in': returns true if right singleton is in left collection",
-    "  - Right operand MUST be empty or a singleton - multiple items throws an exception",
+    "  - Right operand should be empty or a singleton (spec implies but doesn't explicitly state exception for multiple)",
     "  - Uses equality (=) semantics, NOT equivalence (~)",
     "",
     "Empty behavior (critical):",
@@ -55,10 +55,11 @@
     "[x] Implement in/contains operators in evaluator",
     "[x] Test error case: multiple items in singleton operand",
     "[ ] Test with complex types (FHIR resources)",
-    "[x] Add tests for integer/decimal equality across types"
+    "[x] Add tests for integer/decimal equality across types",
+    "[x] Confirm spec summary against spec text"
   ],
   "meta": {
-    "status": "drafted"
+    "status": "reviewed"
   },
   "cases": [
     {
@@ -380,7 +381,7 @@
       "expr": "(1 | 2 | 3) contains (1 | 2)",
       "input": {},
       "expect_error": true,
-      "_note": "Per spec: if right operand has multiple items, an exception is thrown"
+      "_note": "Inferred from symmetry with 'in': spec doesn't explicitly say exception for contains, but since it's the converse of 'in', same rule should apply"
     }
   ]
 }

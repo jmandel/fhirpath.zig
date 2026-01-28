@@ -1126,7 +1126,14 @@
           "type": "date",
           "value": "2024"
         }
-      ]
+      ],
+      "_adjudicated": {
+        "fhirpath_js": [{"type": "dateTime", "value": "2024"}],
+        "our_old_value": null,
+        "verdict": "ours_correct",
+        "reason": "Spec §5.4 toDate() explicitly states 'this function will return a single date' with return type 'toDate() : Date'. Official test testStringYearConvertsToDate confirms year-only strings are valid date inputs. The Date type (§5.1.4) supports partial dates with optional month/day. fhirpath.js returning DateTime instead of Date is incorrect per the function signature.",
+        "spec_ref": "§5.4 toDate(), §5.1.4 Date literal definition, official test testStringYearConvertsToDate"
+      }
     },
     {
       "name": "toDate: string 'invalid' returns empty",

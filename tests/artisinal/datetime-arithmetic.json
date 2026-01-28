@@ -295,7 +295,14 @@
       "name": "day underflow: first of month - 1 day",
       "expr": "@2025-02-01 - 1 day",
       "input": {},
-      "expect": [{"type": "date", "value": "2025-01-31"}]
+      "expect": [{"type": "date", "value": "2025-01-31"}],
+      "_adjudicated": {
+        "fhirpath_js": [{"type": "dateTime", "value": "2025-01-31"}],
+        "our_old_value": null,
+        "verdict": "ours_correct",
+        "reason": "Spec §6.5 subtraction says 'Returns the value of the given Date, DateTime, or Time, decremented by the time-valued quantity'. The return type matches the input type. Since @2025-02-01 is a Date literal (no T marker), the result must be a Date. Spec example '@2019-03-01 - 24 months // @2017-03-01' confirms Date - Quantity returns Date. fhirpath.js incorrectly promotes to DateTime.",
+        "spec_ref": "§6.5 Date/Time Arithmetic, subtraction operator"
+      }
     },
     {
       "name": "day underflow crossing year boundary",

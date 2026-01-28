@@ -93,7 +93,14 @@
           "type": "boolean",
           "value": true
         }
-      ]
+      ],
+      "_adjudicated": {
+        "fhirpath_js": [{"type": "boolean", "value": false}],
+        "our_old_value": null,
+        "verdict": "ours_correct",
+        "reason": "Spec §5.1.4 defines Decimal literals as 'sequences of digits with a decimal point' with examples '0.0' and '3.14159265'. The literal 1.0 is unambiguously a Decimal. The is() operator (§6.6) returns true if the type of the left operand matches the specified type. Since 1.0 is a Decimal literal, 1.0.is(Decimal) must return true. fhirpath.js returning false appears to treat numeric literals differently from the spec.",
+        "spec_ref": "§5.1.4 Decimal, §6.6 is operator"
+      }
     },
     {
       "name": "is - decimal literal is System.Decimal",

@@ -498,12 +498,62 @@ pub const Parser = struct {
         while (i < inner.len) : (i += 1) {
             if (inner[i] == '\\' and i + 1 < inner.len) {
                 i += 1;
-                try out.append(self.allocator, inner[i]);
+                const c = inner[i];
+                switch (c) {
+                    '\'' => try out.append(self.allocator, '\''),
+                    '"' => try out.append(self.allocator, '"'),
+                    '`' => try out.append(self.allocator, '`'),
+                    'r' => try out.append(self.allocator, '\r'),
+                    'n' => try out.append(self.allocator, '\n'),
+                    't' => try out.append(self.allocator, '\t'),
+                    'f' => try out.append(self.allocator, 0x0C), // form feed
+                    '\\' => try out.append(self.allocator, '\\'),
+                    'u' => {
+                        // Unicode escape \uXXXX - needs exactly 4 hex digits
+                        if (i + 4 < inner.len) {
+                            const hex = inner[i + 1 .. i + 5];
+                            if (parseHex4(hex)) |codepoint| {
+                                // Encode UTF-8
+                                var buf: [4]u8 = undefined;
+                                const len = std.unicode.utf8Encode(@intCast(codepoint), &buf) catch {
+                                    // Invalid codepoint - treat as unrecognized escape
+                                    try out.append(self.allocator, 'u');
+                                    continue;
+                                };
+                                try out.appendSlice(self.allocator, buf[0..len]);
+                                i += 4; // Skip the 4 hex digits
+                                continue;
+                            }
+                        }
+                        // Not 4 valid hex digits - unrecognized escape, drop backslash
+                        try out.append(self.allocator, 'u');
+                    },
+                    else => {
+                        // Unrecognized escape - just drop the backslash (per spec)
+                        try out.append(self.allocator, c);
+                    },
+                }
                 continue;
             }
             try out.append(self.allocator, inner[i]);
         }
         return out.toOwnedSlice(self.allocator);
+    }
+
+    // Parse 4 hex digits into a codepoint value
+    fn parseHex4(hex: []const u8) ?u21 {
+        if (hex.len != 4) return null;
+        var result: u21 = 0;
+        for (hex) |c| {
+            const digit: u21 = switch (c) {
+                '0'...'9' => c - '0',
+                'a'...'f' => c - 'a' + 10,
+                'A'...'F' => c - 'A' + 10,
+                else => return null,
+            };
+            result = result * 16 + digit;
+        }
+        return result;
     }
 
     fn advance(self: *Parser) ParseErrorSet!lexer.Token {

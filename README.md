@@ -120,6 +120,23 @@ Output shows pass/fail counts per file and failure breakdown (parse errors, eval
 - `where(predicate)`, `select(projection)`
 - `distinct()`, `isDistinct()`
 
+## Cross-checking Against Reference Engines
+
+Compare our implementation against fhirpath.js, Firely .NET, and HAPI FHIR:
+
+```bash
+# Sample disagreements for adjudication (recommended)
+python scripts/adjudicate.py --sample 5
+
+# Full comparison (slow due to HAPI startup)
+python scripts/engine_check.py --summary
+```
+
+**Optional dependencies** for cross-checking:
+- Node.js/Bun: `cd vendor/fhirpath.js && bun install`
+- .NET 8.0: `cd vendor/fhirpath.net/FhirPathRunner && dotnet build`
+- Java 11+ / Maven: `cd vendor/fhirpath.hapi && mvn package`
+
 ## Documentation
 
 - `design.md` - Architecture and data structures

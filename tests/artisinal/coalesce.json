@@ -1,0 +1,143 @@
+{
+  "_spec_summary": [
+    "coalesce() (STU) selects the first non-empty collection among its arguments.",
+    "",
+    "=== CORE BEHAVIOR ===",
+    "- Signature: coalesce(value: collection, [value: collection, ...]) : collection",
+    "- Takes a variable number of collection arguments and returns the FIRST argument that is not empty.",
+    "- If all arguments are empty collections, the result is empty.",
+    "- The result is the entire selected collection (not just its first item).",
+    "",
+    "=== TYPE HANDLING ===",
+    "- Arguments can be collections of any type; no type conversion is implied.",
+    "- Output type and cardinality are determined solely by the first non-empty argument.",
+    "- coalesce does not deduplicate or compare items; duplicates in the selected collection are preserved.",
+    "",
+    "=== EMPTY COLLECTION SEMANTICS ===",
+    "- Empty collection `{ }` means no items.",
+    "- A collection containing a single empty string, false, or 0 is NOT empty and will be returned.",
+    "- Because arguments are collections, missing properties yield empty collections and fall through.",
+    "",
+    "=== EDGE CASES & SURPRISES ===",
+    "- Short-circuit evaluation is required: arguments after the first non-empty must NOT be evaluated.",
+    "- If an earlier argument is empty, later arguments are evaluated and may raise errors.",
+    "- coalesce does not introduce an iteration context; use select() to apply it per item.",
+    "",
+    "=== RELATIONSHIPS ===",
+    "- coalesce is a concise alternative to nested iif() checks; both require short-circuit semantics.",
+    "- When used inside select(), it provides per-item fallback values.",
+    "",
+    "Spec refs: spec/index.md coalesce() section (STU).",
+    "Spec quote: \"returns the first non-empty collection\" and \"short-circuit behaviour is expected\"."
+  ],
+  "_todo": [
+    "[ ] Improve passing rate (1/10 passing) - coalesce evaluation not implemented",
+    "[ ] Add tests for interaction with undefined-order collections (children()/descendants())",
+    "[ ] Add tests for mixed-type argument collections (e.g., Quantity vs Integer)"
+  ],
+  "meta": {
+    "status": "drafted",
+    "feature": "coalesce",
+    "source": "spec/index.md#coalesce"
+  },
+  "cases": [
+    {
+      "_section": "=== BASIC SELECTION ==="
+    },
+    {
+      "name": "coalesce: first argument non-empty returns first",
+      "expr": "coalesce(1, 2)",
+      "input": {},
+      "expect": [
+        {"type": "integer", "value": 1}
+      ]
+    },
+    {
+      "name": "coalesce: empty then non-empty",
+      "expr": "coalesce({}, 2)",
+      "input": {},
+      "expect": [
+        {"type": "integer", "value": 2}
+      ]
+    },
+    {
+      "name": "coalesce: all empty returns empty",
+      "expr": "coalesce({}, {}, {}).empty()",
+      "input": {},
+      "expect": [
+        {"type": "boolean", "value": true}
+      ]
+    },
+    {
+      "name": "coalesce: empty string is still non-empty",
+      "expr": "coalesce('', 'fallback')",
+      "input": {},
+      "expect": [
+        {"type": "string", "value": ""}
+      ]
+    },
+    {
+      "name": "coalesce: false is still non-empty",
+      "expr": "coalesce(false, true)",
+      "input": {},
+      "expect": [
+        {"type": "boolean", "value": false}
+      ]
+    },
+    {
+      "_section": "=== COLLECTION SHAPE ==="
+    },
+    {
+      "name": "coalesce: returns full collection (not first item)",
+      "expr": "coalesce(1 | 2, 3 | 4).count()",
+      "input": {},
+      "expect": [
+        {"type": "integer", "value": 2}
+      ]
+    },
+    {
+      "name": "coalesce: preserves duplicates in first collection",
+      "expr": "coalesce(1.combine(1), 2).count()",
+      "input": {},
+      "expect": [
+        {"type": "integer", "value": 2}
+      ]
+    },
+    {
+      "_section": "=== SHORT-CIRCUIT ==="
+    },
+    {
+      "name": "coalesce: short-circuit avoids erroring argument",
+      "expr": "coalesce('ok', (1 | 2).single())",
+      "input": {},
+      "expect": [
+        {"type": "string", "value": "ok"}
+      ]
+    },
+    {
+      "name": "coalesce: errors when first args are empty and later arg fails",
+      "expr": "coalesce({}, (1 | 2).single())",
+      "input": {},
+      "expect_error": true
+    },
+    {
+      "_section": "=== PER-ITEM FALLBACKS ==="
+    },
+    {
+      "name": "coalesce: use inside select for per-item fallback",
+      "expr": "names.select(coalesce(family, text, 'unknown'))",
+      "input": {
+        "names": [
+          {"family": "Smith"},
+          {"text": "Ms Foo"},
+          {}
+        ]
+      },
+      "expect": [
+        {"type": "string", "value": "Smith"},
+        {"type": "string", "value": "Ms Foo"},
+        {"type": "string", "value": "unknown"}
+      ]
+    }
+  ]
+}

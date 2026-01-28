@@ -1031,6 +1031,99 @@ fn evalFunction(
         }
         return out;
     }
+    if (std.mem.eql(u8, call.name, "sum")) {
+        if (call.args.len != 0) return error.InvalidFunction;
+        if (input.len == 0) return ItemList.empty;
+
+        const integer_type_id = ctx.types.getOrAdd("System.Integer") catch 0;
+        const decimal_type_id = ctx.types.getOrAdd("System.Decimal") catch 0;
+        const quantity_type_id = ctx.types.getOrAdd("System.Quantity") catch 0;
+
+        const first_kind = sumKindForItem(input[0], integer_type_id, decimal_type_id, quantity_type_id) orelse return error.InvalidOperand;
+
+        var out = ItemList.empty;
+        switch (first_kind) {
+            .integer => {
+                var total: i64 = 0;
+                for (input) |it| {
+                    if (sumKindForItem(it, integer_type_id, decimal_type_id, quantity_type_id) != .integer) {
+                        return error.InvalidOperand;
+                    }
+                    if (it.data_kind == .value and it.value != null and it.value.? == .integer) {
+                        total +%= it.value.?.integer;
+                    } else if (it.data_kind == .node_ref and it.node != null) {
+                        const A = @TypeOf(ctx.adapter.*);
+                        const ref = nodeRefFromRaw(A, it.node.?);
+                        if (A.kind(ctx.adapter, ref) != .number) return error.InvalidOperand;
+                        const text = A.numberText(ctx.adapter, ref);
+                        const parsed = parseIntegerString(text) orelse return error.InvalidOperand;
+                        total +%= parsed;
+                    } else {
+                        return error.InvalidOperand;
+                    }
+                }
+                try out.append(ctx.allocator, makeIntegerItem(ctx, total));
+                return out;
+            },
+            .decimal => {
+                var max_scale: u32 = 0;
+                for (input) |it| {
+                    if (sumKindForItem(it, integer_type_id, decimal_type_id, quantity_type_id) != .decimal) {
+                        return error.InvalidOperand;
+                    }
+                    const text = decimalTextFromItem(ctx, it) orelse return error.InvalidOperand;
+                    const scale = decimalScale(text) orelse return error.InvalidOperand;
+                    if (scale > max_scale) max_scale = scale;
+                }
+
+                var total: i128 = 0;
+                for (input) |it| {
+                    const text = decimalTextFromItem(ctx, it) orelse return error.InvalidOperand;
+                    const scaled = parseDecimalScaled(text, max_scale) orelse return error.InvalidOperand;
+                    const add = @addWithOverflow(total, scaled);
+                    if (add[1] != 0) return error.InvalidOperand;
+                    total = add[0];
+                }
+
+                const value_str = try formatScaledDecimal(ctx.allocator, total, max_scale);
+                try out.append(ctx.allocator, makeDecimalItemText(ctx, value_str));
+                return out;
+            },
+            .quantity => {
+                var unit: ?[]const u8 = null;
+                var max_scale: u32 = 0;
+                for (input) |it| {
+                    if (sumKindForItem(it, integer_type_id, decimal_type_id, quantity_type_id) != .quantity) {
+                        return error.InvalidOperand;
+                    }
+                    if (it.data_kind != .value or it.value == null or it.value.? != .quantity) {
+                        return error.InvalidOperand;
+                    }
+                    const q = it.value.?.quantity;
+                    if (unit == null) {
+                        unit = q.unit;
+                    } else if (!std.mem.eql(u8, unit.?, q.unit)) {
+                        return error.InvalidOperand;
+                    }
+                    const scale = decimalScale(q.value) orelse return error.InvalidOperand;
+                    if (scale > max_scale) max_scale = scale;
+                }
+
+                var total: i128 = 0;
+                for (input) |it| {
+                    const q = it.value.?.quantity;
+                    const scaled = parseDecimalScaled(q.value, max_scale) orelse return error.InvalidOperand;
+                    const add = @addWithOverflow(total, scaled);
+                    if (add[1] != 0) return error.InvalidOperand;
+                    total = add[0];
+                }
+
+                const value_str = try formatScaledDecimal(ctx.allocator, total, max_scale);
+                try out.append(ctx.allocator, makeQuantityItem(ctx, value_str, unit.?));
+                return out;
+            },
+        }
+    }
     if (std.mem.eql(u8, call.name, "aggregate")) {
         if (call.args.len < 1 or call.args.len > 2) return error.InvalidFunction;
 
@@ -1434,7 +1527,7 @@ fn evalFunction(
         try combined.appendSlice(ctx.allocator, other.items);
         defer combined.deinit(ctx.allocator);
         return distinctItems(ctx, combined.items);
-    }
+}
     if (std.mem.eql(u8, call.name, "combine")) {
         if (call.args.len < 1 or call.args.len > 2) return error.InvalidFunction;
         var other = try evalCollectionArg(ctx, call.args[0], env);
@@ -2025,6 +2118,173 @@ fn isTime(s: []const u8) bool {
 // ============================================================================
 // Math function implementations
 // ============================================================================
+
+const SumKind = enum { integer, decimal, quantity };
+
+fn sumKindForItem(
+    it: item.Item,
+    integer_type_id: u32,
+    decimal_type_id: u32,
+    quantity_type_id: u32,
+) ?SumKind {
+    if (it.data_kind == .value and it.value != null) {
+        return switch (it.value.?) {
+            .integer => .integer,
+            .decimal => .decimal,
+            .quantity => .quantity,
+            else => null,
+        };
+    }
+    if (it.data_kind == .node_ref) {
+        if (it.type_id == integer_type_id) return .integer;
+        if (it.type_id == decimal_type_id) return .decimal;
+        if (it.type_id == quantity_type_id) return .quantity;
+    }
+    return null;
+}
+
+fn decimalTextFromItem(ctx: anytype, it: item.Item) ?[]const u8 {
+    if (it.data_kind == .value and it.value != null and it.value.? == .decimal) {
+        return it.value.?.decimal;
+    }
+    if (it.data_kind == .node_ref and it.node != null) {
+        const A = @TypeOf(ctx.adapter.*);
+        const ref = nodeRefFromRaw(A, it.node.?);
+        if (A.kind(ctx.adapter, ref) != .number) return null;
+        return A.numberText(ctx.adapter, ref);
+    }
+    return null;
+}
+
+fn decimalScale(text: []const u8) ?u32 {
+    if (text.len == 0) return null;
+    var idx: usize = 0;
+    if (text[0] == '+' or text[0] == '-') {
+        idx = 1;
+        if (idx == text.len) return null;
+    }
+    var saw_dot = false;
+    var saw_digit = false;
+    var scale: u32 = 0;
+    while (idx < text.len) : (idx += 1) {
+        const c = text[idx];
+        if (c >= '0' and c <= '9') {
+            saw_digit = true;
+            if (saw_dot) scale += 1;
+            continue;
+        }
+        if (c == '.') {
+            if (saw_dot) return null;
+            saw_dot = true;
+            continue;
+        }
+        if (c == 'e' or c == 'E') return null;
+        return null;
+    }
+    if (!saw_digit) return null;
+    return scale;
+}
+
+fn parseDecimalScaled(text: []const u8, target_scale: u32) ?i128 {
+    if (text.len == 0) return null;
+    var idx: usize = 0;
+    var negative = false;
+    if (text[0] == '+' or text[0] == '-') {
+        negative = text[0] == '-';
+        idx = 1;
+        if (idx == text.len) return null;
+    }
+
+    var mag: i128 = 0;
+    var scale: u32 = 0;
+    var saw_dot = false;
+    var saw_digit = false;
+
+    while (idx < text.len) : (idx += 1) {
+        const c = text[idx];
+        if (c >= '0' and c <= '9') {
+            saw_digit = true;
+            const digit: i128 = @intCast(c - '0');
+            const mul = @mulWithOverflow(mag, 10);
+            if (mul[1] != 0) return null;
+            const add = @addWithOverflow(mul[0], digit);
+            if (add[1] != 0) return null;
+            mag = add[0];
+            if (saw_dot) scale += 1;
+            continue;
+        }
+        if (c == '.') {
+            if (saw_dot) return null;
+            saw_dot = true;
+            continue;
+        }
+        if (c == 'e' or c == 'E') return null;
+        return null;
+    }
+
+    if (!saw_digit) return null;
+    if (scale > target_scale) return null;
+
+    var scaled = mag;
+    var extra: u32 = target_scale - scale;
+    while (extra > 0) : (extra -= 1) {
+        const mul = @mulWithOverflow(scaled, 10);
+        if (mul[1] != 0) return null;
+        scaled = mul[0];
+    }
+
+    return if (negative) -scaled else scaled;
+}
+
+fn formatScaledDecimal(allocator: std.mem.Allocator, value: i128, scale: u32) ![]const u8 {
+    const negative = value < 0;
+    const abs_val: i128 = if (negative) -value else value;
+    const digits = try std.fmt.allocPrint(allocator, "{d}", .{abs_val});
+    defer allocator.free(digits);
+
+    var out = std.ArrayList(u8).empty;
+    errdefer out.deinit(allocator);
+
+    if (negative) try out.append(allocator, '-');
+
+    if (scale == 0) {
+        try out.appendSlice(allocator, digits);
+        return try out.toOwnedSlice(allocator);
+    }
+
+    const digits_len = digits.len;
+    const scale_usize: usize = @intCast(scale);
+    if (digits_len <= scale_usize) {
+        try out.append(allocator, '0');
+        try out.append(allocator, '.');
+        const zeros_needed = scale_usize - digits_len;
+        var i: usize = 0;
+        while (i < zeros_needed) : (i += 1) {
+            try out.append(allocator, '0');
+        }
+        try out.appendSlice(allocator, digits);
+        return try out.toOwnedSlice(allocator);
+    }
+
+    const point_pos = digits_len - scale_usize;
+    try out.appendSlice(allocator, digits[0..point_pos]);
+    try out.append(allocator, '.');
+    try out.appendSlice(allocator, digits[point_pos..]);
+    return try out.toOwnedSlice(allocator);
+}
+
+fn makeDecimalItemText(ctx: anytype, text: []const u8) item.Item {
+    const type_id = ctx.types.getOrAdd("System.Decimal") catch 0;
+    return .{
+        .data_kind = .value,
+        .value_kind = .decimal,
+        .type_id = type_id,
+        .source_pos = 0,
+        .source_end = 0,
+        .node = null,
+        .value = .{ .decimal = text },
+    };
+}
 
 fn itemToFloat(ctx: anytype, it: item.Item) ?f64 {
     const val = itemToValue(ctx, it);

@@ -88,13 +88,13 @@
     "Without UCUM support, units must match exactly or result is empty."
   ],
   "_todo": [
-    "[ ] Improve passing rate (17/74 passing)",
+    "[ ] Improve passing rate (29/74 passing)",
     "[ ] Parser: Support union operator | in parenthesized expressions (blocks 61 tests)",
     "[ ] Parser: Support $this, $index, $total special variables",
     "[ ] Parser: Support date/time literals (@2012-01-01, @T10:30:00)",
     "[ ] Parser: Support Quantity literals (1.0 'mg')",
     "[x] Implement aggregate() function with iteration variables",
-    "[ ] Implement sum() function",
+    "[x] Implement sum() function",
     "[ ] Implement min() function",
     "[ ] Implement max() function",
     "[ ] Implement avg() function",
@@ -385,7 +385,7 @@
       "input": {},
       "expect": [
         {
-          "type": "unknown",
+          "type": "Quantity",
           "value": {
             "value": 6.0,
             "unit": "mg"

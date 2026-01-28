@@ -88,16 +88,16 @@
     "Without UCUM support, units must match exactly or result is empty."
   ],
   "_todo": [
-    "[ ] Improve passing rate (29/74 passing)",
-    "[ ] Parser: Support union operator | in parenthesized expressions (blocks 61 tests)",
-    "[ ] Parser: Support $this, $index, $total special variables",
-    "[ ] Parser: Support date/time literals (@2012-01-01, @T10:30:00)",
-    "[ ] Parser: Support Quantity literals (1.0 'mg')",
+    "[ ] Improve passing rate (59/68 passing)",
+    "[x] Parser: Support union operator | in parenthesized expressions",
+    "[x] Parser: Support $this, $index, $total special variables",
+    "[x] Parser: Support date/time literals (@2012-01-01, @T10:30:00)",
+    "[x] Parser: Support Quantity literals (1.0 'mg')",
     "[x] Implement aggregate() function with iteration variables",
     "[x] Implement sum() function",
-    "[ ] Implement min() function",
-    "[ ] Implement max() function",
-    "[ ] Implement avg() function",
+    "[x] Implement min() function",
+    "[x] Implement max() function",
+    "[ ] Implement avg() function (9 tests remaining)",
     "[ ] Add tests for Long type once supported",
     "[ ] Add error tests for mixed types (currently omitted as behavior is exception)"
   ],
@@ -514,7 +514,7 @@
       "input": {},
       "expect": [
         {
-          "type": "string",
+          "type": "dateTime",
           "value": "2020-06-15T08:00:00"
         }
       ]
@@ -525,7 +525,7 @@
       "input": {},
       "expect": [
         {
-          "type": "string",
+          "type": "time",
           "value": "09:00:00"
         }
       ]
@@ -547,7 +547,7 @@
       "input": {},
       "expect": [
         {
-          "type": "unknown",
+          "type": "Quantity",
           "value": {
             "value": 1.5,
             "unit": "kg"
@@ -637,7 +637,7 @@
       "input": {},
       "expect": [
         {
-          "type": "string",
+          "type": "date",
           "value": "2013-01-01"
         }
       ]
@@ -648,7 +648,7 @@
       "input": {},
       "expect": [
         {
-          "type": "string",
+          "type": "dateTime",
           "value": "2020-06-15T12:00:00"
         }
       ]
@@ -659,7 +659,7 @@
       "input": {},
       "expect": [
         {
-          "type": "string",
+          "type": "time",
           "value": "18:45:00"
         }
       ]
@@ -681,7 +681,7 @@
       "input": {},
       "expect": [
         {
-          "type": "unknown",
+          "type": "Quantity",
           "value": {
             "value": 3.0,
             "unit": "kg"

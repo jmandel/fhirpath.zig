@@ -1087,6 +1087,43 @@ fn compareItems(ctx: anytype, a: item.Item, b: item.Item) ?i32 {
         };
     }
 
+    // Compare dates (lexicographic on ISO-8601 strings)
+    if (va == .date and vb == .date) {
+        return switch (std.mem.order(u8, va.date, vb.date)) {
+            .lt => -1,
+            .eq => 0,
+            .gt => 1,
+        };
+    }
+
+    // Compare times (lexicographic on ISO-8601 strings)
+    if (va == .time and vb == .time) {
+        return switch (std.mem.order(u8, va.time, vb.time)) {
+            .lt => -1,
+            .eq => 0,
+            .gt => 1,
+        };
+    }
+
+    // Compare dateTimes (lexicographic on ISO-8601 strings)
+    if (va == .dateTime and vb == .dateTime) {
+        return switch (std.mem.order(u8, va.dateTime, vb.dateTime)) {
+            .lt => -1,
+            .eq => 0,
+            .gt => 1,
+        };
+    }
+
+    // Compare quantities (same unit only)
+    if (va == .quantity and vb == .quantity) {
+        if (!std.mem.eql(u8, va.quantity.unit, vb.quantity.unit)) return null;
+        const qa = std.fmt.parseFloat(f64, va.quantity.value) catch return null;
+        const qb = std.fmt.parseFloat(f64, vb.quantity.value) catch return null;
+        if (qa < qb) return -1;
+        if (qa > qb) return 1;
+        return 0;
+    }
+
     return null;
 }
 
@@ -1926,6 +1963,26 @@ fn evalFunction(
                 return out;
             },
         }
+    }
+    if (std.mem.eql(u8, call.name, "min") or std.mem.eql(u8, call.name, "max")) {
+        if (call.args.len != 0) return error.InvalidFunction;
+        if (input.len == 0) return ItemList.empty;
+
+        const is_max = std.mem.eql(u8, call.name, "max");
+        var best_idx: usize = 0;
+        var best = input[0];
+
+        for (input[1..], 1..) |candidate, idx| {
+            const cmp = compareItems(ctx, candidate, best) orelse return error.InvalidOperand;
+            if ((is_max and cmp > 0) or (!is_max and cmp < 0)) {
+                best = candidate;
+                best_idx = idx;
+            }
+        }
+
+        var out = ItemList.empty;
+        try out.append(ctx.allocator, input[best_idx]);
+        return out;
     }
     if (std.mem.eql(u8, call.name, "aggregate")) {
         if (call.args.len < 1 or call.args.len > 2) return error.InvalidFunction;

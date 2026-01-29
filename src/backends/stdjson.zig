@@ -91,9 +91,8 @@ pub const StdJsonAdapter = struct {
         return ref.bool;
     }
 
-    /// Convert a node to a typed Value. No schema available, so purely JSON-kind-based.
+    /// Convert a node to a typed Value. Checks type_id for System date/time types on strings.
     pub fn toValue(self: *StdJsonAdapter, ref: NodeRef, type_id: u32) item.Value {
-        _ = type_id;
         return switch (kind(self, ref)) {
             .null => .{ .empty = {} },
             .bool => .{ .boolean = boolean(self, ref) },
@@ -105,7 +104,13 @@ pub const StdJsonAdapter = struct {
                 }
                 return .{ .decimal = text };
             },
-            .string => .{ .string = string(self, ref) },
+            .string => {
+                const s = string(self, ref);
+                if (type_id == item.SystemTypeIds.date) return .{ .date = s };
+                if (type_id == item.SystemTypeIds.dateTime) return .{ .dateTime = s };
+                if (type_id == item.SystemTypeIds.time) return .{ .time = s };
+                return .{ .string = s };
+            },
             else => .{ .empty = {} },
         };
     }

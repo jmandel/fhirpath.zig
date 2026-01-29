@@ -59,6 +59,20 @@ pub const Item = struct {
     value: ?Value,
 };
 
+/// Well-known System type IDs. These match the deterministic init order in TypeTable.init().
+pub const SystemTypeIds = struct {
+    pub const any = 1;
+    pub const boolean = 2;
+    pub const integer = 3;
+    pub const long = 4;
+    pub const decimal = 5;
+    pub const string = 6;
+    pub const date = 7;
+    pub const dateTime = 8;
+    pub const time = 9;
+    pub const quantity = 10;
+};
+
 pub const TypeTable = struct {
     allocator: std.mem.Allocator,
     map: std.StringHashMap(u32),

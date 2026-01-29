@@ -457,6 +457,14 @@ pub const FhirJsonAdapter = struct {
                 }
             }
         }
+        // Check well-known System type IDs (from content inference / TypeTable)
+        if (type_id == item.SystemTypeIds.date) {
+            if (kind(self, ref) == .string) return .{ .date = string(self, ref) };
+        } else if (type_id == item.SystemTypeIds.dateTime) {
+            if (kind(self, ref) == .string) return .{ .dateTime = string(self, ref) };
+        } else if (type_id == item.SystemTypeIds.time) {
+            if (kind(self, ref) == .string) return .{ .time = string(self, ref) };
+        }
         // Fall back to JSON-kind-based conversion
         return self.toValueFromJsonKind(ref);
     }

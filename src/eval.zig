@@ -1100,10 +1100,7 @@ fn dateTimeEquivalent(a: []const u8, b: []const u8) bool {
     return true;
 }
 
-fn valueEquivalent(ctx: anytype, a_val: item.Value, a_type: u32, b_val: item.Value, b_type: u32) bool {
-    _ = ctx;
-    _ = a_type;
-    _ = b_type;
+fn valueEquivalent(a_val: item.Value, b_val: item.Value) bool {
     if (a_val == .empty or b_val == .empty) return a_val == .empty and b_val == .empty;
 
     if (a_val == .date or b_val == .date) {
@@ -1173,7 +1170,7 @@ fn itemsEquivalent(ctx: anytype, a: item.Item, b: item.Item) bool {
             return nodeEqual(ctx, a_ref, b_ref);
         }
         // For scalar nodes, use toValue to get proper type tags
-        return valueEquivalent(ctx, itemToValue(ctx, a), a.type_id, itemToValue(ctx, b), b.type_id);
+        return valueEquivalent(itemToValue(ctx, a), itemToValue(ctx, b));
     }
 
     if (a_is_node or b_is_node) {
@@ -1189,7 +1186,7 @@ fn itemsEquivalent(ctx: anytype, a: item.Item, b: item.Item) bool {
         }
     }
 
-    return valueEquivalent(ctx, itemToValue(ctx, a), a.type_id, itemToValue(ctx, b), b.type_id);
+    return valueEquivalent(itemToValue(ctx, a), itemToValue(ctx, b));
 }
 
 const CompareOp = enum { lt, le, gt, ge };
@@ -4644,30 +4641,23 @@ fn evalFunction(
         const it = input[0];
         const val = itemToValue(ctx, it);
 
-        const date_id = ctx.types.getOrAdd("System.Date") catch 0;
-        const time_id = ctx.types.getOrAdd("System.Time") catch 0;
-        const datetime_id = ctx.types.getOrAdd("System.DateTime") catch 0;
-
         if (val == .decimal) {
             const scale = decimalScale(val.decimal) orelse return out;
             try out.append(ctx.allocator, makeIntegerItem(ctx, @intCast(scale)));
             return out;
         }
-        if (val == .date or it.type_id == date_id) {
-            const text = if (val == .date) val.date else if (val == .string) val.string else return out;
-            const prec = datePrecisionDigits(text) orelse return out;
+        if (val == .date) {
+            const prec = datePrecisionDigits(val.date) orelse return out;
             try out.append(ctx.allocator, makeIntegerItem(ctx, @intCast(prec)));
             return out;
         }
-        if (val == .dateTime or it.type_id == datetime_id) {
-            const text = if (val == .dateTime) val.dateTime else if (val == .string) val.string else return out;
-            const prec = dateTimePrecisionDigits(text) orelse return out;
+        if (val == .dateTime) {
+            const prec = dateTimePrecisionDigits(val.dateTime) orelse return out;
             try out.append(ctx.allocator, makeIntegerItem(ctx, @intCast(prec)));
             return out;
         }
-        if (val == .time or it.type_id == time_id) {
-            const text = if (val == .time) val.time else if (val == .string) val.string else return out;
-            const prec = timePrecisionDigits(text) orelse return out;
+        if (val == .time) {
+            const prec = timePrecisionDigits(val.time) orelse return out;
             try out.append(ctx.allocator, makeIntegerItem(ctx, @intCast(prec)));
             return out;
         }
@@ -4690,12 +4680,6 @@ fn evalFunction(
         }
         if (precision_opt != null and precision_opt.? < 0) return out;
 
-        const date_id = ctx.types.getOrAdd("System.Date") catch 0;
-        const time_id = ctx.types.getOrAdd("System.Time") catch 0;
-        const datetime_id = ctx.types.getOrAdd("System.DateTime") catch 0;
-        const decimal_id = ctx.types.getOrAdd("System.Decimal") catch 0;
-        const integer_id = ctx.types.getOrAdd("System.Integer") catch 0;
-
         if (val == .quantity) {
             const precision: u32 = if (precision_opt) |p| blk: {
                 if (p > std.math.maxInt(u32)) return out;
@@ -4710,7 +4694,7 @@ fn evalFunction(
             return out;
         }
 
-        if (val == .decimal or val == .integer or it.type_id == decimal_id or it.type_id == integer_id) {
+        if (val == .decimal or val == .integer) {
             const precision: u32 = if (precision_opt) |p| blk: {
                 if (p > std.math.maxInt(u32)) return out;
                 break :blk @intCast(p);
@@ -4722,14 +4706,9 @@ fn evalFunction(
             if (val == .integer) {
                 base_scaled = @intCast(val.integer);
                 scale = 0;
-            } else if (val == .decimal) {
+            } else {
                 scale = decimalScale(val.decimal) orelse return out;
                 base_scaled = parseDecimalScaled(val.decimal, scale) orelse return out;
-            } else if (val == .string and (it.type_id == decimal_id or it.type_id == integer_id)) {
-                scale = decimalScale(val.string) orelse return out;
-                base_scaled = parseDecimalScaled(val.string, scale) orelse return out;
-            } else {
-                return out;
             }
 
             const boundary_text = (try boundaryFromScaled(ctx.allocator, base_scaled, scale, precision, kind)) orelse return out;
@@ -4737,38 +4716,35 @@ fn evalFunction(
             return out;
         }
 
-        if (val == .date or it.type_id == date_id) {
+        if (val == .date) {
             const precision: u32 = if (precision_opt) |p| blk: {
                 if (p > std.math.maxInt(u32)) return out;
                 break :blk @intCast(p);
             } else DateMaxPrecision;
             if (precision > DateMaxPrecision) return out;
-            const text = if (val == .date) val.date else if (val == .string) val.string else return out;
-            const boundary_text = (try buildDateBoundary(ctx.allocator, text, precision, kind)) orelse return out;
+            const boundary_text = (try buildDateBoundary(ctx.allocator, val.date, precision, kind)) orelse return out;
             try out.append(ctx.allocator, makeDateItem(ctx, boundary_text));
             return out;
         }
 
-        if (val == .dateTime or it.type_id == datetime_id) {
+        if (val == .dateTime) {
             const precision: u32 = if (precision_opt) |p| blk: {
                 if (p > std.math.maxInt(u32)) return out;
                 break :blk @intCast(p);
             } else DateTimeMaxPrecision;
             if (precision > DateTimeMaxPrecision) return out;
-            const text = if (val == .dateTime) val.dateTime else if (val == .string) val.string else return out;
-            const boundary_text = (try buildDateTimeBoundary(ctx.allocator, text, precision, kind)) orelse return out;
+            const boundary_text = (try buildDateTimeBoundary(ctx.allocator, val.dateTime, precision, kind)) orelse return out;
             try out.append(ctx.allocator, makeDateTimeItem(ctx, boundary_text));
             return out;
         }
 
-        if (val == .time or it.type_id == time_id) {
+        if (val == .time) {
             const precision: u32 = if (precision_opt) |p| blk: {
                 if (p > std.math.maxInt(u32)) return out;
                 break :blk @intCast(p);
             } else TimeMaxPrecision;
             if (precision > TimeMaxPrecision) return out;
-            const text = if (val == .time) val.time else if (val == .string) val.string else return out;
-            const boundary_text = (try buildTimeBoundary(ctx.allocator, text, precision, kind)) orelse return out;
+            const boundary_text = (try buildTimeBoundary(ctx.allocator, val.time, precision, kind)) orelse return out;
             try out.append(ctx.allocator, makeTimeItem(ctx, boundary_text));
             return out;
         }
@@ -4785,15 +4761,9 @@ fn evalFunction(
         const it = input[0];
         const val = itemToValue(ctx, it);
 
-        const date_id = ctx.types.getOrAdd("System.Date") catch 0;
-        const datetime_id = ctx.types.getOrAdd("System.DateTime") catch 0;
-
         var text: ?[]const u8 = null;
         if (val == .date) text = val.date;
         if (val == .dateTime) text = val.dateTime;
-        if (text == null and (it.type_id == date_id or it.type_id == datetime_id)) {
-            if (val == .string) text = val.string;
-        }
         if (text == null) return out;
 
         const normalized = stripAtPrefix(text.?);
@@ -4813,15 +4783,9 @@ fn evalFunction(
         const it = input[0];
         const val = itemToValue(ctx, it);
 
-        const date_id = ctx.types.getOrAdd("System.Date") catch 0;
-        const datetime_id = ctx.types.getOrAdd("System.DateTime") catch 0;
-
         var text: ?[]const u8 = null;
         if (val == .date) text = val.date;
         if (val == .dateTime) text = val.dateTime;
-        if (text == null and (it.type_id == date_id or it.type_id == datetime_id)) {
-            if (val == .string) text = val.string;
-        }
         if (text == null) return out;
 
         const normalized = stripAtPrefix(text.?);
@@ -4841,15 +4805,9 @@ fn evalFunction(
         const it = input[0];
         const val = itemToValue(ctx, it);
 
-        const date_id = ctx.types.getOrAdd("System.Date") catch 0;
-        const datetime_id = ctx.types.getOrAdd("System.DateTime") catch 0;
-
         var text: ?[]const u8 = null;
         if (val == .date) text = val.date;
         if (val == .dateTime) text = val.dateTime;
-        if (text == null and (it.type_id == date_id or it.type_id == datetime_id)) {
-            if (val == .string) text = val.string;
-        }
         if (text == null) return out;
 
         const normalized = stripAtPrefix(text.?);
@@ -4869,9 +4827,6 @@ fn evalFunction(
         const it = input[0];
         const val = itemToValue(ctx, it);
 
-        const time_id = ctx.types.getOrAdd("System.Time") catch 0;
-        const datetime_id = ctx.types.getOrAdd("System.DateTime") catch 0;
-
         var time_text: ?[]const u8 = null;
         if (val == .time) {
             time_text = val.time;
@@ -4879,17 +4834,6 @@ fn evalFunction(
             const normalized = stripAtPrefix(val.dateTime);
             if (std.mem.indexOfScalar(u8, normalized, 'T')) |t_idx| {
                 time_text = normalized[t_idx + 1 ..];
-            }
-        } else if (it.type_id == time_id or it.type_id == datetime_id) {
-            if (val == .string) {
-                const normalized = stripAtPrefix(val.string);
-                if (std.mem.indexOfScalar(u8, normalized, 'T')) |t_idx| {
-                    time_text = normalized[t_idx + 1 ..];
-                } else if (normalized.len > 0 and normalized[0] == 'T') {
-                    time_text = normalized[1..];
-                } else {
-                    time_text = normalized;
-                }
             }
         }
         if (time_text == null) return out;
@@ -4910,9 +4854,6 @@ fn evalFunction(
         const it = input[0];
         const val = itemToValue(ctx, it);
 
-        const time_id = ctx.types.getOrAdd("System.Time") catch 0;
-        const datetime_id = ctx.types.getOrAdd("System.DateTime") catch 0;
-
         var time_text: ?[]const u8 = null;
         if (val == .time) {
             time_text = val.time;
@@ -4920,17 +4861,6 @@ fn evalFunction(
             const normalized = stripAtPrefix(val.dateTime);
             if (std.mem.indexOfScalar(u8, normalized, 'T')) |t_idx| {
                 time_text = normalized[t_idx + 1 ..];
-            }
-        } else if (it.type_id == time_id or it.type_id == datetime_id) {
-            if (val == .string) {
-                const normalized = stripAtPrefix(val.string);
-                if (std.mem.indexOfScalar(u8, normalized, 'T')) |t_idx| {
-                    time_text = normalized[t_idx + 1 ..];
-                } else if (normalized.len > 0 and normalized[0] == 'T') {
-                    time_text = normalized[1..];
-                } else {
-                    time_text = normalized;
-                }
             }
         }
         if (time_text == null) return out;
@@ -4952,9 +4882,6 @@ fn evalFunction(
         const it = input[0];
         const val = itemToValue(ctx, it);
 
-        const time_id = ctx.types.getOrAdd("System.Time") catch 0;
-        const datetime_id = ctx.types.getOrAdd("System.DateTime") catch 0;
-
         var time_text: ?[]const u8 = null;
         if (val == .time) {
             time_text = val.time;
@@ -4962,17 +4889,6 @@ fn evalFunction(
             const normalized = stripAtPrefix(val.dateTime);
             if (std.mem.indexOfScalar(u8, normalized, 'T')) |t_idx| {
                 time_text = normalized[t_idx + 1 ..];
-            }
-        } else if (it.type_id == time_id or it.type_id == datetime_id) {
-            if (val == .string) {
-                const normalized = stripAtPrefix(val.string);
-                if (std.mem.indexOfScalar(u8, normalized, 'T')) |t_idx| {
-                    time_text = normalized[t_idx + 1 ..];
-                } else if (normalized.len > 0 and normalized[0] == 'T') {
-                    time_text = normalized[1..];
-                } else {
-                    time_text = normalized;
-                }
             }
         }
         if (time_text == null) return out;
@@ -4996,9 +4912,6 @@ fn evalFunction(
         const it = input[0];
         const val = itemToValue(ctx, it);
 
-        const time_id = ctx.types.getOrAdd("System.Time") catch 0;
-        const datetime_id = ctx.types.getOrAdd("System.DateTime") catch 0;
-
         var time_text: ?[]const u8 = null;
         if (val == .time) {
             time_text = val.time;
@@ -5006,17 +4919,6 @@ fn evalFunction(
             const normalized = stripAtPrefix(val.dateTime);
             if (std.mem.indexOfScalar(u8, normalized, 'T')) |t_idx| {
                 time_text = normalized[t_idx + 1 ..];
-            }
-        } else if (it.type_id == time_id or it.type_id == datetime_id) {
-            if (val == .string) {
-                const normalized = stripAtPrefix(val.string);
-                if (std.mem.indexOfScalar(u8, normalized, 'T')) |t_idx| {
-                    time_text = normalized[t_idx + 1 ..];
-                } else if (normalized.len > 0 and normalized[0] == 'T') {
-                    time_text = normalized[1..];
-                } else {
-                    time_text = normalized;
-                }
             }
         }
         if (time_text == null) return out;
@@ -5046,13 +4948,8 @@ fn evalFunction(
         const it = input[0];
         const val = itemToValue(ctx, it);
 
-        const datetime_id = ctx.types.getOrAdd("System.DateTime") catch 0;
-
         var text: ?[]const u8 = null;
         if (val == .dateTime) text = val.dateTime;
-        if (text == null and it.type_id == datetime_id) {
-            if (val == .string) text = val.string;
-        }
         if (text == null) return out;
 
         const normalized = stripAtPrefix(text.?);
@@ -5113,9 +5010,6 @@ fn evalFunction(
         const it = input[0];
         const val = itemToValue(ctx, it);
 
-        const date_id = ctx.types.getOrAdd("System.Date") catch 0;
-        const datetime_id = ctx.types.getOrAdd("System.DateTime") catch 0;
-
         if (val == .date) {
             // Date returns itself
             try out.append(ctx.allocator, it);
@@ -5124,9 +5018,6 @@ fn evalFunction(
 
         var text: ?[]const u8 = null;
         if (val == .dateTime) text = val.dateTime;
-        if (text == null and (it.type_id == date_id or it.type_id == datetime_id)) {
-            if (val == .string) text = val.string;
-        }
         if (text == null) return out;
 
         const normalized = stripAtPrefix(text.?);
@@ -5147,13 +5038,8 @@ fn evalFunction(
         const it = input[0];
         const val = itemToValue(ctx, it);
 
-        const datetime_id = ctx.types.getOrAdd("System.DateTime") catch 0;
-
         var text: ?[]const u8 = null;
         if (val == .dateTime) text = val.dateTime;
-        if (text == null and it.type_id == datetime_id) {
-            if (val == .string) text = val.string;
-        }
         if (text == null) return out;
 
         const normalized = stripAtPrefix(text.?);
@@ -6763,12 +6649,10 @@ fn convertToString(ctx: anytype, it: item.Item) ?[]const u8 {
 
 fn canConvertToString(ctx: anytype, it: item.Item) bool {
     const val = itemToValue(ctx, it);
-    switch (val) {
-        .boolean, .integer, .decimal, .string, .date, .time, .dateTime, .quantity => return true,
-        else => {},
-    }
-    const quantity_type_id = ctx.types.getOrAdd("System.Quantity") catch 0;
-    return it.type_id == quantity_type_id;
+    return switch (val) {
+        .boolean, .integer, .decimal, .string, .date, .time, .dateTime, .quantity => true,
+        else => false,
+    };
 }
 
 fn parseIntegerString(s: []const u8) ?i64 {
@@ -7845,10 +7729,6 @@ fn calculateDurationDifference(ctx: anytype, input: item.Item, other: item.Item,
     const unit = parseTimeUnit(precision) orelse return out;
 
     // Extract values based on type
-    const date_id = ctx.types.getOrAdd("System.Date") catch 0;
-    const datetime_id = ctx.types.getOrAdd("System.DateTime") catch 0;
-    const time_id = ctx.types.getOrAdd("System.Time") catch 0;
-
     var date_a: ?DateParts = null;
     var date_b: ?DateParts = null;
     var time_a: ?TimePartsPartial = null;
@@ -7857,12 +7737,11 @@ fn calculateDurationDifference(ctx: anytype, input: item.Item, other: item.Item,
     var is_time = false;
 
     // Input A
-    if (val_input == .date or input.type_id == date_id) {
-        const s = if (val_input == .date) val_input.date else val_input.string;
-        date_a = parseDateParts(stripAtPrefix(s));
+    if (val_input == .date) {
+        date_a = parseDateParts(stripAtPrefix(val_input.date));
         is_date = true;
-    } else if (val_input == .dateTime or input.type_id == datetime_id) {
-        const s = if (val_input == .dateTime) val_input.dateTime else val_input.string;
+    } else if (val_input == .dateTime) {
+        const s = val_input.dateTime;
         const dt = parseDateTimeParts(stripAtPrefix(s));
         if (dt) |d| {
             date_a = d.date;
@@ -7872,19 +7751,17 @@ fn calculateDurationDifference(ctx: anytype, input: item.Item, other: item.Item,
                 time_a = parseTimePartsPartial(s[t_idx + 1 ..]);
             }
         }
-    } else if (val_input == .time or input.type_id == time_id) {
-        const s = if (val_input == .time) val_input.time else val_input.string;
-        time_a = parseTimePartsPartial(stripTimePrefix(stripAtPrefix(s)));
+    } else if (val_input == .time) {
+        time_a = parseTimePartsPartial(stripTimePrefix(stripAtPrefix(val_input.time)));
         is_time = true;
     }
 
     // Input B
-    if (val_other == .date or other.type_id == date_id) {
-        const s = if (val_other == .date) val_other.date else val_other.string;
-        date_b = parseDateParts(stripAtPrefix(s));
+    if (val_other == .date) {
+        date_b = parseDateParts(stripAtPrefix(val_other.date));
         if (!is_date) return out; // Mismatched types (Date vs non-Date)
-    } else if (val_other == .dateTime or other.type_id == datetime_id) {
-        const s = if (val_other == .dateTime) val_other.dateTime else val_other.string;
+    } else if (val_other == .dateTime) {
+        const s = val_other.dateTime;
         const dt = parseDateTimeParts(stripAtPrefix(s));
         if (dt) |d| {
             date_b = d.date;
@@ -7893,9 +7770,8 @@ fn calculateDurationDifference(ctx: anytype, input: item.Item, other: item.Item,
             }
         }
         if (is_date or is_time) return out; // Mismatched
-    } else if (val_other == .time or other.type_id == time_id) {
-        const s = if (val_other == .time) val_other.time else val_other.string;
-        time_b = parseTimePartsPartial(stripTimePrefix(stripAtPrefix(s)));
+    } else if (val_other == .time) {
+        time_b = parseTimePartsPartial(stripTimePrefix(stripAtPrefix(val_other.time)));
         if (!is_time) return out; // Mismatched
     }
 

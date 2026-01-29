@@ -111,19 +111,30 @@ pub fn main() !void {
         failures.deinit(allocator);
     }
 
-    // Load schema if specified
+    // Load schema: use explicit --model path, or auto-detect from test file paths.
+    // Auto-detection looks for models/<version>/model.bin when test paths contain tests/<version>/.
     var schema_obj: ?schema.Schema = null;
     var model_bytes: ?[]u8 = null;
-    if (opts.model_path) |path| {
+    const effective_model_path: ?[]const u8 = opts.model_path orelse blk: {
+        for (files.items) |path| {
+            if (autoDetectModelPath(path)) |auto_path| break :blk auto_path;
+        }
+        break :blk null;
+    };
+    if (effective_model_path) |path| {
         if (std.fs.cwd().readFileAlloc(allocator, path, 128 * 1024 * 1024)) |bytes| {
             model_bytes = bytes;
             if (schema.Schema.init(allocator, "default", "FHIR", bytes)) |s| {
                 schema_obj = s;
+                std.debug.print("Loaded model: {s}\n", .{path});
             } else |err| {
                 std.debug.print("Schema init error: {}\n", .{err});
             }
-        } else |err| {
-            std.debug.print("Model load error: {}\n", .{err});
+        } else |_| {
+            // Auto-detected path not found is not an error — just run without model
+            if (opts.model_path != null) {
+                std.debug.print("Model not found: {s}\n", .{path});
+            }
         }
     }
     defer if (model_bytes) |bytes| allocator.free(bytes);
@@ -192,6 +203,19 @@ pub fn main() !void {
     if (total_failed > 0) return error.TestFailed;
 }
 
+/// Auto-detect model path from test file path.
+/// For "tests/r5/foo.json" or "tests/r4/foo.json", returns "models/r5/model.bin" etc.
+fn autoDetectModelPath(test_path: []const u8) ?[]const u8 {
+    const versions = [_]struct { dir: []const u8, model: []const u8 }{
+        .{ .dir = "tests/r5/", .model = "models/r5/model.bin" },
+        .{ .dir = "tests/r4/", .model = "models/r4/model.bin" },
+    };
+    for (versions) |v| {
+        if (std.mem.indexOf(u8, test_path, v.dir) != null) return v.model;
+    }
+    return null;
+}
+
 fn printUsage() void {
     const usage =
         \\Usage: harness [options] [file.json ...]
@@ -204,7 +228,7 @@ fn printUsage() void {
         \\  -n, --max N                Show at most N failures (default: all)
         \\  -q, --no-failures          Don't show failure details
         \\  -v, --verbose              Show passing tests too
-        \\  -m, --model PATH           Load FHIR model for type resolution
+        \\  -m, --model PATH           Load FHIR model (auto-detected for tests/r5/, tests/r4/)
         \\  --fhir-json                Use FHIR JSON adapter (merges _field primitives)
         \\  -i, --input-dir DIR        Directory for inputfile references
         \\  -h, --help                 Show this help

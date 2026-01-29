@@ -386,10 +386,16 @@ returning a result.
 
 Minimal public JS API:
 ```js
-const engine = await FhirPathEngine.instantiate(wasm, { functions });
-engine.registerSchema({ name: "r5", prefix: "FHIR", model, isDefault: true });
-// Or fetch the model bytes directly:
-await engine.registerSchemaFromUrl({ name: "r5", prefix: "FHIR", url: "./model-r5.bin", isDefault: true });
+// All defaults resolve relative to import.meta.url
+const engine = await FhirPathEngine.instantiate({
+  schemas: [{ name: "r5", isDefault: true }],
+});
+
+// Or with explicit bytes (e.g. Node.js):
+const engine = await FhirPathEngine.instantiate({
+  wasmBytes: fs.readFileSync("fhirpath.wasm"),
+  schemas: [{ name: "r5", model: fs.readFileSync("model-r5.bin"), isDefault: true }],
+});
 
 const res = engine.eval({ expr, json, schema: "r5", env });
 for (const node of res) {
@@ -496,13 +502,15 @@ Item.value_kind = dateTime
 
 Trace as custom function:
 ```js
-const engine = await FhirPathEngine.instantiate(wasm, {
-  functions: {
-    trace({ args, helper }) {
-      const name = helper.firstString(args[1]) ?? "trace";
-      const value = args[2] ?? args[0];
-      console.log("[trace]", name, helper.toJS(value));
-      return { returnArg: 0 };
+const engine = await FhirPathEngine.instantiate({
+  imports: {
+    functions: {
+      trace({ args, helper }) {
+        const name = helper.firstString(args[1]) ?? "trace";
+        const value = args[2] ?? args[0];
+        console.log("[trace]", name, helper.toJS(value));
+        return { returnArg: 0 };
+      },
     },
   },
 });

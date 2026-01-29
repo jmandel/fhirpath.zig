@@ -174,16 +174,10 @@ function renderChips() {
 
 let currentExampleIdx = 0;
 
-function autoResizeExpr() {
-  exprInput.style.height = "auto";
-  exprInput.style.height = exprInput.scrollHeight + "px";
-}
-
 function loadExample(idx = 0) {
   currentExampleIdx = idx;
   const example = examples[idx];
   exprInput.value = example.expr;
-  autoResizeExpr();
   if (currentFormat === "xml") {
     jsonInput.value = example.xml;
   } else {
@@ -304,8 +298,9 @@ async function runExpression() {
 
     try {
       const selectedSchema = schemaSelect.value || "r5";
+      const t0 = performance.now();
       const results = engine.eval({ expr, json: jsonText, schema: selectedSchema, now: new Date() });
-      renderResults(results);
+      renderResults(results, t0);
     } catch (err) {
       statusEl.textContent = "Evaluation error";
       addResultCard({ title: "Eval error", body: err?.message ?? String(err) });
@@ -313,8 +308,9 @@ async function runExpression() {
   } else {
     try {
       const selectedSchema = schemaSelect.value || "r5";
+      const t0 = performance.now();
       const results = engine.evalXml({ expr, xml: inputText, schema: selectedSchema, now: new Date() });
-      renderResults(results);
+      renderResults(results, t0);
     } catch (err) {
       statusEl.textContent = "Evaluation error";
       addResultCard({ title: "Eval error", body: err?.message ?? String(err) });
@@ -322,7 +318,7 @@ async function runExpression() {
   }
 }
 
-function renderResults(results) {
+function renderResults(results, t0) {
   let count = 0;
   for (const node of results) {
     count += 1;
@@ -334,10 +330,12 @@ function renderResults(results) {
       meta,
     });
   }
+  const elapsedMs = performance.now() - t0;
   if (count === 0) {
     addResultCard({ title: "No results", body: "Collection is empty." });
   }
-  statusEl.textContent = `Done · ${count} result${count === 1 ? "" : "s"}`;
+  const timeStr = elapsedMs < 1 ? `${(elapsedMs * 1000).toFixed(0)} µs` : `${elapsedMs.toFixed(1)} ms`;
+  statusEl.textContent = `${count} result${count === 1 ? "" : "s"} · ${timeStr}`;
 }
 
 renderChips();
@@ -357,7 +355,7 @@ function scheduleRun() {
   }, 30);
 }
 
-exprInput.addEventListener("input", () => { autoResizeExpr(); scheduleRun(); });
+exprInput.addEventListener("input", scheduleRun);
 jsonInput.addEventListener("input", () => {
   updateInputMeta();
   scheduleRun();

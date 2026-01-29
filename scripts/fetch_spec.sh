@@ -90,4 +90,39 @@ fi
 # Remove optional binary artifacts if present
 rm -f "$SPEC_DIR/binary-grammar.json" "$SPEC_DIR/binary-modelinfoschema.json"
 
+# Fetch FHIRPath-in-FHIR spec (HTML) and convert to markdown
+FHIR_FHIRPATH_URL="https://build.fhir.org/fhirpath.html"
+FHIR_FHIRPATH_HTML="$TMP_DIR/fhirpath-in-fhir.html"
+echo "- Downloading FHIRPath-in-FHIR spec: $FHIR_FHIRPATH_URL"
+if curl -fL "$FHIR_FHIRPATH_URL" -o "$FHIR_FHIRPATH_HTML"; then
+  echo "- Converting to markdown"
+  # Extract main content and clean up HTML before conversion
+  python3 -c "
+import re, sys
+with open(sys.argv[1]) as f:
+    content = f.read()
+start = content.find('id=\"segment-content\"')
+if start == -1:
+    sys.exit('Could not find segment-content')
+start = content.rfind('<div', 0, start)
+end = content.find('<!-- /segment-content -->', start)
+if end == -1:
+    end = len(content)
+else:
+    end = content.find('</div>', end) + len('</div>')
+html = content[start:end]
+html = re.sub(r'<a[^>]*class=\"self-link\"[^>]*>.*?</a>', '', html, flags=re.DOTALL)
+html = re.sub(r'<img[^>]*src=\"external\.png\"[^>]*/?\s*>', '', html)
+html = re.sub(r'<span class=\"sectioncount\">(.*?)</span>', r'\1', html, flags=re.DOTALL)
+html = re.sub(r'<span id=\"[^\"]*\"></span>', '', html)
+with open(sys.argv[2], 'w') as f:
+    f.write(html)
+" "$FHIR_FHIRPATH_HTML" "$FHIR_FHIRPATH_HTML.body"
+  pandoc -f html -t gfm --wrap=none "$FHIR_FHIRPATH_HTML.body" \
+    | sed -E '/<div[^>]*>/d; /<\/div>/d; s/<span id="[^"]*"><\/span> *//g; s/<a [^>]*data-_target[^>]*>(.*?)<\/a>/\1/g' \
+    > "$SPEC_DIR/fhirpath-in-fhir.md"
+else
+  echo "Warning: could not download FHIRPath-in-FHIR spec" >&2
+fi
+
 echo "Spec ready at $SPEC_DIR"

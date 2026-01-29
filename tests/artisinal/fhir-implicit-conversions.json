@@ -1,0 +1,369 @@
+{
+  "_spec_summary": [
+    "Implicit conversions from FHIR primitive types to FHIRPath System types.",
+    "",
+    "=== CONVERSION TABLE (spec/fhirpath-in-fhir.html §Using FHIR types in expressions) ===",
+    "FHIR.boolean → System.Boolean",
+    "FHIR.string, uri, code, oid, id, uuid, markdown, base64Binary → System.String",
+    "FHIR.integer, unsignedInt, positiveInt → System.Integer",
+    "FHIR.integer64 → System.Long",
+    "FHIR.decimal → System.Decimal",
+    "FHIR.date, dateTime, instant → System.DateTime",
+    "FHIR.time → System.Time",
+    "FHIR.Quantity → System.Quantity",
+    "",
+    "=== BEHAVIORAL RULES ===",
+    "- ofType() supports both FHIR and System type arguments. ofType(String) matches all FHIR",
+    "  primitives that implicitly convert to System.String (string, code, id, uri, etc.).",
+    "  Spec: 'ofType() does not have such restrictions - both of the following are valid:'",
+    "  Patient.name.given.ofType(FHIR.string) and Patient.name.given.ofType(System.String).",
+    "",
+    "- is() is the primary EXCEPTION: 'The primary exception is the is() operation, where the",
+    "  difference is explicit.' A FHIR.code item returns false for is(String) because is() does",
+    "  not perform implicit FHIR→System conversion. is(code) returns true (exact FHIR match).",
+    "",
+    "- as() follows is() semantics — no implicit conversion.",
+    "",
+    "- ofType(string) (lowercase) matches only items typed as FHIR.string (exact FHIR type match).",
+    "  Per spec: 'All primitives are considered to be independent types (so markdown is not a",
+    "  subclass of string).' So ofType(string) does NOT match FHIR.code items.",
+    "",
+    "- Resource.id: The FHIR StructureDefinition declares type code 'http://hl7.org/fhirpath/System.String'",
+    "  but also has a structuredefinition-fhir-type extension with valueUrl='id'. We use the FHIR type,",
+    "  so Resource.id is FHIR.id. It matches ofType(String) via implicit conversion like any other FHIR primitive.",
+    "",
+    "- WITHOUT a schema loaded, items get System types based on their JSON value kind",
+    "  (strings→System.String, numbers→System.Integer/Decimal, booleans→System.Boolean).",
+    "  In that case is(String) and ofType(String) work on any JSON string.",
+    "",
+    "=== TYPE OUTPUT CONVENTION ===",
+    "All expected types in this file use fully qualified names to prevent lax suffix matching:",
+    "  FHIR types: FHIR.string, FHIR.code, FHIR.boolean, FHIR.date, FHIR.positiveInt, etc.",
+    "  System types: System.String, System.Boolean, System.Integer, System.DateTime, etc.",
+    "",
+    "Spec refs: spec/fhirpath-in-fhir.html 'Using FHIR types in expressions', 'ofType'"
+  ],
+  "_todo": [
+    "[x] All 29/29 tests passing",
+    "[ ] Consider adding tests for FHIR.uri, FHIR.oid, FHIR.uuid, FHIR.markdown, FHIR.base64Binary",
+    "[ ] Consider adding tests for FHIR.instant → System.DateTime",
+    "[ ] Consider adding tests for FHIR.Quantity → System.Quantity"
+  ],
+  "meta": {
+    "status": "drafted",
+    "feature": "fhir-implicit-conversions",
+    "requires_model": true,
+    "source": "spec/fhirpath-in-fhir.html"
+  },
+  "cases": [
+    {
+      "_section": "=== ofType() with System types — implicit conversion APPLIES ==="
+    },
+    {
+      "name": "ofType(String) matches FHIR.string (family)",
+      "comment": "FHIR.string implicitly converts to System.String, so ofType(String) should match. Item retains its FHIR.string type.",
+      "expr": "Patient.name.family.ofType(String)",
+      "input": {
+        "resourceType": "Patient",
+        "name": [{"family": "Smith"}]
+      },
+      "expect": [{"type": "FHIR.string", "value": "Smith"}]
+    },
+    {
+      "name": "ofType(String) matches FHIR.code (gender)",
+      "comment": "FHIR.code implicitly converts to System.String. Item retains its FHIR.code type.",
+      "expr": "Patient.gender.ofType(String)",
+      "input": {
+        "resourceType": "Patient",
+        "gender": "male"
+      },
+      "expect": [{"type": "FHIR.code", "value": "male"}]
+    },
+    {
+      "name": "ofType(String) matches FHIR.id (id field)",
+      "comment": "FHIR.id implicitly converts to System.String, so ofType(String) matches. Item retains its FHIR.id type.",
+      "expr": "Patient.id.ofType(String)",
+      "input": {
+        "resourceType": "Patient",
+        "id": "example"
+      },
+      "expect": [{"type": "FHIR.id", "value": "example"}]
+    },
+    {
+      "name": "ofType(Boolean) matches FHIR.boolean",
+      "comment": "FHIR.boolean implicitly converts to System.Boolean. Item retains its FHIR.boolean type.",
+      "expr": "Patient.active.ofType(Boolean)",
+      "input": {
+        "resourceType": "Patient",
+        "active": true
+      },
+      "expect": [{"type": "FHIR.boolean", "value": true}]
+    },
+    {
+      "name": "ofType(DateTime) matches FHIR.date",
+      "comment": "FHIR.date implicitly converts to System.DateTime (not System.Date!). Item retains its FHIR.date type.",
+      "expr": "Patient.birthDate.ofType(DateTime)",
+      "input": {
+        "resourceType": "Patient",
+        "birthDate": "1990-01-15"
+      },
+      "expect": [{"type": "FHIR.date", "value": "1990-01-15"}]
+    },
+    {
+      "name": "ofType(Integer) matches FHIR.positiveInt (telecom.rank)",
+      "comment": "FHIR.positiveInt implicitly converts to System.Integer. Item retains its FHIR.positiveInt type.",
+      "expr": "Patient.telecom.rank.ofType(Integer)",
+      "input": {
+        "resourceType": "Patient",
+        "telecom": [{"system": "phone", "value": "555-1234", "rank": 1}]
+      },
+      "expect": [{"type": "FHIR.positiveInt", "value": 1}]
+    },
+    {
+      "name": "ofType(String) does NOT match FHIR.boolean",
+      "comment": "FHIR.boolean converts to System.Boolean, not System.String",
+      "expr": "Patient.active.ofType(String)",
+      "input": {
+        "resourceType": "Patient",
+        "active": true
+      },
+      "expect": []
+    },
+    {
+      "name": "ofType(Integer) does NOT match FHIR.code",
+      "comment": "FHIR.code converts to System.String, not System.Integer",
+      "expr": "Patient.gender.ofType(Integer)",
+      "input": {
+        "resourceType": "Patient",
+        "gender": "male"
+      },
+      "expect": []
+    },
+    {
+      "name": "ofType(Date) does NOT match FHIR.date",
+      "comment": "FHIR.date converts to System.DateTime, not System.Date. This is a spec-defined mapping.",
+      "expr": "Patient.birthDate.ofType(Date)",
+      "input": {
+        "resourceType": "Patient",
+        "birthDate": "1990-01-15"
+      },
+      "expect": []
+    },
+    {
+      "name": "ofType(String) on descendants counts all string-like FHIR primitives",
+      "comment": "Matches: resourceType (System.String), id (FHIR.id), gender (FHIR.code), family (FHIR.string), given (FHIR.string), telecom.system (FHIR.code), telecom.value (FHIR.string) = 7 items.",
+      "expr": "descendants().ofType(String).count()",
+      "input": {
+        "resourceType": "Patient",
+        "id": "example",
+        "gender": "male",
+        "name": [{"family": "Smith", "given": ["Alice"]}],
+        "telecom": [{"system": "phone", "value": "555-1234"}]
+      },
+      "expect": [{"type": "System.Integer", "value": 7}]
+    },
+    {
+      "_section": "=== ofType() with FHIR types — exact FHIR type matching ==="
+    },
+    {
+      "name": "ofType(string) matches FHIR.string (family)",
+      "comment": "Lowercase 'string' refers to FHIR.string. Family is typed as FHIR.string.",
+      "expr": "Patient.name.family.ofType(string)",
+      "input": {
+        "resourceType": "Patient",
+        "name": [{"family": "Smith"}]
+      },
+      "expect": [{"type": "FHIR.string", "value": "Smith"}]
+    },
+    {
+      "name": "ofType(code) matches FHIR.code (gender)",
+      "comment": "Lowercase 'code' refers to FHIR.code. Gender is typed as FHIR.code.",
+      "expr": "Patient.gender.ofType(code)",
+      "input": {
+        "resourceType": "Patient",
+        "gender": "male"
+      },
+      "expect": [{"type": "FHIR.code", "value": "male"}]
+    },
+    {
+      "name": "ofType(string) does NOT match FHIR.code",
+      "comment": "Per spec: 'All primitives are considered to be independent types (so markdown is not a subclass of string).' FHIR.code is not a subclass of FHIR.string for ofType purposes.",
+      "expr": "Patient.gender.ofType(string)",
+      "input": {
+        "resourceType": "Patient",
+        "gender": "male"
+      },
+      "expect": []
+    },
+    {
+      "_section": "=== is() — NO implicit conversion (spec exception) ==="
+    },
+    {
+      "name": "is(String) returns false for FHIR.string item",
+      "comment": "Spec: 'The primary exception is the is() operation, where the difference is explicit.' FHIR.string is NOT System.String for is() purposes.",
+      "expr": "Patient.name.family.is(String)",
+      "input": {
+        "resourceType": "Patient",
+        "name": [{"family": "Smith"}]
+      },
+      "expect": [{"type": "System.Boolean", "value": false}]
+    },
+    {
+      "name": "is(string) returns true for FHIR.string item",
+      "comment": "Exact FHIR type match works with is()",
+      "expr": "Patient.name.family.is(string)",
+      "input": {
+        "resourceType": "Patient",
+        "name": [{"family": "Smith"}]
+      },
+      "expect": [{"type": "System.Boolean", "value": true}]
+    },
+    {
+      "name": "is(String) returns false for FHIR.code item",
+      "comment": "FHIR.code is not System.String for is() purposes (no implicit conversion)",
+      "expr": "Patient.gender.is(String)",
+      "input": {
+        "resourceType": "Patient",
+        "gender": "male"
+      },
+      "expect": [{"type": "System.Boolean", "value": false}]
+    },
+    {
+      "name": "is(code) returns true for FHIR.code item",
+      "comment": "Exact FHIR type match works with is()",
+      "expr": "Patient.gender.is(code)",
+      "input": {
+        "resourceType": "Patient",
+        "gender": "male"
+      },
+      "expect": [{"type": "System.Boolean", "value": true}]
+    },
+    {
+      "name": "is(Boolean) returns false for FHIR.boolean item",
+      "comment": "No implicit conversion for is() — FHIR.boolean is not System.Boolean",
+      "expr": "Patient.active.is(Boolean)",
+      "input": {
+        "resourceType": "Patient",
+        "active": true
+      },
+      "expect": [{"type": "System.Boolean", "value": false}]
+    },
+    {
+      "name": "is(boolean) returns true for FHIR.boolean item",
+      "comment": "Exact FHIR type match",
+      "expr": "Patient.active.is(boolean)",
+      "input": {
+        "resourceType": "Patient",
+        "active": true
+      },
+      "expect": [{"type": "System.Boolean", "value": true}]
+    },
+    {
+      "name": "is(DateTime) returns false for FHIR.date item",
+      "comment": "No implicit conversion for is(). FHIR.date would map to System.DateTime via implicit conversion, but is() doesn't do that.",
+      "expr": "Patient.birthDate.is(DateTime)",
+      "input": {
+        "resourceType": "Patient",
+        "birthDate": "1990-01-15"
+      },
+      "expect": [{"type": "System.Boolean", "value": false}]
+    },
+    {
+      "name": "is(date) returns true for FHIR.date item",
+      "comment": "Exact FHIR type match",
+      "expr": "Patient.birthDate.is(date)",
+      "input": {
+        "resourceType": "Patient",
+        "birthDate": "1990-01-15"
+      },
+      "expect": [{"type": "System.Boolean", "value": true}]
+    },
+    {
+      "_section": "=== Resource.id — typed as FHIR.id ==="
+    },
+    {
+      "name": "Resource.id is FHIR.id",
+      "comment": "Resource.id is typed as FHIR.id in the model. is(id) returns true (exact FHIR type match).",
+      "expr": "Patient.id.is(id)",
+      "input": {
+        "resourceType": "Patient",
+        "id": "example"
+      },
+      "expect": [{"type": "System.Boolean", "value": true}]
+    },
+    {
+      "name": "Resource.id is(String) returns false (no implicit conversion for is)",
+      "comment": "FHIR.id maps to System.String via implicit conversion, but is() does not do implicit conversion.",
+      "expr": "Patient.id.is(String)",
+      "input": {
+        "resourceType": "Patient",
+        "id": "example"
+      },
+      "expect": [{"type": "System.Boolean", "value": false}]
+    },
+    {
+      "_section": "=== as() — follows is() semantics, NO implicit conversion ==="
+    },
+    {
+      "name": "as String returns empty for FHIR.code item",
+      "comment": "as() follows is() — no implicit conversion. FHIR.code is not System.String for as().",
+      "expr": "Patient.gender.as(String)",
+      "input": {
+        "resourceType": "Patient",
+        "gender": "male"
+      },
+      "expect": []
+    },
+    {
+      "name": "as code returns value for FHIR.code item",
+      "comment": "Exact FHIR type match works with as()",
+      "expr": "Patient.gender.as(code)",
+      "input": {
+        "resourceType": "Patient",
+        "gender": "male"
+      },
+      "expect": [{"type": "FHIR.code", "value": "male"}]
+    },
+    {
+      "name": "as String returns empty for Resource.id (no implicit conversion for as)",
+      "comment": "Resource.id is FHIR.id. as() follows is() — no implicit conversion. Use as(id) instead.",
+      "expr": "Patient.id.as(String)",
+      "input": {
+        "resourceType": "Patient",
+        "id": "example"
+      },
+      "expect": []
+    },
+    {
+      "name": "as id returns value for Resource.id",
+      "comment": "Exact FHIR type match works with as()",
+      "expr": "Patient.id.as(id)",
+      "input": {
+        "resourceType": "Patient",
+        "id": "example"
+      },
+      "expect": [{"type": "FHIR.id", "value": "example"}]
+    },
+    {
+      "_section": "=== Without schema — System type matching on plain JSON ==="
+    },
+    {
+      "name": "ofType(String) matches plain JSON strings without schema",
+      "comment": "Without a FHIR schema (no resourceType), JSON string values are untyped but ofType(String) matches them via JSON kind check",
+      "expr": "name.ofType(String)",
+      "input": {
+        "name": "John"
+      },
+      "expect": [{"type": "System.String", "value": "John"}]
+    },
+    {
+      "name": "is(String) returns true for plain JSON string without schema",
+      "comment": "Without schema, JSON strings match String via JSON kind check",
+      "expr": "name.is(String)",
+      "input": {
+        "name": "John"
+      },
+      "expect": [{"type": "System.Boolean", "value": true}]
+    }
+  ]
+}

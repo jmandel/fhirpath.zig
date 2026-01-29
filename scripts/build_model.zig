@@ -358,11 +358,26 @@ fn buildFields(builder: *Builder, defs: []const std.json.Value) !void {
             var child_sys: ?u32 = null;
             if (getArray(el, "type")) |types_list| {
                 if (types_list.len > 0) {
-                    const code = getString(types_list[0], "code");
+                    const type_entry = types_list[0];
+                    const code = getString(type_entry, "code");
                     if (code) |c| {
                         const norm = normalizeTypeCode(c);
-                        child_type = norm.local;
-                        child_sys = norm.sys_id;
+                        // If the code is a System URL (e.g. http://hl7.org/fhirpath/System.String),
+                        // check for a structuredefinition-fhir-type extension that specifies the
+                        // actual FHIR type (e.g. "id"). Use the FHIR type instead so that
+                        // Resource.id is FHIR.id, not System.String.
+                        if (norm.local == null and norm.sys_id != null) {
+                            if (getFhirTypeExtension(type_entry)) |fhir_type| {
+                                child_type = fhir_type;
+                                child_sys = null;
+                            } else {
+                                child_type = norm.local;
+                                child_sys = norm.sys_id;
+                            }
+                        } else {
+                            child_type = norm.local;
+                            child_sys = norm.sys_id;
+                        }
                     }
                 }
             } else if (getString(el, "contentReference")) |content_ref| {
@@ -620,6 +635,19 @@ fn getArray(value: std.json.Value, key: []const u8) ?[]const std.json.Value {
     if (value != .object) return null;
     const v = value.object.get(key) orelse return null;
     return if (v == .array) v.array.items else null;
+}
+
+/// Check a type entry for the structuredefinition-fhir-type extension.
+/// Returns the FHIR type name (e.g., "id") if present, null otherwise.
+fn getFhirTypeExtension(type_entry: std.json.Value) ?[]const u8 {
+    const extensions = getArray(type_entry, "extension") orelse return null;
+    for (extensions) |ext| {
+        const url = getString(ext, "url") orelse continue;
+        if (std.mem.eql(u8, url, "http://hl7.org/fhir/StructureDefinition/structuredefinition-fhir-type")) {
+            return getString(ext, "valueUrl");
+        }
+    }
+    return null;
 }
 
 fn lastPathSegment(url: ?[]const u8) ?[]const u8 {

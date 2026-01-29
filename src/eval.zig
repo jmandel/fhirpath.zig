@@ -3045,6 +3045,14 @@ fn evalTypeExpr(
 }
 
 fn itemIsType(ctx: anytype, it: item.Item, type_name: []const u8) bool {
+    return itemIsTypeImpl(ctx, it, type_name, false);
+}
+
+fn itemIsTypeImplicit(ctx: anytype, it: item.Item, type_name: []const u8) bool {
+    return itemIsTypeImpl(ctx, it, type_name, true);
+}
+
+fn itemIsTypeImpl(ctx: anytype, it: item.Item, type_name: []const u8, allow_implicit: bool) bool {
     // Check if we have a model type match first (for FHIR types like Patient, boolean, etc.)
     if (it.type_id != 0 and ctx.schema != null) {
         const s = ctx.schema.?;
@@ -3054,10 +3062,23 @@ fn itemIsType(ctx: anytype, it: item.Item, type_name: []const u8) bool {
             const target_type_id = s.typeIdByLocalName(type_name) orelse
                 s.typeIdByQualifiedName(type_name);
             if (target_type_id) |tid| {
-                // Check if item's type matches or is a subtype
+                // Check if item's type matches exactly
                 if (it.type_id == tid) return true;
-                // Check inheritance chain
-                if (s.isSubtype(it.type_id, tid)) return true;
+                // Check inheritance chain, but NOT for FHIR primitive targets.
+                // Per spec: "All primitives are considered to be independent types
+                // (so markdown is not a subclass of string)."
+                if (s.fhirToSystemTypeId(tid) == 0) {
+                    if (s.isSubtype(it.type_id, tid)) return true;
+                }
+            }
+            // Check implicit FHIR→System conversion (only for ofType, not is/as)
+            if (allow_implicit) {
+                const implicit_sys_id = s.fhirToSystemTypeId(it.type_id);
+                if (implicit_sys_id != 0) {
+                    // Resolve the target type name as a System type
+                    const target_sys_id = resolveSystemTypeByName(type_name);
+                    if (target_sys_id != 0 and implicit_sys_id == target_sys_id) return true;
+                }
             }
             // If item has a model type but target type is not in schema,
             // do NOT fall back to JSON-based matching (strict type checking)
@@ -3104,6 +3125,24 @@ fn itemIsType(ctx: anytype, it: item.Item, type_name: []const u8) bool {
     }
 
     return false;
+}
+
+/// Resolve a type name (e.g., "String", "System.String", "DateTime") to a System type id.
+/// Returns 0 if the name doesn't refer to a System type.
+fn resolveSystemTypeByName(type_name: []const u8) u32 {
+    // Try with "System." prefix if not already qualified
+    if (std.mem.startsWith(u8, type_name, "System.")) {
+        return schema.systemTypeId(type_name) orelse 0;
+    }
+    // Try constructing "System.X" from bare name
+    const system_names = schema.SystemTypeNames;
+    for (system_names, 0..) |sys_name, i| {
+        // sys_name is "System.Foo", check if type_name matches "Foo"
+        if (sys_name.len > 7 and std.mem.eql(u8, sys_name[7..], type_name)) {
+            return @intCast(i + 1);
+        }
+    }
+    return 0;
 }
 
 /// Check if an item matches a type name (for path resolution)
@@ -3632,7 +3671,8 @@ fn evalFunction(
         defer ctx.allocator.free(type_name);
         var out = ItemList.empty;
         for (input) |it| {
-            if (itemIsType(ctx, it, type_name)) {
+            // ofType uses implicit FHIR→System conversion (spec: "ofType() does not have such restrictions")
+            if (itemIsTypeImplicit(ctx, it, type_name)) {
                 try out.append(ctx.allocator, it);
             }
         }

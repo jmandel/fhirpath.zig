@@ -316,6 +316,26 @@ pub const Schema = struct {
         return self.typeIdByLocalName(name);
     }
 
+    /// Map a FHIR model type to its implicit FHIRPath System type.
+    /// Walks the base_type_id chain and checks each type's local name against
+    /// the conversion table from the FHIRPath spec (fhirpath-in-fhir.html).
+    /// Returns 0 if no implicit conversion exists.
+    pub fn fhirToSystemTypeId(self: *Schema, type_id: u32) u32 {
+        if (!isModelType(type_id)) return 0;
+        var current = type_id;
+        var depth: u32 = 0;
+        while (depth < 20) : (depth += 1) {
+            const idx = modelIndex(current);
+            if (idx >= self.model.header.types_count) return 0;
+            const local = self.model.typeName(idx);
+            if (fhirNameToSystemTypeId(local)) |sys_id| return sys_id;
+            const t = self.model.typeEntry(idx);
+            if (t.base_type_id == 0 or !isModelType(t.base_type_id)) return 0;
+            current = t.base_type_id;
+        }
+        return 0;
+    }
+
     /// Check if type_id is a subtype of target_type_id (walks inheritance chain)
     pub fn isSubtype(self: *Schema, type_id: u32, target_type_id: u32) bool {
         if (type_id == target_type_id) return true;
@@ -437,6 +457,38 @@ pub const Schema = struct {
         }
     };
 };
+
+/// Map a FHIR primitive type local name to its FHIRPath System type id.
+/// This is the spec-defined conversion table from fhirpath-in-fhir.html.
+fn fhirNameToSystemTypeId(name: []const u8) ?u32 {
+    const map = .{
+        .{ "boolean", "System.Boolean" },
+        .{ "string", "System.String" },
+        .{ "uri", "System.String" },
+        .{ "code", "System.String" },
+        .{ "oid", "System.String" },
+        .{ "id", "System.String" },
+        .{ "uuid", "System.String" },
+        .{ "markdown", "System.String" },
+        .{ "base64Binary", "System.String" },
+        .{ "integer", "System.Integer" },
+        .{ "unsignedInt", "System.Integer" },
+        .{ "positiveInt", "System.Integer" },
+        .{ "integer64", "System.Long" },
+        .{ "decimal", "System.Decimal" },
+        .{ "date", "System.DateTime" },
+        .{ "dateTime", "System.DateTime" },
+        .{ "instant", "System.DateTime" },
+        .{ "time", "System.Time" },
+        .{ "Quantity", "System.Quantity" },
+    };
+    inline for (map) |entry| {
+        if (std.mem.eql(u8, name, entry[0])) {
+            return systemTypeId(entry[1]);
+        }
+    }
+    return null;
+}
 
 fn findFieldInRange(self: *Schema, start: u32, count: u32, name: []const u8) ?FieldEntry {
     var lo: u32 = 0;

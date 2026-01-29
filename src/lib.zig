@@ -6,6 +6,8 @@ pub const parser = @import("parser.zig");
 pub const eval = @import("eval.zig");
 pub const item = @import("item.zig");
 pub const schema = @import("schema.zig");
+pub const xml_adapter = @import("backends/xml_adapter.zig");
+pub const xml_parser = @import("backends/xml_parser.zig");
 
 pub fn parseExpression(allocator: std.mem.Allocator, input: []const u8) !ast.Expr {
     var p = parser.Parser.init(allocator, input);
@@ -21,6 +23,17 @@ pub fn evalWithJson(
     schema_ptr: ?*schema.Schema,
 ) !eval.EvalResult {
     return eval.evalWithJson(allocator, expr, json_text, env, types, schema_ptr);
+}
+
+pub fn evalWithXml(
+    allocator: std.mem.Allocator,
+    expr: ast.Expr,
+    xml_text: []const u8,
+    env: ?*eval.Env,
+    types: *item.TypeTable,
+    schema_ptr: ?*schema.Schema,
+) !eval.EvalResult {
+    return eval.evalWithXml(allocator, expr, xml_text, env, types, schema_ptr);
 }
 
 const testing = std.testing;

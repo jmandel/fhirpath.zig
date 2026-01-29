@@ -61,12 +61,19 @@ tests_xml = tests_dir / "tests-fhir-r5.xml"
 
 text = tests_xml.read_text(encoding="utf-8")
 files = set(re.findall(r'inputfile=\"([^\"]+)\"', text))
-needed = set()
+
+# Collect both JSON and XML variants of each input file
+needed_json = set()
+needed_xml = set()
 for name in files:
     if name.endswith(".xml"):
-        needed.add(name[:-4] + ".json")
+        needed_json.add(name[:-4] + ".json")
+        needed_xml.add(name)
+    elif name.endswith(".json"):
+        needed_json.add(name)
+        needed_xml.add(name[:-5] + ".xml")
     else:
-        needed.add(name)
+        needed_json.add(name)
 
 def find_file(name: str) -> Path | None:
     for path in repo_root.rglob(name):
@@ -74,19 +81,33 @@ def find_file(name: str) -> Path | None:
             return path
     return None
 
-missing = []
-for name in sorted(needed):
+missing_json = []
+for name in sorted(needed_json):
     src = find_file(name)
     if not src:
-        missing.append(name)
+        missing_json.append(name)
         continue
     dest = tests_dir / "input" / name
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(src, dest)
 
-if missing:
+missing_xml = []
+for name in sorted(needed_xml):
+    src = find_file(name)
+    if not src:
+        missing_xml.append(name)
+        continue
+    dest = tests_dir / "input" / name
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(src, dest)
+
+if missing_json:
     print("Missing input JSON files:")
-    for name in missing:
+    for name in missing_json:
+        print(f"  - {name}")
+if missing_xml:
+    print("Missing input XML files:")
+    for name in missing_xml:
         print(f"  - {name}")
 PY
 

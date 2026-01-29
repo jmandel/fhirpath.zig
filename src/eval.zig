@@ -5,6 +5,8 @@ const item = @import("item.zig");
 const schema = @import("schema.zig");
 const regex = @import("regex.zig");
 const JsonAdapter = @import("backends/json_adapter.zig").JsonAdapter;
+const XmlAdapter = @import("backends/xml_adapter.zig").XmlAdapter;
+const xml_parser = @import("backends/xml_parser.zig");
 
 pub const ItemList = std.ArrayList(item.Item);
 
@@ -86,6 +88,30 @@ pub fn evalWithJson(
     };
     const items = try evalExpression(&ctx, expr, adapter.root(), env);
     return resolveResult(JsonAdapter, &adapter, items, &arena, schema_ptr);
+}
+
+pub fn evalWithXml(
+    allocator: std.mem.Allocator,
+    expr: ast.Expr,
+    xml_text: []const u8,
+    env: ?*Env,
+    types: *item.TypeTable,
+    schema_ptr: ?*schema.Schema,
+) !EvalResult {
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    errdefer arena.deinit();
+    const arena_alloc = arena.allocator();
+    const root_node = xml_parser.parse(arena_alloc, xml_text) catch return error.InvalidJson;
+    var adapter = XmlAdapter.init(arena_alloc, root_node);
+    var ctx = EvalContext(XmlAdapter){
+        .allocator = arena_alloc,
+        .adapter = &adapter,
+        .types = types,
+        .schema = schema_ptr,
+        .timestamp = std.time.timestamp(),
+    };
+    const items = try evalExpression(&ctx, expr, adapter.root(), env);
+    return resolveResult(XmlAdapter, &adapter, items, &arena, schema_ptr);
 }
 
 /// Resolve adapter-specific node_ref items to adapter-independent std.json.Value entries,

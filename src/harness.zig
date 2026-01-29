@@ -3,6 +3,8 @@ const lib = @import("lib.zig");
 const eval = @import("eval.zig");
 const ast = @import("ast.zig");
 const JsonAdapter = @import("backends/json_adapter.zig").JsonAdapter;
+const XmlAdapter = @import("backends/xml_adapter.zig").XmlAdapter;
+const xml_parser = @import("backends/xml_parser.zig");
 const item = @import("item.zig");
 const convert = @import("convert.zig");
 const schema = @import("schema.zig");
@@ -16,6 +18,7 @@ const Options = struct {
     model_path: ?[]const u8 = null,
     input_dir: ?[]const u8 = null,
     fhir_json: bool = false,
+    fhir_xml: bool = false,
 };
 
 const FileResult = struct {
@@ -86,6 +89,8 @@ pub fn main() !void {
             if (i < args.len) opts.input_dir = args[i];
         } else if (std.mem.eql(u8, arg, "--fhir-json")) {
             opts.fhir_json = true;
+        } else if (std.mem.eql(u8, arg, "--fhir-xml")) {
+            opts.fhir_xml = true;
         } else if (!std.mem.startsWith(u8, arg, "-")) {
             try files.append(allocator, arg);
         }
@@ -229,6 +234,7 @@ fn printUsage() void {
         \\  -v, --verbose              Show passing tests too
         \\  -m, --model PATH           Load FHIR model (auto-detected for tests/r5/, tests/r4/)
         \\  --fhir-json                Use FHIR JSON adapter (merges _field primitives)
+        \\  --fhir-xml                 Use FHIR XML adapter (load .xml input files)
         \\  -i, --input-dir DIR        Directory for inputfile references
         \\  -h, --help                 Show this help
         \\
@@ -323,9 +329,11 @@ fn runTestFile(
 
     const root = parsed.value;
 
+    const use_fhir_xml = opts.fhir_xml;
+
     // Auto-detect --fhir-json from meta.requires_fhir_json in test file
     var use_fhir_json = opts.fhir_json;
-    if (!use_fhir_json) {
+    if (!use_fhir_json and !use_fhir_xml) {
         if (root.object.get("meta")) |meta_val| {
             if (meta_val == .object) {
                 if (meta_val.object.get("requires_fhir_json")) |rfj| {
@@ -413,29 +421,49 @@ fn runTestFile(
         }
         const expr_str = expr_val.string;
 
-        // Get input JSON
-        var input_str: []const u8 = "{}";
+        // Get input text (JSON or XML depending on mode)
+        var input_str: []const u8 = if (use_fhir_xml) "<Empty/>" else "{}";
         var input_allocated = false;
         defer if (input_allocated) allocator.free(input_str);
 
         if (obj.get("input")) |input_val| {
-            input_str = std.json.Stringify.valueAlloc(allocator, input_val, .{}) catch "{}";
-            input_allocated = true;
+            if (use_fhir_xml) {
+                // In XML mode, inline JSON input is not supported — skip
+                // (official tests use inputfile for XML)
+                input_str = std.json.Stringify.valueAlloc(allocator, input_val, .{}) catch "{}";
+                input_allocated = true;
+            } else {
+                input_str = std.json.Stringify.valueAlloc(allocator, input_val, .{}) catch "{}";
+                input_allocated = true;
+            }
         } else if (obj.get("inputfile")) |inputfile_val| {
             if (inputfile_val == .string and inputfile_val.string.len > 0) {
                 const filename = inputfile_val.string;
-                // Convert .xml to .json
-                const json_filename = if (std.mem.endsWith(u8, filename, ".xml"))
-                    std.fmt.allocPrint(allocator, "{s}.json", .{filename[0 .. filename.len - 4]}) catch filename
-                else
-                    filename;
-                defer if (json_filename.ptr != filename.ptr) allocator.free(json_filename);
+
+                const resolved_filename = if (use_fhir_xml) blk: {
+                    // In XML mode: keep .xml files as-is, convert .json to .xml
+                    if (std.mem.endsWith(u8, filename, ".xml")) {
+                        break :blk filename;
+                    } else if (std.mem.endsWith(u8, filename, ".json")) {
+                        break :blk std.fmt.allocPrint(allocator, "{s}.xml", .{filename[0 .. filename.len - 5]}) catch filename;
+                    } else {
+                        break :blk filename;
+                    }
+                } else blk: {
+                    // In JSON mode: convert .xml to .json
+                    if (std.mem.endsWith(u8, filename, ".xml")) {
+                        break :blk std.fmt.allocPrint(allocator, "{s}.json", .{filename[0 .. filename.len - 4]}) catch filename;
+                    } else {
+                        break :blk filename;
+                    }
+                };
+                defer if (resolved_filename.ptr != filename.ptr) allocator.free(resolved_filename);
 
                 const full_input_path = if (input_dir) |dir|
-                    std.fmt.allocPrint(allocator, "{s}/{s}", .{ dir, json_filename }) catch json_filename
+                    std.fmt.allocPrint(allocator, "{s}/{s}", .{ dir, resolved_filename }) catch resolved_filename
                 else
-                    json_filename;
-                defer if (full_input_path.ptr != json_filename.ptr) allocator.free(full_input_path);
+                    resolved_filename;
+                defer if (full_input_path.ptr != resolved_filename.ptr) allocator.free(full_input_path);
 
                 if (std.fs.cwd().readFileAlloc(allocator, full_input_path, 10 * 1024 * 1024)) |contents| {
                     input_str = contents;
@@ -463,7 +491,98 @@ fn runTestFile(
         };
         defer ast.deinitExpr(allocator, expr);
 
-        if (use_fhir_json) {
+        if (use_fhir_xml) {
+            // === FHIR XML adapter path ===
+            var xml_arena = std.heap.ArenaAllocator.init(allocator);
+            defer xml_arena.deinit();
+            const arena_alloc = xml_arena.allocator();
+
+            const xml_doc = xml_parser.parse(arena_alloc, input_str) catch {
+                if (expect_error) {
+                    result.passed += 1;
+                    if (opts.verbose) {
+                        std.debug.print("[PASS] {s}:{s} (expected xml error)\n", .{ result.name, name_str });
+                    }
+                } else {
+                    result.failed += 1;
+                    result.parse_errors += 1;
+                    try addFailure(allocator, failures, result.name, name_str, expr_str, "xml parse error", null, null);
+                }
+                continue;
+            };
+
+            var xml_adapter = XmlAdapter.init(arena_alloc, xml_doc);
+            defer xml_adapter.deinit();
+
+            var xml_ctx = eval.EvalContext(XmlAdapter){
+                .allocator = arena_alloc,
+                .adapter = &xml_adapter,
+                .types = &types,
+                .schema = schema_ptr,
+                .timestamp = std.time.timestamp(),
+            };
+            var xml_eval_result = eval.evalExpression(&xml_ctx, expr, xml_adapter.root(), null) catch {
+                if (expect_error) {
+                    result.passed += 1;
+                    if (opts.verbose) {
+                        std.debug.print("[PASS] {s}:{s} (expected eval error)\n", .{ result.name, name_str });
+                    }
+                } else {
+                    result.failed += 1;
+                    result.eval_errors += 1;
+                    try addFailure(allocator, failures, result.name, name_str, expr_str, "eval error", null, null);
+                }
+                continue;
+            };
+
+            if (expect_error) {
+                result.failed += 1;
+                try addFailure(allocator, failures, result.name, name_str, expr_str, "expected error but succeeded", null, null);
+                xml_eval_result.deinit(arena_alloc);
+                continue;
+            }
+            defer xml_eval_result.deinit(arena_alloc);
+
+            const expect_val = obj.get(expect_key);
+            const empty_items: []const std.json.Value = &[_]std.json.Value{};
+            var expect_items = empty_items;
+            if (expect_val) |ev| {
+                if (ev == .array) {
+                    expect_items = ev.array.items;
+                }
+            }
+
+            var actual_values = try xmlItemsToJsonArray(allocator, &xml_adapter, xml_eval_result.items, &types, schema_ptr);
+            defer actual_values.deinit(allocator);
+
+            const unordered = if (obj.get("unordered")) |uv| uv == .bool and uv.bool else false;
+            const matched = compareExpected(expect_items, actual_values.items, unordered);
+            if (!matched) {
+                result.failed += 1;
+                result.mismatch_errors += 1;
+
+                const expected_str = if (expect_val) |ev|
+                    jsonStringifyOwned(allocator, ev)
+                else
+                    dupOwned(allocator, "[]");
+                defer if (expected_str.owned) allocator.free(expected_str.buf);
+
+                const actual_array = std.json.Array{ .items = actual_values.items, .capacity = actual_values.capacity, .allocator = allocator };
+                const actual_str = jsonStringifyOwned(allocator, std.json.Value{ .array = actual_array });
+                defer if (actual_str.owned) allocator.free(actual_str.buf);
+
+                try addFailure(allocator, failures, result.name, name_str, expr_str, "mismatch", expected_str.buf, actual_str.buf);
+            } else {
+                result.passed += 1;
+                if (opts.verbose) {
+                    std.debug.print("[PASS] {s}:{s}\n", .{ result.name, name_str });
+                }
+            }
+
+            for (actual_values.items) |val| {
+                deinitValue(allocator, val);
+            }
+        } else if (use_fhir_json) {
             // === FHIR JSON adapter path ===
             var std_parsed = std.json.parseFromSlice(std.json.Value, allocator, input_str, .{ .parse_numbers = false }) catch {
                 if (expect_error) {
@@ -894,6 +1013,27 @@ fn deinitValue(allocator: std.mem.Allocator, v: std.json.Value) void {
         },
         else => {},
     }
+}
+
+fn xmlItemsToJsonArray(
+    allocator: std.mem.Allocator,
+    adapter: *XmlAdapter,
+    items: []const item.Item,
+    types: *item.TypeTable,
+    schema_ptr: ?*schema.Schema,
+) !std.ArrayList(std.json.Value) {
+    var out = std.ArrayList(std.json.Value).empty;
+    for (items) |it| {
+        var type_name: []const u8 = "";
+        if (schema_ptr) |s| {
+            type_name = s.outputTypeName(it.type_id);
+        } else if (!schema.isModelType(it.type_id)) {
+            type_name = types.name(it.type_id);
+        }
+        const val = try convert.adapterItemToTypedJsonValue(XmlAdapter, allocator, adapter, it, type_name);
+        try out.append(allocator, val);
+    }
+    return out;
 }
 
 fn makeEnvItem(_: *JsonAdapter, ref: JsonAdapter.NodeRef) item.Item {

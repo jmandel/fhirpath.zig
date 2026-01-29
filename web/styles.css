@@ -197,8 +197,6 @@ h1 {
   display: flex;
   gap: 10px;
   align-items: center;
-  flex-wrap: wrap;
-  justify-content: flex-end;
 }
 
 .schema-select {
@@ -237,14 +235,6 @@ h1 {
 
 .toggle-btn:hover:not(.active) {
   color: var(--text);
-}
-
-.meta-inline {
-  margin: 6px 0 0;
-  color: var(--muted);
-  font-size: 0.75rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
 .meta {

@@ -57,10 +57,7 @@
     <section class="panel-grid">
       <div class="panel">
         <div class="panel-header">
-          <div>
-            <h2>Expression</h2>
-            <p class="meta-inline">Schema</p>
-          </div>
+          <h2>Expression</h2>
           <div class="panel-actions">
             <select id="schema-select" class="schema-select">
               <option value="r5" selected>FHIR R5</option>
@@ -70,9 +67,9 @@
               <button class="toggle-btn active" data-format="json">JSON</button>
               <button class="toggle-btn" data-format="xml">XML</button>
             </div>
-            <div class="chips" id="chip-row"></div>
           </div>
         </div>
+        <div class="chips" id="chip-row"></div>
         <input id="expr" class="expr-input" spellcheck="false" />
         <p class="hint">Use %env syntax for environment variables (not wired yet in this build).</p>
       </div>

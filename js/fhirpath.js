@@ -198,6 +198,58 @@ export class FhirPathEngine {
     return new FhirPathResult(this);
   }
 
+  evalXml({ expr, xml, schema = "", env = null, now = undefined } = {}) {
+    if (env && Object.keys(env).length > 0) {
+      throw new Error("env is not supported by the current wasm build");
+    }
+    if (now !== undefined) {
+      if (now instanceof Date) {
+        this.setNowDate(now);
+      } else {
+        this.setNowEpochSeconds(now);
+      }
+    }
+    if (xml === undefined || xml === null) {
+      xml = "";
+    }
+    if (expr === undefined || expr === null) {
+      expr = "";
+    }
+    if (schema === undefined || schema === null) {
+      schema = "";
+    }
+    const exprBuf = this.#writeString(expr);
+    const xmlBuf = this.#writeString(xml);
+    const schemaBuf = this.#writeString(schema);
+
+    const status = this.exports.fhirpath_eval_xml(
+      this.ctx,
+      exprBuf.ptr,
+      exprBuf.len,
+      xmlBuf.ptr,
+      xmlBuf.len,
+      schemaBuf.ptr,
+      schemaBuf.len,
+      0,
+      0,
+    );
+
+    this.#free(exprBuf);
+    this.#free(schemaBuf);
+
+    if (status !== Status.ok) {
+      this.#free(xmlBuf);
+      throw new Error(`eval_xml failed: ${status}`);
+    }
+
+    if (this._lastJsonBuf) {
+      this.#free(this._lastJsonBuf);
+    }
+    this._lastJsonBuf = xmlBuf;
+
+    return new FhirPathResult(this);
+  }
+
   setNowEpochSeconds(seconds) {
     const value = typeof seconds === "bigint" ? seconds : BigInt(Math.floor(seconds));
     const status = this.exports.fhirpath_ctx_set_time(this.ctx, value);

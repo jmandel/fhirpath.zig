@@ -67,7 +67,42 @@ fn toValueForSystemType(
     if (std.mem.eql(u8, sys_name, "System.Quantity")) {
         return extractQuantity(A, adapter, ref);
     }
-    // Boolean, Integer, Decimal, String — use JSON-kind conversion
+    // Boolean — trust schema over kind()
+    if (std.mem.eql(u8, sys_name, "System.Boolean")) {
+        return switch (A.kind(adapter, ref)) {
+            .bool => .{ .boolean = A.boolean(adapter, ref) },
+            .string => .{ .boolean = std.mem.eql(u8, A.string(adapter, ref), "true") },
+            else => toValueFromJsonKind(A, adapter, ref),
+        };
+    }
+    // Integer — accept both .number and .string (XML uses value attr)
+    if (std.mem.eql(u8, sys_name, "System.Integer")) {
+        const text = switch (A.kind(adapter, ref)) {
+            .number => A.numberText(adapter, ref),
+            .string => A.string(adapter, ref),
+            else => return toValueFromJsonKind(A, adapter, ref),
+        };
+        const parsed = std.fmt.parseInt(i64, text, 10) catch return .{ .decimal = text };
+        return .{ .integer = parsed };
+    }
+    // Decimal — accept both .number and .string (XML uses value attr)
+    if (std.mem.eql(u8, sys_name, "System.Decimal")) {
+        const text = switch (A.kind(adapter, ref)) {
+            .number => A.numberText(adapter, ref),
+            .string => A.string(adapter, ref),
+            else => return toValueFromJsonKind(A, adapter, ref),
+        };
+        if (isIntegerText(text)) {
+            const parsed = std.fmt.parseInt(i64, text, 10) catch return .{ .decimal = text };
+            return .{ .integer = parsed };
+        }
+        return .{ .decimal = text };
+    }
+    // String — extract directly
+    if (std.mem.eql(u8, sys_name, "System.String")) {
+        return .{ .string = A.string(adapter, ref) };
+    }
+    // Fallback
     return toValueFromJsonKind(A, adapter, ref);
 }
 
@@ -79,8 +114,11 @@ fn extractQuantity(
     if (A.kind(adapter, ref) != .object) return toValueFromJsonKind(A, adapter, ref);
 
     const value_ref = A.objectGet(adapter, ref, "value") orelse return .{ .empty = {} };
-    if (A.kind(adapter, value_ref) != .number) return .{ .empty = {} };
-    const value_text = A.numberText(adapter, value_ref);
+    const value_text = switch (A.kind(adapter, value_ref)) {
+        .number => A.numberText(adapter, value_ref),
+        .string => A.string(adapter, value_ref),
+        else => return .{ .empty = {} },
+    };
 
     var unit_text: []const u8 = "1";
     if (A.objectGet(adapter, ref, "code")) |code_ref| {

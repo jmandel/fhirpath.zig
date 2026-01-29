@@ -5,6 +5,8 @@ const eval = @import("eval.zig");
 const item = @import("item.zig");
 const schema = @import("schema.zig");
 const JsonAdapter = @import("backends/json_adapter.zig").JsonAdapter;
+const XmlAdapter = @import("backends/xml_adapter.zig").XmlAdapter;
+const xml_parser = @import("backends/xml_parser.zig");
 
 pub const Status = enum(u32) {
     ok = 0,
@@ -363,6 +365,75 @@ pub export fn fhirpath_eval(
             return statusFromError(err);
         };
         ctx.result = eval.resolveResult(JsonAdapter, &adapter, items, &arena, schema_ptr) catch |err| {
+            arena.deinit();
+            return statusFromError(err);
+        };
+    }
+    ctx.last_schema = schema_ptr;
+    return .ok;
+}
+
+pub export fn fhirpath_eval_xml(
+    ctx_handle: u32,
+    expr_ptr: u32,
+    expr_len: u32,
+    xml_ptr: u32,
+    xml_len: u32,
+    schema_name_ptr: u32,
+    schema_name_len: u32,
+    opts_ptr: u32,
+    opts_len: u32,
+) Status {
+    _ = opts_ptr;
+    if (opts_len != 0) return .invalid_options;
+
+    const ctx = ctxFromHandle(ctx_handle) orelse return .invalid_options;
+    ctx.resetResult();
+
+    const expr_text = memSlice(expr_ptr, expr_len);
+    const xml_text = memSlice(xml_ptr, xml_len);
+
+    var schema_ptr: ?*schema.Schema = null;
+    if (schema_name_len > 0) {
+        const schema_name = memSlice(schema_name_ptr, schema_name_len);
+        if (ctx.schemas.getPtr(schema_name)) |entry| {
+            schema_ptr = &entry.schema;
+        } else {
+            return .model_error;
+        }
+    } else if (ctx.default_schema) |def| {
+        if (ctx.schemas.getPtr(def)) |entry| {
+            schema_ptr = &entry.schema;
+        } else {
+            return .model_error;
+        }
+    }
+
+    const expr = lib.parseExpression(ctx.allocator, expr_text) catch |err| {
+        return statusFromError(err);
+    };
+    defer ast.deinitExpr(ctx.allocator, expr);
+
+    {
+        var arena = std.heap.ArenaAllocator.init(ctx.allocator);
+        const arena_alloc = arena.allocator();
+        const root_node = xml_parser.parse(arena_alloc, xml_text) catch {
+            arena.deinit();
+            return .parse_error;
+        };
+        var adapter = XmlAdapter.init(arena_alloc, root_node);
+        var eval_ctx = eval.EvalContext(XmlAdapter){
+            .allocator = arena_alloc,
+            .adapter = &adapter,
+            .types = &ctx.types,
+            .schema = schema_ptr,
+            .timestamp = ctx.now_epoch_seconds,
+        };
+        const items = eval.evalExpression(&eval_ctx, expr, adapter.root(), null) catch |err| {
+            arena.deinit();
+            return statusFromError(err);
+        };
+        ctx.result = eval.resolveResult(XmlAdapter, &adapter, items, &arena, schema_ptr) catch |err| {
             arena.deinit();
             return statusFromError(err);
         };

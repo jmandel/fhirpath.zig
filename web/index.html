@@ -29,11 +29,11 @@
       </div>
       <div class="hero-card">
         <h3>Quick start</h3>
-<pre class="code-block"><code>import { FhirPathEngine } from "./fhirpath.js";
+<pre class="code-block"><code>import { FhirPathEngine } from
+  "https://joshuamandel.com/fhirpath.zig/fhirpath.js";
 
 const engine = await FhirPathEngine.instantiate({
-  wasmUrl: "./fhirpath.wasm",
-  schemas: [{ name: "r5", url: "./model-r5.bin", isDefault: true }],
+  schemas: [{ name: "r5", isDefault: true }],
 });
 
 for (const node of engine.eval({

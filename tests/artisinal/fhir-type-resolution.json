@@ -1,0 +1,360 @@
+{
+  "_spec_summary": [
+    "=== FHIR Type Resolution: System vs FHIR types ===",
+    "",
+    "When a FHIR schema is loaded, nodes carry FHIR model type_ids (e.g., FHIR.date,",
+    "FHIR.Quantity). The value_resolver uses schema.implicitSystemTypeId() to map",
+    "these to System types for value conversion. This enables correct behavior for:",
+    "",
+    "  - Date/time comparison: Patient.birthDate (FHIR.date) converts to System.DateTime",
+    "  - Quantity extraction: Observation.valueQuantity (FHIR.Quantity) converts to System.Quantity",
+    "  - Type reflection: type() returns FHIR.* for resource fields, System.* for literals",
+    "  - is() checks exact type: Patient.active.is(boolean) = true, .is(System.Boolean) = false",
+    "",
+    "IMPLICIT SYSTEM TYPE MAPPING (from fhirpath-in-fhir.html):",
+    "  FHIR.boolean   -> System.Boolean",
+    "  FHIR.string, uri, code, oid, id, uuid, sid, markdown, base64Binary -> System.String",
+    "  FHIR.integer, unsignedInt, positiveInt -> System.Integer",
+    "  FHIR.decimal    -> System.Decimal",
+    "  FHIR.date, FHIR.dateTime, FHIR.instant -> System.DateTime (ALL map to DateTime!)",
+    "  FHIR.time       -> System.Time",
+    "  FHIR.Quantity   -> System.Quantity (only if UCUM system + code present)",
+    "",
+    "CRITICAL: is() checks EXACT type, not implicit conversion:",
+    "  Patient.active.is(boolean) = true       // FHIR type matches",
+    "  Patient.active.is(Boolean) = false      // unqualified Boolean = System.Boolean",
+    "  Patient.active.is(System.Boolean) = false // explicit System type doesn't match FHIR type",
+    "  Patient.active.is(FHIR.boolean) = true  // explicit FHIR type matches",
+    "",
+    "Complex types (Patient, HumanName, etc.) have NO implicit System type.",
+    "",
+    "REQUIRES: FHIR model (--model) and FHIR JSON adapter (--fhir-json).",
+    "The harness auto-detects both via meta.requires_fhir_json and auto-model loading."
+  ],
+  "meta": {
+    "status": "drafted",
+    "requires_fhir_json": true
+  },
+  "_todo": [
+    "[ ] Verify all tests pass with model loaded",
+    "[ ] Add more complex type resolution scenarios"
+  ],
+  "cases": [
+    {
+      "name": "valueQuantity stays as FHIR.Quantity object in output",
+      "expr": "Observation.valueQuantity",
+      "input": {
+        "resourceType": "Observation",
+        "valueQuantity": {
+          "value": 120,
+          "unit": "mmHg",
+          "system": "http://unitsofmeasure.org",
+          "code": "mm[Hg]"
+        }
+      },
+      "expect": [
+        {"type": "FHIR.Quantity", "value": {"value": 120, "unit": "mmHg", "system": "http://unitsofmeasure.org", "code": "mm[Hg]"}}
+      ],
+      "comment": "valueQuantity is FHIR.Quantity in output; implicit conversion to System.Quantity happens lazily during value operations, not in the result type"
+    },
+    {
+      "name": "valueQuantity.value is a decimal",
+      "expr": "Observation.valueQuantity.value",
+      "input": {
+        "resourceType": "Observation",
+        "valueQuantity": {
+          "value": 120,
+          "unit": "mmHg",
+          "code": "mm[Hg]"
+        }
+      },
+      "expect": [
+        {"type": "decimal", "value": 120}
+      ]
+    },
+    {
+      "name": "birthDate resolves to System.DateTime (FHIR.date -> System.DateTime)",
+      "expr": "Patient.birthDate",
+      "input": {
+        "resourceType": "Patient",
+        "birthDate": "1974-12-25"
+      },
+      "expect": [
+        {"type": "dateTime", "value": "1974-12-25"}
+      ],
+      "comment": "FHIR.date maps to System.DateTime per spec, NOT System.Date"
+    },
+    {
+      "name": "birthDate supports dateTime comparison",
+      "expr": "Patient.birthDate > @1970-01-01",
+      "input": {
+        "resourceType": "Patient",
+        "birthDate": "1974-12-25"
+      },
+      "expect": [
+        {"type": "boolean", "value": true}
+      ]
+    },
+    {
+      "name": "active resolves to System.Boolean",
+      "expr": "Patient.active",
+      "input": {
+        "resourceType": "Patient",
+        "active": true
+      },
+      "expect": [
+        {"type": "boolean", "value": true}
+      ]
+    },
+    {
+      "name": "name.text is System.String (FHIR.string -> System.String)",
+      "expr": "Patient.name.text",
+      "input": {
+        "resourceType": "Patient",
+        "name": [{"text": "John Doe"}]
+      },
+      "expect": [
+        {"type": "string", "value": "John Doe"}
+      ]
+    },
+    {
+      "name": "gender is System.String (FHIR.code -> System.String)",
+      "expr": "Patient.gender",
+      "input": {
+        "resourceType": "Patient",
+        "gender": "male"
+      },
+      "expect": [
+        {"type": "string", "value": "male"}
+      ]
+    },
+    {
+      "name": "type() on birthDate returns FHIR namespace",
+      "expr": "Patient.birthDate.type().namespace",
+      "input": {
+        "resourceType": "Patient",
+        "birthDate": "1974-12-25"
+      },
+      "expect": [
+        {"type": "string", "value": "FHIR"}
+      ]
+    },
+    {
+      "name": "type() on birthDate returns date name (lowercase FHIR type)",
+      "expr": "Patient.birthDate.type().name",
+      "input": {
+        "resourceType": "Patient",
+        "birthDate": "1974-12-25"
+      },
+      "expect": [
+        {"type": "string", "value": "date"}
+      ]
+    },
+    {
+      "name": "type() on literal date returns System namespace",
+      "expr": "@1974-12-25.type().namespace",
+      "input": {},
+      "expect": [
+        {"type": "string", "value": "System"}
+      ]
+    },
+    {
+      "name": "type() on literal date returns Date name (PascalCase)",
+      "expr": "@1974-12-25.type().name",
+      "input": {},
+      "expect": [
+        {"type": "string", "value": "Date"}
+      ]
+    },
+    {
+      "name": "birthDate is date (unqualified lowercase = FHIR type)",
+      "expr": "Patient.birthDate.is(date)",
+      "input": {
+        "resourceType": "Patient",
+        "birthDate": "1974-12-25"
+      },
+      "expect": [
+        {"type": "boolean", "value": true}
+      ],
+      "comment": "Unqualified lowercase 'date' resolves to FHIR.date which matches"
+    },
+    {
+      "name": "birthDate is NOT System.Date (is() checks exact type)",
+      "expr": "Patient.birthDate.is(System.Date)",
+      "input": {
+        "resourceType": "Patient",
+        "birthDate": "1974-12-25"
+      },
+      "expect": [
+        {"type": "boolean", "value": false}
+      ],
+      "comment": "Per spec: is() checks exact type. birthDate is FHIR.date, not System.Date. Implicit conversion does NOT apply to is()."
+    },
+    {
+      "name": "birthDate is NOT System.DateTime either (is() checks exact type)",
+      "expr": "Patient.birthDate.is(System.DateTime)",
+      "input": {
+        "resourceType": "Patient",
+        "birthDate": "1974-12-25"
+      },
+      "expect": [
+        {"type": "boolean", "value": false}
+      ],
+      "comment": "Even though FHIR.date implicitly converts to System.DateTime for operations, is() checks exact type"
+    },
+    {
+      "name": "active is boolean (unqualified lowercase = FHIR type)",
+      "expr": "Patient.active.is(boolean)",
+      "input": {
+        "resourceType": "Patient",
+        "active": true
+      },
+      "expect": [
+        {"type": "boolean", "value": true}
+      ],
+      "comment": "R5 test: Patient.active.is(boolean) => true"
+    },
+    {
+      "name": "active is NOT System.Boolean (is() checks exact type)",
+      "expr": "Patient.active.is(System.Boolean)",
+      "input": {
+        "resourceType": "Patient",
+        "active": true
+      },
+      "expect": [
+        {"type": "boolean", "value": false}
+      ],
+      "comment": "R5 test: Patient.active.is(System.Boolean).not() => true"
+    },
+    {
+      "name": "active is FHIR.boolean (explicit FHIR qualification)",
+      "expr": "Patient.active.is(FHIR.boolean)",
+      "input": {
+        "resourceType": "Patient",
+        "active": true
+      },
+      "expect": [
+        {"type": "boolean", "value": true}
+      ],
+      "comment": "R5 test: Patient.active.is(FHIR.boolean) => true"
+    },
+    {
+      "name": "valueQuantity is Quantity (unqualified = FHIR.Quantity)",
+      "expr": "Observation.valueQuantity.is(Quantity)",
+      "input": {
+        "resourceType": "Observation",
+        "valueQuantity": {
+          "value": 120,
+          "unit": "mmHg",
+          "code": "mm[Hg]"
+        }
+      },
+      "expect": [
+        {"type": "boolean", "value": true}
+      ],
+      "comment": "R5 test: Observation.value.is(Quantity) => true"
+    },
+    {
+      "name": "valueQuantity is NOT System.Quantity (is() checks exact type)",
+      "expr": "Observation.valueQuantity.is(System.Quantity)",
+      "input": {
+        "resourceType": "Observation",
+        "valueQuantity": {
+          "value": 120,
+          "unit": "mmHg",
+          "code": "mm[Hg]"
+        }
+      },
+      "expect": [
+        {"type": "boolean", "value": false}
+      ],
+      "comment": "is() checks exact type; valueQuantity is FHIR.Quantity, not System.Quantity"
+    },
+    {
+      "name": "type() on valueQuantity returns FHIR namespace",
+      "expr": "Observation.valueQuantity.type().namespace",
+      "input": {
+        "resourceType": "Observation",
+        "valueQuantity": {
+          "value": 120,
+          "unit": "mmHg",
+          "code": "mm[Hg]"
+        }
+      },
+      "expect": [
+        {"type": "string", "value": "FHIR"}
+      ]
+    },
+    {
+      "name": "type() on valueQuantity returns Quantity name",
+      "expr": "Observation.valueQuantity.type().name",
+      "input": {
+        "resourceType": "Observation",
+        "valueQuantity": {
+          "value": 120,
+          "unit": "mmHg",
+          "code": "mm[Hg]"
+        }
+      },
+      "expect": [
+        {"type": "string", "value": "Quantity"}
+      ]
+    },
+    {
+      "name": "complex type has no implicit System type (Patient.name stays object)",
+      "expr": "Patient.name.first().type().namespace",
+      "input": {
+        "resourceType": "Patient",
+        "name": [{"text": "John Doe"}]
+      },
+      "expect": [
+        {"type": "string", "value": "FHIR"}
+      ]
+    },
+    {
+      "name": "complex type name is HumanName",
+      "expr": "Patient.name.first().type().name",
+      "input": {
+        "resourceType": "Patient",
+        "name": [{"text": "John Doe"}]
+      },
+      "expect": [
+        {"type": "string", "value": "HumanName"}
+      ]
+    },
+    {
+      "name": "FHIR.uri maps to System.String (identifier.system)",
+      "expr": "Patient.identifier.system",
+      "input": {
+        "resourceType": "Patient",
+        "identifier": [{"system": "http://example.com", "value": "12345"}]
+      },
+      "expect": [
+        {"type": "string", "value": "http://example.com"}
+      ]
+    },
+    {
+      "name": "dateTime field resolves as System.DateTime for comparison",
+      "expr": "Observation.effectiveDateTime > @2020-01-01",
+      "input": {
+        "resourceType": "Observation",
+        "effectiveDateTime": "2024-06-15T10:30:00Z"
+      },
+      "expect": [
+        {"type": "boolean", "value": true}
+      ]
+    },
+    {
+      "name": "integer JSON value in decimal field resolves as integer",
+      "expr": "Observation.referenceRange.low.value + 10",
+      "input": {
+        "resourceType": "Observation",
+        "referenceRange": [{"low": {"value": 5, "unit": "mmHg"}}]
+      },
+      "expect": [
+        {"type": "integer", "value": 15}
+      ],
+      "comment": "JSON integer 5 resolves as System.Integer even though FHIR field type is decimal. This is because value_resolver uses JSON kind, and 5 has no decimal point."
+    }
+  ]
+}

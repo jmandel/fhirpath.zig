@@ -77,6 +77,21 @@ pub fn build(b: *std.Build) void {
     if (b.args) |args| run_bench.addArgs(args);
     b.step("bench", "Run performance benchmarks").dependOn(&run_bench.step);
 
+    // End-to-end evaluation benchmark
+    const bench_eval_module = b.createModule(.{
+        .root_source_file = b.path("src/bench_eval.zig"),
+        .target = target,
+        .optimize = .ReleaseFast,
+    });
+    const bench_eval = b.addExecutable(.{
+        .name = "bench-eval",
+        .root_module = bench_eval_module,
+    });
+    b.installArtifact(bench_eval);
+    const run_bench_eval = b.addRunArtifact(bench_eval);
+    if (b.args) |args| run_bench_eval.addArgs(args);
+    b.step("bench-eval", "Run end-to-end evaluation benchmarks").dependOn(&run_bench_eval.step);
+
     // WebAssembly build (ABI exports)
     const wasm_target = b.resolveTargetQuery(.{
         .cpu_arch = .wasm32,

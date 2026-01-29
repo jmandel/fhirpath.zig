@@ -3415,13 +3415,42 @@ fn evalInvoke(
     return current;
 }
 
+const FnTag = enum {
+    now, today, timeOfDay, duration, difference,
+    count, empty, exists,
+    toInteger, toBoolean, toDecimal, toLong,
+    convertsToLong, convertsToInteger, convertsToBoolean, convertsToDecimal,
+    toString, convertsToString,
+    toTime, convertsToTime, toDate, convertsToDate, toDateTime, convertsToDateTime,
+    toQuantity, convertsToQuantity,
+    not, @"is", @"as", ofType, conformsTo,
+    distinct, isDistinct,
+    allTrue, anyTrue, allFalse, anyFalse,
+    sort, select, where, all, repeat, repeatAll,
+    children, descendants,
+    sum, avg, min, max, aggregate,
+    single, @"type", first, last, tail, skip, take,
+    startsWith, endsWith, contains, substring,
+    abs, ceiling, floor, truncate, round, precision,
+    lowBoundary, highBoundary,
+    yearOf, monthOf, dayOf, hourOf, minuteOf, secondOf, millisecondOf,
+    timezoneOffsetOf, dateOf, timeOf,
+    exp, ln, log, sqrt, power,
+    iif, coalesce,
+    length, indexOf, lastIndexOf, upper, lower, replace,
+    matches, matchesFull, replaceMatches, trim, toChars, split, join,
+    @"union", combine, intersect, subsetOf, supersetOf, exclude,
+    defineVariable, encode, decode, escape, unescape, trace,
+};
+
 fn evalFunction(
     ctx: anytype,
     call: ast.FunctionCall,
     input: []const item.Item,
     env: ?*Env,
 ) EvalError!ItemList {
-    if (std.mem.eql(u8, call.name, "now")) {
+    const tag = std.meta.stringToEnum(FnTag, call.name) orelse return error.InvalidFunction;
+    if (tag == .now) {
         if (call.args.len != 0) return error.InvalidFunction;
         var out = ItemList.empty;
         const ts = ctx.timestamp;
@@ -3429,7 +3458,7 @@ fn evalFunction(
         try out.append(ctx.allocator, makeDateTimeItem(ctx, formatted));
         return out;
     }
-    if (std.mem.eql(u8, call.name, "today")) {
+    if (tag == .today) {
         if (call.args.len != 0) return error.InvalidFunction;
         var out = ItemList.empty;
         const ts = ctx.timestamp;
@@ -3437,7 +3466,7 @@ fn evalFunction(
         try out.append(ctx.allocator, makeDateItem(ctx, formatted));
         return out;
     }
-    if (std.mem.eql(u8, call.name, "timeOfDay")) {
+    if (tag == .timeOfDay) {
         if (call.args.len != 0) return error.InvalidFunction;
         var out = ItemList.empty;
         const ts = ctx.timestamp;
@@ -3445,7 +3474,7 @@ fn evalFunction(
         try out.append(ctx.allocator, makeTimeItem(ctx, formatted));
         return out;
     }
-    if (std.mem.eql(u8, call.name, "duration")) {
+    if (tag == .duration) {
         if (call.args.len != 2) return error.InvalidFunction;
         if (input.len == 0) return ItemList.empty;
         if (input.len != 1) return error.SingletonRequired;
@@ -3460,7 +3489,7 @@ fn evalFunction(
         
         return evalDuration(ctx, input[0], other.items[0], precision.?);
     }
-    if (std.mem.eql(u8, call.name, "difference")) {
+    if (tag == .difference) {
         if (call.args.len != 2) return error.InvalidFunction;
         if (input.len == 0) return ItemList.empty;
         if (input.len != 1) return error.SingletonRequired;
@@ -3475,17 +3504,17 @@ fn evalFunction(
         
         return evalDifference(ctx, input[0], other.items[0], precision.?);
     }
-    if (std.mem.eql(u8, call.name, "count")) {
+    if (tag == .count) {
         var out = ItemList.empty;
         try out.append(ctx.allocator, makeIntegerItem(ctx, @intCast(input.len)));
         return out;
     }
-    if (std.mem.eql(u8, call.name, "empty")) {
+    if (tag == .empty) {
         var out = ItemList.empty;
         try out.append(ctx.allocator, makeBoolItem(ctx, input.len == 0));
         return out;
     }
-    if (std.mem.eql(u8, call.name, "exists")) {
+    if (tag == .exists) {
         var out = ItemList.empty;
         if (call.args.len == 0) {
             // exists() without criteria: true if collection is non-empty
@@ -3512,7 +3541,7 @@ fn evalFunction(
         try out.append(ctx.allocator, makeBoolItem(ctx, false));
         return out;
     }
-    if (std.mem.eql(u8, call.name, "toInteger")) {
+    if (tag == .toInteger) {
         if (call.args.len != 0) return error.InvalidFunction;
         var out = ItemList.empty;
         if (input.len == 0) return out;
@@ -3522,7 +3551,7 @@ fn evalFunction(
         }
         return out;
     }
-    if (std.mem.eql(u8, call.name, "toBoolean")) {
+    if (tag == .toBoolean) {
         if (call.args.len != 0) return error.InvalidFunction;
         var out = ItemList.empty;
         if (input.len == 0) return out;
@@ -3532,7 +3561,7 @@ fn evalFunction(
         }
         return out;
     }
-    if (std.mem.eql(u8, call.name, "toDecimal")) {
+    if (tag == .toDecimal) {
         if (call.args.len != 0) return error.InvalidFunction;
         var out = ItemList.empty;
         if (input.len == 0) return out;
@@ -3542,7 +3571,7 @@ fn evalFunction(
         }
         return out;
     }
-    if (std.mem.eql(u8, call.name, "toLong")) {
+    if (tag == .toLong) {
         if (call.args.len != 0) return error.InvalidFunction;
         var out = ItemList.empty;
         if (input.len == 0) return out;
@@ -3552,7 +3581,7 @@ fn evalFunction(
         }
         return out;
     }
-    if (std.mem.eql(u8, call.name, "convertsToLong")) {
+    if (tag == .convertsToLong) {
         if (call.args.len != 0) return error.InvalidFunction;
         var out = ItemList.empty;
         if (input.len == 0) return out;
@@ -3561,7 +3590,7 @@ fn evalFunction(
         try out.append(ctx.allocator, makeBoolItem(ctx, convertible));
         return out;
     }
-    if (std.mem.eql(u8, call.name, "convertsToInteger")) {
+    if (tag == .convertsToInteger) {
         if (call.args.len != 0) return error.InvalidFunction;
         var out = ItemList.empty;
         if (input.len == 0) return out;
@@ -3570,7 +3599,7 @@ fn evalFunction(
         try out.append(ctx.allocator, makeBoolItem(ctx, convertible));
         return out;
     }
-    if (std.mem.eql(u8, call.name, "convertsToBoolean")) {
+    if (tag == .convertsToBoolean) {
         if (call.args.len != 0) return error.InvalidFunction;
         var out = ItemList.empty;
         if (input.len == 0) return out;
@@ -3579,7 +3608,7 @@ fn evalFunction(
         try out.append(ctx.allocator, makeBoolItem(ctx, convertible));
         return out;
     }
-    if (std.mem.eql(u8, call.name, "convertsToDecimal")) {
+    if (tag == .convertsToDecimal) {
         if (call.args.len != 0) return error.InvalidFunction;
         var out = ItemList.empty;
         if (input.len == 0) return out;
@@ -3588,7 +3617,7 @@ fn evalFunction(
         try out.append(ctx.allocator, makeBoolItem(ctx, convertible));
         return out;
     }
-    if (std.mem.eql(u8, call.name, "toString")) {
+    if (tag == .toString) {
         if (call.args.len != 0) return error.InvalidFunction;
         var out = ItemList.empty;
         if (input.len == 0) return out;
@@ -3598,7 +3627,7 @@ fn evalFunction(
         }
         return out;
     }
-    if (std.mem.eql(u8, call.name, "convertsToString")) {
+    if (tag == .convertsToString) {
         if (call.args.len != 0) return error.InvalidFunction;
         var out = ItemList.empty;
         if (input.len == 0) return out;
@@ -3607,7 +3636,7 @@ fn evalFunction(
         try out.append(ctx.allocator, makeBoolItem(ctx, convertible));
         return out;
     }
-    if (std.mem.eql(u8, call.name, "toTime")) {
+    if (tag == .toTime) {
         if (call.args.len != 0) return error.InvalidFunction;
         var out = ItemList.empty;
         if (input.len == 0) return out;
@@ -3617,7 +3646,7 @@ fn evalFunction(
         }
         return out;
     }
-    if (std.mem.eql(u8, call.name, "convertsToTime")) {
+    if (tag == .convertsToTime) {
         if (call.args.len != 0) return error.InvalidFunction;
         var out = ItemList.empty;
         if (input.len == 0) return out;
@@ -3626,7 +3655,7 @@ fn evalFunction(
         try out.append(ctx.allocator, makeBoolItem(ctx, convertible));
         return out;
     }
-    if (std.mem.eql(u8, call.name, "toDate")) {
+    if (tag == .toDate) {
         if (call.args.len != 0) return error.InvalidFunction;
         var out = ItemList.empty;
         if (input.len == 0) return out;
@@ -3636,7 +3665,7 @@ fn evalFunction(
         }
         return out;
     }
-    if (std.mem.eql(u8, call.name, "convertsToDate")) {
+    if (tag == .convertsToDate) {
         if (call.args.len != 0) return error.InvalidFunction;
         var out = ItemList.empty;
         if (input.len == 0) return out;
@@ -3645,7 +3674,7 @@ fn evalFunction(
         try out.append(ctx.allocator, makeBoolItem(ctx, convertible));
         return out;
     }
-    if (std.mem.eql(u8, call.name, "toDateTime")) {
+    if (tag == .toDateTime) {
         if (call.args.len != 0) return error.InvalidFunction;
         var out = ItemList.empty;
         if (input.len == 0) return out;
@@ -3655,7 +3684,7 @@ fn evalFunction(
         }
         return out;
     }
-    if (std.mem.eql(u8, call.name, "convertsToDateTime")) {
+    if (tag == .convertsToDateTime) {
         if (call.args.len != 0) return error.InvalidFunction;
         var out = ItemList.empty;
         if (input.len == 0) return out;
@@ -3664,7 +3693,7 @@ fn evalFunction(
         try out.append(ctx.allocator, makeBoolItem(ctx, convertible));
         return out;
     }
-    if (std.mem.eql(u8, call.name, "toQuantity")) {
+    if (tag == .toQuantity) {
         // toQuantity([unit]) - optional unit argument for conversion
         if (call.args.len > 1) return error.InvalidFunction;
         var out = ItemList.empty;
@@ -3693,7 +3722,7 @@ fn evalFunction(
         }
         return out;
     }
-    if (std.mem.eql(u8, call.name, "convertsToQuantity")) {
+    if (tag == .convertsToQuantity) {
         // convertsToQuantity([unit]) - optional unit argument
         if (call.args.len > 1) return error.InvalidFunction;
         var out = ItemList.empty;
@@ -3722,7 +3751,7 @@ fn evalFunction(
         try out.append(ctx.allocator, makeBoolItem(ctx, convertible));
         return out;
     }
-    if (std.mem.eql(u8, call.name, "not")) {
+    if (tag == .not) {
         // not() returns the boolean negation of the input
         // Per FHIRPath spec: non-boolean singleton is truthy, so not() returns false
         var out = ItemList.empty;
@@ -3735,7 +3764,7 @@ fn evalFunction(
         try out.append(ctx.allocator, makeBoolItem(ctx, !itemBoolValue(ctx, input[0])));
         return out;
     }
-    if (std.mem.eql(u8, call.name, "is")) {
+    if (tag == .@"is") {
         if (call.args.len != 1) return error.InvalidFunction;
         const type_name = try typeNameFromExpr(ctx, call.args[0]);
         defer ctx.allocator.free(type_name);
@@ -3748,7 +3777,7 @@ fn evalFunction(
         try out.append(ctx.allocator, makeBoolItem(ctx, itemIsType(ctx, input[0], type_name)));
         return out;
     }
-    if (std.mem.eql(u8, call.name, "as")) {
+    if (tag == .@"as") {
         if (call.args.len != 1) return error.InvalidFunction;
         const type_name = try typeNameFromExpr(ctx, call.args[0]);
         defer ctx.allocator.free(type_name);
@@ -3760,7 +3789,7 @@ fn evalFunction(
         }
         return out;
     }
-    if (std.mem.eql(u8, call.name, "ofType")) {
+    if (tag == .ofType) {
         if (call.args.len != 1) return error.InvalidFunction;
         const type_name = try typeNameFromExpr(ctx, call.args[0]);
         defer ctx.allocator.free(type_name);
@@ -3777,7 +3806,7 @@ fn evalFunction(
     // Returns true if resourceType matches the profile URL's target type
     // Returns false if types don't match
     // Returns empty if: input not singleton, profile is empty, or profile URL is invalid/unknown
-    if (std.mem.eql(u8, call.name, "conformsTo")) {
+    if (tag == .conformsTo) {
         if (call.args.len != 1) return error.InvalidFunction;
         var out = ItemList.empty;
 
@@ -3832,10 +3861,10 @@ fn evalFunction(
         try out.append(ctx.allocator, makeBoolItem(ctx, matches));
         return out;
     }
-    if (std.mem.eql(u8, call.name, "distinct")) {
+    if (tag == .distinct) {
         return distinctItems(ctx, input);
     }
-    if (std.mem.eql(u8, call.name, "isDistinct")) {
+    if (tag == .isDistinct) {
         var distinct = try distinctItems(ctx, input);
         defer distinct.deinit(ctx.allocator);
         var out = ItemList.empty;
@@ -3843,7 +3872,7 @@ fn evalFunction(
         return out;
     }
     // Collection boolean aggregation: allTrue, anyTrue, allFalse, anyFalse
-    if (std.mem.eql(u8, call.name, "allTrue")) {
+    if (tag == .allTrue) {
         if (call.args.len != 0) return error.InvalidFunction;
         // Empty collection returns true (vacuous truth)
         if (input.len == 0) {
@@ -3864,7 +3893,7 @@ fn evalFunction(
         try out.append(ctx.allocator, makeBoolItem(ctx, true));
         return out;
     }
-    if (std.mem.eql(u8, call.name, "anyTrue")) {
+    if (tag == .anyTrue) {
         if (call.args.len != 0) return error.InvalidFunction;
         // Empty collection returns false
         if (input.len == 0) {
@@ -3885,7 +3914,7 @@ fn evalFunction(
         try out.append(ctx.allocator, makeBoolItem(ctx, false));
         return out;
     }
-    if (std.mem.eql(u8, call.name, "allFalse")) {
+    if (tag == .allFalse) {
         if (call.args.len != 0) return error.InvalidFunction;
         // Empty collection returns true (vacuous truth)
         if (input.len == 0) {
@@ -3906,7 +3935,7 @@ fn evalFunction(
         try out.append(ctx.allocator, makeBoolItem(ctx, true));
         return out;
     }
-    if (std.mem.eql(u8, call.name, "anyFalse")) {
+    if (tag == .anyFalse) {
         if (call.args.len != 0) return error.InvalidFunction;
         // Empty collection returns false
         if (input.len == 0) {
@@ -3927,7 +3956,7 @@ fn evalFunction(
         try out.append(ctx.allocator, makeBoolItem(ctx, false));
         return out;
     }
-    if (std.mem.eql(u8, call.name, "sort")) {
+    if (tag == .sort) {
         // sort([keySelector, ...]) : collection
         // Sorts the input collection using key selector expressions.
         // If no key selector is provided, sorts using default ordering.
@@ -4063,7 +4092,7 @@ fn evalFunction(
         }
         return out;
     }
-    if (std.mem.eql(u8, call.name, "select")) {
+    if (tag == .select) {
         if (call.args.len != 1) return error.InvalidFunction;
         var out = ItemList.empty;
         errdefer out.deinit(ctx.allocator);
@@ -4075,7 +4104,7 @@ fn evalFunction(
         }
         return out;
     }
-    if (std.mem.eql(u8, call.name, "where")) {
+    if (tag == .where) {
         if (call.args.len != 1) return error.InvalidFunction;
         var out = ItemList.empty;
         errdefer out.deinit(ctx.allocator);
@@ -4092,7 +4121,7 @@ fn evalFunction(
         }
         return out;
     }
-    if (std.mem.eql(u8, call.name, "all")) {
+    if (tag == .all) {
         if (call.args.len != 1) return error.InvalidFunction;
         // Empty input collection returns true (vacuous truth)
         if (input.len == 0) {
@@ -4126,7 +4155,7 @@ fn evalFunction(
         try out.append(ctx.allocator, makeBoolItem(ctx, true));
         return out;
     }
-    if (std.mem.eql(u8, call.name, "repeat")) {
+    if (tag == .repeat) {
         if (call.args.len != 1) return error.InvalidFunction;
         var out = ItemList.empty;
         errdefer out.deinit(ctx.allocator);
@@ -4159,7 +4188,7 @@ fn evalFunction(
         queue.deinit(ctx.allocator);
         return out;
     }
-    if (std.mem.eql(u8, call.name, "repeatAll")) {
+    if (tag == .repeatAll) {
         if (call.args.len != 1) return error.InvalidFunction;
         var out = ItemList.empty;
         errdefer out.deinit(ctx.allocator);
@@ -4187,7 +4216,7 @@ fn evalFunction(
         return out;
     }
     // children() returns the immediate child nodes of each input item
-    if (std.mem.eql(u8, call.name, "children")) {
+    if (tag == .children) {
         if (call.args.len != 0) return error.InvalidFunction;
         var out = ItemList.empty;
         errdefer out.deinit(ctx.allocator);
@@ -4245,7 +4274,7 @@ fn evalFunction(
     // Spec: descendants() is defined as repeat(children())
     // Note: Arrays are transparent in FHIRPath - we traverse into array elements
     // but don't include the array itself as a descendant node.
-    if (std.mem.eql(u8, call.name, "descendants")) {
+    if (tag == .descendants) {
         if (call.args.len != 0) return error.InvalidFunction;
         var out = ItemList.empty;
         errdefer out.deinit(ctx.allocator);
@@ -4312,7 +4341,7 @@ fn evalFunction(
         queue.deinit(ctx.allocator);
         return out;
     }
-    if (std.mem.eql(u8, call.name, "sum")) {
+    if (tag == .sum) {
         if (call.args.len != 0) return error.InvalidFunction;
         if (input.len == 0) return ItemList.empty;
 
@@ -4421,7 +4450,7 @@ fn evalFunction(
             },
         }
     }
-    if (std.mem.eql(u8, call.name, "avg")) {
+    if (tag == .avg) {
         if (call.args.len != 0) return error.InvalidFunction;
         if (input.len == 0) return ItemList.empty;
 
@@ -4517,11 +4546,11 @@ fn evalFunction(
             },
         }
     }
-    if (std.mem.eql(u8, call.name, "min") or std.mem.eql(u8, call.name, "max")) {
+    if (tag == .min or tag == .max) {
         if (call.args.len != 0) return error.InvalidFunction;
         if (input.len == 0) return ItemList.empty;
 
-        const is_max = std.mem.eql(u8, call.name, "max");
+        const is_max = tag == .max;
         var best_idx: usize = 0;
         var best = input[0];
 
@@ -4537,7 +4566,7 @@ fn evalFunction(
         try out.append(ctx.allocator, input[best_idx]);
         return out;
     }
-    if (std.mem.eql(u8, call.name, "aggregate")) {
+    if (tag == .aggregate) {
         if (call.args.len < 1 or call.args.len > 2) return error.InvalidFunction;
 
         var total = if (call.args.len == 2)
@@ -4568,7 +4597,7 @@ fn evalFunction(
 
         return total;
     }
-    if (std.mem.eql(u8, call.name, "single")) {
+    if (tag == .single) {
         var out = ItemList.empty;
         if (input.len == 1) {
             try out.append(ctx.allocator, input[0]);
@@ -4578,7 +4607,7 @@ fn evalFunction(
         return error.SingletonRequired;
     }
     // Reflection function: type() returns TypeInfo for each element
-    if (std.mem.eql(u8, call.name, "type")) {
+    if (tag == .@"type") {
         if (call.args.len != 0) return error.InvalidFunction;
         var out = ItemList.empty;
         for (input) |it| {
@@ -4587,25 +4616,25 @@ fn evalFunction(
         }
         return out;
     }
-    if (std.mem.eql(u8, call.name, "first")) {
+    if (tag == .first) {
         var out = ItemList.empty;
         if (input.len == 0) return out;
         try out.append(ctx.allocator, input[0]);
         return out;
     }
-    if (std.mem.eql(u8, call.name, "last")) {
+    if (tag == .last) {
         var out = ItemList.empty;
         if (input.len == 0) return out;
         try out.append(ctx.allocator, input[input.len - 1]);
         return out;
     }
-    if (std.mem.eql(u8, call.name, "tail")) {
+    if (tag == .tail) {
         var out = ItemList.empty;
         if (input.len <= 1) return out;
         try out.appendSlice(ctx.allocator, input[1..]);
         return out;
     }
-    if (std.mem.eql(u8, call.name, "skip")) {
+    if (tag == .skip) {
         const num = try parseIntegerArg(call);
         if (num <= 0) return sliceItems(ctx, input);
         const len_i64: i64 = @intCast(input.len);
@@ -4613,7 +4642,7 @@ fn evalFunction(
         const offset: usize = @intCast(num);
         return sliceItems(ctx, input[offset..]);
     }
-    if (std.mem.eql(u8, call.name, "take")) {
+    if (tag == .take) {
         const num = try parseIntegerArg(call);
         if (num <= 0) return ItemList.empty;
         const len_i64: i64 = @intCast(input.len);
@@ -4622,7 +4651,7 @@ fn evalFunction(
         return sliceItems(ctx, input[0..count]);
     }
     // String matching functions: startsWith, endsWith, contains
-    if (std.mem.eql(u8, call.name, "startsWith")) {
+    if (tag == .startsWith) {
         if (call.args.len != 1) return error.InvalidFunction;
         if (input.len == 0) return ItemList.empty; // empty input yields empty
         const str = itemStringValue(ctx, input[0]) orelse return error.InvalidFunction;
@@ -4632,7 +4661,7 @@ fn evalFunction(
         try out.append(ctx.allocator, makeBoolItem(ctx, std.mem.startsWith(u8, str, prefix.?)));
         return out;
     }
-    if (std.mem.eql(u8, call.name, "endsWith")) {
+    if (tag == .endsWith) {
         if (call.args.len != 1) return error.InvalidFunction;
         if (input.len == 0) return ItemList.empty;
         const str = itemStringValue(ctx, input[0]) orelse return error.InvalidFunction;
@@ -4642,7 +4671,7 @@ fn evalFunction(
         try out.append(ctx.allocator, makeBoolItem(ctx, std.mem.endsWith(u8, str, suffix.?)));
         return out;
     }
-    if (std.mem.eql(u8, call.name, "contains")) {
+    if (tag == .contains) {
         if (call.args.len != 1) return error.InvalidFunction;
         if (input.len == 0) return ItemList.empty;
         const str = itemStringValue(ctx, input[0]) orelse return error.InvalidFunction;
@@ -4654,7 +4683,7 @@ fn evalFunction(
         return out;
     }
     // substring(start [, length])
-    if (std.mem.eql(u8, call.name, "substring")) {
+    if (tag == .substring) {
         if (call.args.len < 1 or call.args.len > 2) return error.InvalidFunction;
         if (input.len == 0) return ItemList.empty; // empty input yields empty
         const str = itemStringValue(ctx, input[0]) orelse return error.InvalidFunction;
@@ -4693,33 +4722,33 @@ fn evalFunction(
         return out;
     }
     // Math functions
-    if (std.mem.eql(u8, call.name, "abs")) {
+    if (tag == .abs) {
         if (input.len == 0) return ItemList.empty;
         if (input.len > 1) return error.SingletonRequired;
         return evalAbs(ctx, input[0]);
     }
-    if (std.mem.eql(u8, call.name, "ceiling")) {
+    if (tag == .ceiling) {
         if (input.len == 0) return ItemList.empty;
         if (input.len > 1) return error.SingletonRequired;
         return evalCeiling(ctx, input[0]);
     }
-    if (std.mem.eql(u8, call.name, "floor")) {
+    if (tag == .floor) {
         if (input.len == 0) return ItemList.empty;
         if (input.len > 1) return error.SingletonRequired;
         return evalFloor(ctx, input[0]);
     }
-    if (std.mem.eql(u8, call.name, "truncate")) {
+    if (tag == .truncate) {
         if (input.len == 0) return ItemList.empty;
         if (input.len > 1) return error.SingletonRequired;
         return evalTruncate(ctx, input[0]);
     }
-    if (std.mem.eql(u8, call.name, "round")) {
+    if (tag == .round) {
         if (input.len == 0) return ItemList.empty;
         if (input.len > 1) return error.SingletonRequired;
         const precision: i64 = if (call.args.len > 0) (try parseIntegerArg(call)) else 0;
         return evalRound(ctx, input[0], precision);
     }
-    if (std.mem.eql(u8, call.name, "precision")) {
+    if (tag == .precision) {
         if (call.args.len != 0) return error.InvalidFunction;
         var out = ItemList.empty;
         if (input.len == 0) return out;
@@ -4756,7 +4785,7 @@ fn evalFunction(
         }
         return out;
     }
-    if (std.mem.eql(u8, call.name, "lowBoundary") or std.mem.eql(u8, call.name, "highBoundary")) {
+    if (tag == .lowBoundary or tag == .highBoundary) {
         if (call.args.len > 1) return error.InvalidFunction;
         var out = ItemList.empty;
         if (input.len == 0) return out;
@@ -4764,7 +4793,7 @@ fn evalFunction(
 
         const it = input[0];
         const val = itemToValue(ctx, it);
-        const kind: BoundaryKind = if (std.mem.eql(u8, call.name, "lowBoundary")) .low else .high;
+        const kind: BoundaryKind = if (tag == .lowBoundary) .low else .high;
 
         var precision_opt: ?i64 = null;
         if (call.args.len == 1) {
@@ -4860,7 +4889,7 @@ fn evalFunction(
     }
 
     // Date/DateTime/Time component extraction functions (STU)
-    if (std.mem.eql(u8, call.name, "yearOf")) {
+    if (tag == .yearOf) {
         if (call.args.len != 0) return error.InvalidFunction;
         var out = ItemList.empty;
         if (input.len == 0) return out;
@@ -4888,7 +4917,7 @@ fn evalFunction(
         return out;
     }
 
-    if (std.mem.eql(u8, call.name, "monthOf")) {
+    if (tag == .monthOf) {
         if (call.args.len != 0) return error.InvalidFunction;
         var out = ItemList.empty;
         if (input.len == 0) return out;
@@ -4916,7 +4945,7 @@ fn evalFunction(
         return out;
     }
 
-    if (std.mem.eql(u8, call.name, "dayOf")) {
+    if (tag == .dayOf) {
         if (call.args.len != 0) return error.InvalidFunction;
         var out = ItemList.empty;
         if (input.len == 0) return out;
@@ -4944,7 +4973,7 @@ fn evalFunction(
         return out;
     }
 
-    if (std.mem.eql(u8, call.name, "hourOf")) {
+    if (tag == .hourOf) {
         if (call.args.len != 0) return error.InvalidFunction;
         var out = ItemList.empty;
         if (input.len == 0) return out;
@@ -4985,7 +5014,7 @@ fn evalFunction(
         return out;
     }
 
-    if (std.mem.eql(u8, call.name, "minuteOf")) {
+    if (tag == .minuteOf) {
         if (call.args.len != 0) return error.InvalidFunction;
         var out = ItemList.empty;
         if (input.len == 0) return out;
@@ -5027,7 +5056,7 @@ fn evalFunction(
         return out;
     }
 
-    if (std.mem.eql(u8, call.name, "secondOf")) {
+    if (tag == .secondOf) {
         if (call.args.len != 0) return error.InvalidFunction;
         var out = ItemList.empty;
         if (input.len == 0) return out;
@@ -5071,7 +5100,7 @@ fn evalFunction(
         return out;
     }
 
-    if (std.mem.eql(u8, call.name, "millisecondOf")) {
+    if (tag == .millisecondOf) {
         if (call.args.len != 0) return error.InvalidFunction;
         var out = ItemList.empty;
         if (input.len == 0) return out;
@@ -5121,7 +5150,7 @@ fn evalFunction(
         return out;
     }
 
-    if (std.mem.eql(u8, call.name, "timezoneOffsetOf")) {
+    if (tag == .timezoneOffsetOf) {
         if (call.args.len != 0) return error.InvalidFunction;
         var out = ItemList.empty;
         if (input.len == 0) return out;
@@ -5188,7 +5217,7 @@ fn evalFunction(
         return out;
     }
 
-    if (std.mem.eql(u8, call.name, "dateOf")) {
+    if (tag == .dateOf) {
         if (call.args.len != 0) return error.InvalidFunction;
         var out = ItemList.empty;
         if (input.len == 0) return out;
@@ -5222,7 +5251,7 @@ fn evalFunction(
         return out;
     }
 
-    if (std.mem.eql(u8, call.name, "timeOf")) {
+    if (tag == .timeOf) {
         if (call.args.len != 0) return error.InvalidFunction;
         var out = ItemList.empty;
         if (input.len == 0) return out;
@@ -5272,17 +5301,17 @@ fn evalFunction(
         return out;
     }
 
-    if (std.mem.eql(u8, call.name, "exp")) {
+    if (tag == .exp) {
         if (input.len == 0) return ItemList.empty;
         if (input.len > 1) return error.SingletonRequired;
         return evalExp(ctx, input[0]);
     }
-    if (std.mem.eql(u8, call.name, "ln")) {
+    if (tag == .ln) {
         if (input.len == 0) return ItemList.empty;
         if (input.len > 1) return error.SingletonRequired;
         return evalLn(ctx, input[0]);
     }
-    if (std.mem.eql(u8, call.name, "log")) {
+    if (tag == .log) {
         if (call.args.len != 1) return error.InvalidFunction;
         if (input.len == 0) return ItemList.empty;
         if (input.len > 1) return error.SingletonRequired;
@@ -5290,12 +5319,12 @@ fn evalFunction(
         if (base_opt == null) return ItemList.empty; // empty base yields empty
         return evalLog(ctx, input[0], base_opt.?);
     }
-    if (std.mem.eql(u8, call.name, "sqrt")) {
+    if (tag == .sqrt) {
         if (input.len == 0) return ItemList.empty;
         if (input.len > 1) return error.SingletonRequired;
         return evalSqrt(ctx, input[0]);
     }
-    if (std.mem.eql(u8, call.name, "power")) {
+    if (tag == .power) {
         if (call.args.len != 1) return error.InvalidFunction;
         if (input.len == 0) return ItemList.empty;
         if (input.len > 1) return error.SingletonRequired;
@@ -5304,7 +5333,7 @@ fn evalFunction(
         return evalPower(ctx, input[0], exp_opt.?);
     }
     // iif(criterion, true-result [, otherwise-result])
-    if (std.mem.eql(u8, call.name, "iif")) {
+    if (tag == .iif) {
         if (call.args.len < 2 or call.args.len > 3) return error.InvalidFunction;
         // When called as method, input must be singleton or empty
         if (input.len > 1) return error.SingletonRequired;
@@ -5352,7 +5381,7 @@ fn evalFunction(
     // Note: coalesce is always a standalone function call, never a method.
     // The "input" here is the evaluation context (e.g., the document root),
     // and all coalesce arguments are in call.args.
-    if (std.mem.eql(u8, call.name, "coalesce")) {
+    if (tag == .coalesce) {
         if (call.args.len < 1) return error.InvalidFunction;
         // Context item for evaluating arguments (use first input item, or empty context)
         const context_item: item.Item = if (input.len > 0) input[0] else item.Item{
@@ -5378,7 +5407,7 @@ fn evalFunction(
         return ItemList.empty;
     }
     // String manipulation functions
-    if (std.mem.eql(u8, call.name, "length")) {
+    if (tag == .length) {
         if (input.len == 0) return ItemList.empty;
         if (input.len > 1) return error.SingletonRequired;
         const str = itemStringValue(ctx, input[0]) orelse return error.InvalidFunction;
@@ -5386,7 +5415,7 @@ fn evalFunction(
         try out.append(ctx.allocator, makeIntegerItem(ctx, @intCast(str.len)));
         return out;
     }
-    if (std.mem.eql(u8, call.name, "indexOf")) {
+    if (tag == .indexOf) {
         if (call.args.len != 1) return error.InvalidFunction;
         if (input.len == 0) return ItemList.empty;
         if (input.len > 1) return error.SingletonRequired;
@@ -5403,7 +5432,7 @@ fn evalFunction(
         try out.append(ctx.allocator, makeIntegerItem(ctx, idx));
         return out;
     }
-    if (std.mem.eql(u8, call.name, "lastIndexOf")) {
+    if (tag == .lastIndexOf) {
         if (call.args.len != 1) return error.InvalidFunction;
         if (input.len == 0) return ItemList.empty;
         if (input.len > 1) return error.SingletonRequired;
@@ -5420,7 +5449,7 @@ fn evalFunction(
         try out.append(ctx.allocator, makeIntegerItem(ctx, idx));
         return out;
     }
-    if (std.mem.eql(u8, call.name, "upper")) {
+    if (tag == .upper) {
         if (input.len == 0) return ItemList.empty;
         if (input.len > 1) return error.SingletonRequired;
         const str = itemStringValue(ctx, input[0]) orelse return error.InvalidFunction;
@@ -5432,7 +5461,7 @@ fn evalFunction(
         try out.append(ctx.allocator, makeStringItem(ctx, upper_str));
         return out;
     }
-    if (std.mem.eql(u8, call.name, "lower")) {
+    if (tag == .lower) {
         if (input.len == 0) return ItemList.empty;
         if (input.len > 1) return error.SingletonRequired;
         const str = itemStringValue(ctx, input[0]) orelse return error.InvalidFunction;
@@ -5444,7 +5473,7 @@ fn evalFunction(
         try out.append(ctx.allocator, makeStringItem(ctx, lower_str));
         return out;
     }
-    if (std.mem.eql(u8, call.name, "replace")) {
+    if (tag == .replace) {
         if (call.args.len != 2) return error.InvalidFunction;
         if (input.len == 0) return ItemList.empty;
         if (input.len > 1) return error.SingletonRequired;
@@ -5459,7 +5488,7 @@ fn evalFunction(
         return out;
     }
     // Regex matching functions: matches, matchesFull, replaceMatches
-    if (std.mem.eql(u8, call.name, "matches")) {
+    if (tag == .matches) {
         if (call.args.len < 1 or call.args.len > 2) return error.InvalidFunction;
         if (input.len == 0) return ItemList.empty;
         if (input.len > 1) return error.SingletonRequired;
@@ -5473,7 +5502,7 @@ fn evalFunction(
         try out.append(ctx.allocator, makeBoolItem(ctx, re.matches(str)));
         return out;
     }
-    if (std.mem.eql(u8, call.name, "matchesFull")) {
+    if (tag == .matchesFull) {
         if (call.args.len < 1 or call.args.len > 2) return error.InvalidFunction;
         if (input.len == 0) return ItemList.empty;
         if (input.len > 1) return error.SingletonRequired;
@@ -5487,7 +5516,7 @@ fn evalFunction(
         try out.append(ctx.allocator, makeBoolItem(ctx, re.matchesFull(str)));
         return out;
     }
-    if (std.mem.eql(u8, call.name, "replaceMatches")) {
+    if (tag == .replaceMatches) {
         if (call.args.len < 2 or call.args.len > 3) return error.InvalidFunction;
         if (input.len == 0) return ItemList.empty;
         if (input.len > 1) return error.SingletonRequired;
@@ -5503,7 +5532,7 @@ fn evalFunction(
         try out.append(ctx.allocator, makeStringItem(ctx, result));
         return out;
     }
-    if (std.mem.eql(u8, call.name, "trim")) {
+    if (tag == .trim) {
         if (input.len == 0) return ItemList.empty;
         if (input.len > 1) return error.SingletonRequired;
         const str = itemStringValue(ctx, input[0]) orelse return error.InvalidFunction;
@@ -5512,7 +5541,7 @@ fn evalFunction(
         try out.append(ctx.allocator, makeStringItem(ctx, trimmed));
         return out;
     }
-    if (std.mem.eql(u8, call.name, "toChars")) {
+    if (tag == .toChars) {
         if (input.len == 0) return ItemList.empty;
         if (input.len > 1) return error.SingletonRequired;
         const str = itemStringValue(ctx, input[0]) orelse return error.InvalidFunction;
@@ -5524,7 +5553,7 @@ fn evalFunction(
         }
         return out;
     }
-    if (std.mem.eql(u8, call.name, "split")) {
+    if (tag == .split) {
         if (call.args.len != 1) return error.InvalidFunction;
         if (input.len == 0) return ItemList.empty;
         if (input.len > 1) return error.SingletonRequired;
@@ -5548,7 +5577,7 @@ fn evalFunction(
         }
         return out;
     }
-    if (std.mem.eql(u8, call.name, "join")) {
+    if (tag == .join) {
         if (call.args.len > 1) return error.InvalidFunction;
         if (input.len == 0) return ItemList.empty;
         // Get separator (default to empty string)
@@ -5567,7 +5596,7 @@ fn evalFunction(
         return out;
     }
     // Collection combining functions
-    if (std.mem.eql(u8, call.name, "union")) {
+    if (tag == .@"union") {
         if (call.args.len != 1) return error.InvalidFunction;
         var other = try evalCollectionArg(ctx, call.args[0], env);
         defer other.deinit(ctx.allocator);
@@ -5578,7 +5607,7 @@ fn evalFunction(
         defer combined.deinit(ctx.allocator);
         return distinctItems(ctx, combined.items);
 }
-    if (std.mem.eql(u8, call.name, "combine")) {
+    if (tag == .combine) {
         if (call.args.len < 1 or call.args.len > 2) return error.InvalidFunction;
         var other = try evalCollectionArg(ctx, call.args[0], env);
         defer other.deinit(ctx.allocator);
@@ -5588,7 +5617,7 @@ fn evalFunction(
         try out.appendSlice(ctx.allocator, other.items);
         return out;
     }
-    if (std.mem.eql(u8, call.name, "intersect")) {
+    if (tag == .intersect) {
         if (call.args.len != 1) return error.InvalidFunction;
         var other = try evalCollectionArg(ctx, call.args[0], env);
         defer other.deinit(ctx.allocator);
@@ -5605,7 +5634,7 @@ fn evalFunction(
         }
         return distinctItems(ctx, matched.items);
     }
-    if (std.mem.eql(u8, call.name, "subsetOf")) {
+    if (tag == .subsetOf) {
         if (call.args.len != 1) return error.InvalidFunction;
         var other = try evalCollectionArg(ctx, call.args[0], env);
         defer other.deinit(ctx.allocator);
@@ -5627,7 +5656,7 @@ fn evalFunction(
         try out.append(ctx.allocator, makeBoolItem(ctx, is_subset));
         return out;
     }
-    if (std.mem.eql(u8, call.name, "supersetOf")) {
+    if (tag == .supersetOf) {
         if (call.args.len != 1) return error.InvalidFunction;
         var other = try evalCollectionArg(ctx, call.args[0], env);
         defer other.deinit(ctx.allocator);
@@ -5649,7 +5678,7 @@ fn evalFunction(
         try out.append(ctx.allocator, makeBoolItem(ctx, is_superset));
         return out;
     }
-    if (std.mem.eql(u8, call.name, "exclude")) {
+    if (tag == .exclude) {
         if (call.args.len != 1) return error.InvalidFunction;
         var other = try evalCollectionArg(ctx, call.args[0], env);
         defer other.deinit(ctx.allocator);
@@ -5671,7 +5700,7 @@ fn evalFunction(
     // If expr is provided, variable holds the evaluated result
     // If expr is omitted, variable holds the input collection
     // Returns the input collection unchanged (pass-through semantics)
-    if (std.mem.eql(u8, call.name, "defineVariable")) {
+    if (tag == .defineVariable) {
         if (call.args.len < 1 or call.args.len > 2) return error.InvalidFunction;
 
         // First arg must be a string literal (variable name)
@@ -5712,7 +5741,7 @@ fn evalFunction(
         return out;
     }
     // encode(format: String) - Encodes string in hex, base64, or urlbase64 format
-    if (std.mem.eql(u8, call.name, "encode")) {
+    if (tag == .encode) {
         if (call.args.len != 1) return error.InvalidFunction;
         if (input.len == 0) return ItemList.empty;
         if (input.len > 1) return error.SingletonRequired;
@@ -5780,7 +5809,7 @@ fn evalFunction(
         return out;
     }
     // decode(format: String) - Decodes string from hex, base64, or urlbase64 format
-    if (std.mem.eql(u8, call.name, "decode")) {
+    if (tag == .decode) {
         if (call.args.len != 1) return error.InvalidFunction;
         if (input.len == 0) return ItemList.empty;
         if (input.len > 1) return error.SingletonRequired;
@@ -5835,7 +5864,7 @@ fn evalFunction(
         return out;
     }
     // escape(target: String) - Escapes string for html or json
-    if (std.mem.eql(u8, call.name, "escape")) {
+    if (tag == .escape) {
         if (call.args.len != 1) return error.InvalidFunction;
         if (input.len == 0) return ItemList.empty;
         if (input.len > 1) return error.SingletonRequired;
@@ -5890,7 +5919,7 @@ fn evalFunction(
         return out;
     }
     // unescape(target: String) - Unescapes string from html or json
-    if (std.mem.eql(u8, call.name, "unescape")) {
+    if (tag == .unescape) {
         if (call.args.len != 1) return error.InvalidFunction;
         if (input.len == 0) return ItemList.empty;
         if (input.len > 1) return error.SingletonRequired;
@@ -6001,7 +6030,7 @@ fn evalFunction(
     }
     // trace(name: String [, projection: Expression]) - debugging function that returns input unchanged
     // The name and optional projection are for logging; the function always returns its input.
-    if (std.mem.eql(u8, call.name, "trace")) {
+    if (tag == .trace) {
         if (call.args.len < 1 or call.args.len > 2) return error.InvalidFunction;
         // Note: We don't actually log anything - that's implementation-defined.
         // The key behavior is that trace() returns its input unchanged.

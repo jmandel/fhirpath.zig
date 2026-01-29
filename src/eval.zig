@@ -56,8 +56,7 @@ pub const EvalResult = struct {
 
     /// Get the resolved std.json.Value for a node_ref item.
     pub fn nodeValue(self: *const EvalResult, it: item.Item) ?std.json.Value {
-        if (it.data_kind != .node_ref or it.node == null) return null;
-        const idx = it.node.?;
+        const idx = it.node orelse return null;
         if (idx >= self.node_values.items.len) return null;
         return self.node_values.items[idx];
     }
@@ -121,6 +120,16 @@ pub fn resolveResult(
             }
             // Always update node to resolved index (for objects/arrays that stay as node_ref)
             it.node = idx;
+        }
+        // Serialize value items (TypeInfo, Quantity, etc.) into node_values
+        // so the WASM layer can read them via the generic node JSON path.
+        if (it.data_kind == .value and it.value != null and it.node == null) {
+            const jv = convert.valueToJsonValue(arena_alloc, it.value.?) catch null;
+            if (jv) |v| {
+                const idx = node_values.items.len;
+                try node_values.append(arena_alloc, v);
+                it.node = idx;
+            }
         }
     }
     return .{

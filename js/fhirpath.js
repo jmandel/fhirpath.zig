@@ -357,7 +357,7 @@ export class FhirPathNode {
       return this._data;
     }
     if (kind === DataKind.value) {
-      this._data = this.engine._decodeValue(this.item);
+      this._data = this.engine._decodeValue(this.item) ?? this.engine._readNodeJson(this.item);
       return this._data;
     }
     this._data = null;

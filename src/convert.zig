@@ -2,7 +2,7 @@ const std = @import("std");
 const node_mod = @import("node.zig");
 const item = @import("item.zig");
 
-fn valueToJson(allocator: std.mem.Allocator, v: item.Value) !std.json.Value {
+pub fn valueToJsonValue(allocator: std.mem.Allocator, v: item.Value) !std.json.Value {
     return switch (v) {
         .empty => std.json.Value{ .null = {} },
         .boolean => |b| std.json.Value{ .bool = b },
@@ -50,7 +50,7 @@ pub fn adapterItemToJsonValue(
     it: item.Item,
 ) !std.json.Value {
     if (it.data_kind == .value and it.value != null) {
-        return valueToJson(allocator, it.value.?);
+        return valueToJsonValue(allocator, it.value.?);
     }
     if (it.data_kind == .node_ref and it.node != null) {
         return adapterNodeToJsonValue(A, allocator, adapter, it.node.?);

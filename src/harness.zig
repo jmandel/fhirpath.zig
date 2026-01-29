@@ -2,8 +2,7 @@ const std = @import("std");
 const lib = @import("lib.zig");
 const eval = @import("eval.zig");
 const ast = @import("ast.zig");
-const StdJsonAdapter = @import("backends/stdjson.zig").StdJsonAdapter;
-const FhirJsonAdapter = @import("backends/fhirjson.zig").FhirJsonAdapter;
+const JsonAdapter = @import("backends/json_adapter.zig").JsonAdapter;
 const item = @import("item.zig");
 const convert = @import("convert.zig");
 const schema = @import("schema.zig");
@@ -485,11 +484,11 @@ fn runTestFile(
             defer fhir_arena.deinit();
             const arena_alloc = fhir_arena.allocator();
 
-            var fhir_adapter = FhirJsonAdapter.init(arena_alloc, &std_parsed.value);
+            var fhir_adapter = JsonAdapter.init(arena_alloc, &std_parsed.value, .fhir_json);
             fhir_adapter.schema = schema_ptr;
             defer fhir_adapter.deinit();
 
-            var fhir_ctx = eval.EvalContext(FhirJsonAdapter){
+            var fhir_ctx = eval.EvalContext(JsonAdapter){
                 .allocator = arena_alloc,
                 .adapter = &fhir_adapter,
                 .types = &types,
@@ -527,7 +526,7 @@ fn runTestFile(
                 }
             }
 
-            var actual_values = try fhirItemsToJsonArray(allocator, &fhir_adapter, fhir_eval_result.items, &types, schema_ptr);
+            var actual_values = try itemsToJsonArray(allocator, &fhir_adapter, fhir_eval_result.items, &types, schema_ptr);
             defer actual_values.deinit(allocator);
 
             const unordered = if (obj.get("unordered")) |uv| uv == .bool and uv.bool else false;
@@ -594,19 +593,21 @@ fn runTestFile(
                 continue;
             };
 
-            var adapter = StdJsonAdapter.init(arena_alloc);
+            var adapter = JsonAdapter.init(arena_alloc, &std_parsed, .generic_json);
+            adapter.schema = schema_ptr;
+            defer adapter.deinit();
 
             // Extract root and build env map if we have env values
-            const root_ref: StdJsonAdapter.NodeRef = if (env_val != null)
-                adapter.objectGet(&std_parsed, "__input") orelse &std_parsed
+            const root_ref: JsonAdapter.NodeRef = if (env_val != null)
+                adapter.objectGet(adapter.root(), "__input") orelse adapter.root()
             else
-                &std_parsed;
+                adapter.root();
 
             var env_map = eval.Env.init(arena_alloc);
             var env_ptr: ?*eval.Env = null;
 
             if (env_val != null) {
-                if (adapter.objectGet(&std_parsed, "__env")) |env_ref| {
+                if (adapter.objectGet(adapter.root(), "__env")) |env_ref| {
                     if (adapter.kind(env_ref) == .object) {
                         var iter = adapter.objectIter(env_ref);
                         while (iter.next()) |entry| {
@@ -620,7 +621,7 @@ fn runTestFile(
                 }
             }
 
-            var ctx = eval.EvalContext(StdJsonAdapter){
+            var ctx = eval.EvalContext(JsonAdapter){
                 .allocator = arena_alloc,
                 .adapter = &adapter,
                 .types = &types,
@@ -658,7 +659,7 @@ fn runTestFile(
                 }
             }
 
-            var actual_values = try stdItemsToJsonArray(allocator, &adapter, eval_result.items, &types, schema_ptr);
+            var actual_values = try itemsToJsonArray(allocator, &adapter, eval_result.items, &types, schema_ptr);
             defer actual_values.deinit(allocator);
 
             const unordered = if (obj.get("unordered")) |uv| uv == .bool and uv.bool else false;
@@ -730,9 +731,9 @@ fn addFailure(
     });
 }
 
-fn stdItemsToJsonArray(
+fn itemsToJsonArray(
     allocator: std.mem.Allocator,
-    adapter: *StdJsonAdapter,
+    adapter: *JsonAdapter,
     items: []const item.Item,
     types: *item.TypeTable,
     schema_ptr: ?*schema.Schema,
@@ -740,35 +741,22 @@ fn stdItemsToJsonArray(
     var out = std.ArrayList(std.json.Value).empty;
     for (items) |it| {
         var type_name: []const u8 = "";
-        if (schema.isModelType(it.type_id)) {
+        if (adapter.flavor == .fhir_json) {
             if (schema_ptr) |s| {
-                type_name = s.typeName(it.type_id);
+                type_name = s.outputTypeName(it.type_id);
+            } else if (!schema.isModelType(it.type_id)) {
+                type_name = types.name(it.type_id);
             }
         } else {
-            type_name = types.name(it.type_id);
+            if (schema.isModelType(it.type_id)) {
+                if (schema_ptr) |s| {
+                    type_name = s.typeName(it.type_id);
+                }
+            } else {
+                type_name = types.name(it.type_id);
+            }
         }
-        const val = try convert.adapterItemToTypedJsonValue(StdJsonAdapter, allocator, adapter, it, type_name);
-        try out.append(allocator, val);
-    }
-    return out;
-}
-
-fn fhirItemsToJsonArray(
-    allocator: std.mem.Allocator,
-    adapter: *FhirJsonAdapter,
-    items: []const item.Item,
-    types: *item.TypeTable,
-    schema_ptr: ?*schema.Schema,
-) !std.ArrayList(std.json.Value) {
-    var out = std.ArrayList(std.json.Value).empty;
-    for (items) |it| {
-        var type_name: []const u8 = "";
-        if (schema_ptr) |s| {
-            type_name = s.outputTypeName(it.type_id);
-        } else if (!schema.isModelType(it.type_id)) {
-            type_name = types.name(it.type_id);
-        }
-        const val = try convert.adapterItemToTypedJsonValue(FhirJsonAdapter, allocator, adapter, it, type_name);
+        const val = try convert.adapterItemToTypedJsonValue(JsonAdapter, allocator, adapter, it, type_name);
         try out.append(allocator, val);
     }
     return out;
@@ -910,14 +898,14 @@ fn deinitValue(allocator: std.mem.Allocator, v: std.json.Value) void {
     }
 }
 
-fn makeEnvItem(_: *StdJsonAdapter, ref: StdJsonAdapter.NodeRef) item.Item {
+fn makeEnvItem(_: *JsonAdapter, ref: JsonAdapter.NodeRef) item.Item {
     return .{
         .data_kind = .node_ref,
         .value_kind = .empty,
         .type_id = 0,
         .source_pos = 0,
         .source_end = 0,
-        .node = @intFromPtr(ref),
+        .node = ref,
         .value = null,
     };
 }

@@ -4,7 +4,7 @@ const node = @import("node.zig");
 const item = @import("item.zig");
 const schema = @import("schema.zig");
 const regex = @import("regex.zig");
-const StdJsonAdapter = @import("backends/stdjson.zig").StdJsonAdapter;
+const JsonAdapter = @import("backends/json_adapter.zig").JsonAdapter;
 
 pub const ItemList = std.ArrayList(item.Item);
 
@@ -74,17 +74,20 @@ pub fn evalWithJson(
     var arena = std.heap.ArenaAllocator.init(allocator);
     errdefer arena.deinit();
     const arena_alloc = arena.allocator();
-    const parsed = try std.json.parseFromSliceLeaky(std.json.Value, arena_alloc, json_text, .{ .parse_numbers = false });
-    var adapter = StdJsonAdapter.init(arena_alloc);
-    var ctx = EvalContext(StdJsonAdapter){
+    const root_val = try arena_alloc.create(std.json.Value);
+    root_val.* = try std.json.parseFromSliceLeaky(std.json.Value, arena_alloc, json_text, .{ .parse_numbers = false });
+    const flavor: JsonAdapter.Flavor = if (schema_ptr != null) .fhir_json else .generic_json;
+    var adapter = JsonAdapter.init(arena_alloc, root_val, flavor);
+    adapter.schema = schema_ptr;
+    var ctx = EvalContext(JsonAdapter){
         .allocator = arena_alloc,
         .adapter = &adapter,
         .types = types,
         .schema = schema_ptr,
         .timestamp = std.time.timestamp(),
     };
-    const items = try evalExpression(&ctx, expr, &parsed, env);
-    return resolveResult(StdJsonAdapter, &adapter, items, &arena);
+    const items = try evalExpression(&ctx, expr, adapter.root(), env);
+    return resolveResult(JsonAdapter, &adapter, items, &arena);
 }
 
 /// Resolve adapter-specific node_ref items to adapter-independent std.json.Value entries,
@@ -104,7 +107,7 @@ pub fn resolveResult(
 
     for (items.items) |*it| {
         if (it.data_kind == .node_ref and it.node != null) {
-            const ref = convert.adapterNodeRefFromRaw(A, it.node.?);
+            const ref = it.node.?;
             const jv = try convert.adapterNodeToJsonValue(A, arena_alloc, adapter, ref);
             const idx = node_values.items.len;
             try node_values.append(arena_alloc, jv);
@@ -137,21 +140,8 @@ pub fn evalExpression(
     return evalExpressionCtx(ctx, expr, root_item, env, null);
 }
 
-fn rawFromNodeRef(comptime A: type, ref: A.NodeRef) usize {
-    return switch (@typeInfo(A.NodeRef)) {
-        .pointer => @intFromPtr(ref),
-        .int, .comptime_int => @intCast(ref),
-        else => @compileError("NodeRef must be pointer or integer"),
-    };
-}
-
-fn nodeRefFromRaw(comptime A: type, raw: usize) A.NodeRef {
-    return switch (@typeInfo(A.NodeRef)) {
-        .pointer => @ptrFromInt(raw),
-        .int, .comptime_int => @intCast(raw),
-        else => @compileError("NodeRef must be pointer or integer"),
-    };
-}
+// NodeRef = NodeHandle = usize, same as Item.node storage type.
+// No conversion needed — use directly.
 
 fn evalExpressionCtx(
     ctx: anytype,
@@ -297,7 +287,7 @@ fn applySegment(
 
     if (it.node == null) return;
     const A = @TypeOf(ctx.adapter.*);
-    const ref = nodeRefFromRaw(A, it.node.?);
+    const ref = it.node.?;
     var child_type_id: u32 = 0;
     if (ctx.schema) |s| {
         if (schema.isModelType(it.type_id)) {
@@ -1162,8 +1152,8 @@ fn itemsEquivalent(ctx: anytype, a: item.Item, b: item.Item) bool {
     const b_is_node = b.data_kind == .node_ref and b.node != null;
 
     if (a_is_node and b_is_node) {
-        const a_ref = nodeRefFromRaw(A, a.node.?);
-        const b_ref = nodeRefFromRaw(A, b.node.?);
+        const a_ref = a.node.?;
+        const b_ref = b.node.?;
         const kind_a = A.kind(ctx.adapter, a_ref);
         const kind_b = A.kind(ctx.adapter, b_ref);
         if (kind_a == .array or kind_a == .object or kind_b == .array or kind_b == .object) {
@@ -1176,12 +1166,12 @@ fn itemsEquivalent(ctx: anytype, a: item.Item, b: item.Item) bool {
 
     if (a_is_node or b_is_node) {
         if (a_is_node) {
-            const a_ref = nodeRefFromRaw(A, a.node.?);
+            const a_ref = a.node.?;
             const kind_a = A.kind(ctx.adapter, a_ref);
             if (kind_a == .array or kind_a == .object) return false;
         }
         if (b_is_node) {
-            const b_ref = nodeRefFromRaw(A, b.node.?);
+            const b_ref = b.node.?;
             const kind_b = A.kind(ctx.adapter, b_ref);
             if (kind_b == .array or kind_b == .object) return false;
         }
@@ -3150,7 +3140,7 @@ fn itemIsTypeImpl(ctx: anytype, it: item.Item, type_name: []const u8, allow_impl
     // For node-backed values without a model type, check the underlying JSON type
     if (it.data_kind == .node_ref and it.node != null) {
         const A = @TypeOf(ctx.adapter.*);
-        const ref = nodeRefFromRaw(A, it.node.?);
+        const ref = it.node.?;
         return switch (A.kind(ctx.adapter, ref)) {
             .bool => std.mem.eql(u8, normalized, "Boolean"),
             .number => std.mem.eql(u8, normalized, "Integer") or std.mem.eql(u8, normalized, "Decimal"),
@@ -3780,9 +3770,7 @@ fn evalFunction(
         const actual_type: ?[]const u8 = blk: {
             // Check for resourceType in node-backed items
             if (it.data_kind == .node_ref and it.node != null) {
-                const A = @TypeOf(ctx.adapter.*);
-                const ref = nodeRefFromRaw(A, it.node.?);
-                break :blk resourceTypeName(ctx, ref);
+                break :blk resourceTypeName(ctx, it.node.?);
             }
             // For type_id based items, try to get the FHIR type name
             if (it.type_id != 0 and schema.isModelType(it.type_id)) {
@@ -4197,7 +4185,7 @@ fn evalFunction(
         for (input) |it| {
             // Only node_ref items can have children
             if (it.data_kind != .node_ref or it.node == null) continue;
-            const ref = nodeRefFromRaw(A, it.node.?);
+            const ref = it.node.?;
             const k = A.kind(ctx.adapter, ref);
 
             switch (k) {
@@ -4264,7 +4252,7 @@ fn evalFunction(
             const it = queue.items[idx];
             // Only node_ref items can have children
             if (it.data_kind != .node_ref or it.node == null) continue;
-            const ref = nodeRefFromRaw(A, it.node.?);
+            const ref = it.node.?;
             const k = A.kind(ctx.adapter, ref);
 
             switch (k) {
@@ -6158,10 +6146,7 @@ fn itemsEqualTriState(ctx: anytype, a: item.Item, b: item.Item) ?bool {
         return valueEqualTriState(a.value.?, b.value.?);
     }
     if (a.data_kind == .node_ref and b.data_kind == .node_ref and a.node != null and b.node != null) {
-        const A = @TypeOf(ctx.adapter.*);
-        const a_ref = nodeRefFromRaw(A, a.node.?);
-        const b_ref = nodeRefFromRaw(A, b.node.?);
-        return nodeEqual(ctx, a_ref, b_ref);
+        return nodeEqual(ctx, a.node.?, b.node.?);
     }
     return valueEqualTriState(va, vb);
 }
@@ -6230,7 +6215,7 @@ fn valueToNumber(v: item.Value) ?f64 {
 
 fn nodeEqual(ctx: anytype, a_ref: @TypeOf(ctx.adapter.*).NodeRef, b_ref: @TypeOf(ctx.adapter.*).NodeRef) bool {
     const A = @TypeOf(ctx.adapter.*);
-    if (rawFromNodeRef(A, a_ref) == rawFromNodeRef(A, b_ref)) return true;
+    if (a_ref == b_ref) return true;
     const kind_a = A.kind(ctx.adapter, a_ref);
     const kind_b = A.kind(ctx.adapter, b_ref);
     if (kind_a != kind_b) {
@@ -6324,7 +6309,7 @@ fn makeNodeItem(ctx: anytype, node_ref: @TypeOf(ctx.adapter.*).NodeRef, type_id_
         .type_id = type_id,
         .source_pos = source_pos,
         .source_end = source_end,
-        .node = rawFromNodeRef(A, node_ref),
+        .node = node_ref,
         .value = null,
     };
 }
@@ -6535,7 +6520,7 @@ fn getTypeInfoForItem(ctx: anytype, it: item.Item) struct { namespace: []const u
     // For node-backed items without type_id, infer from JSON type
     if (it.data_kind == .node_ref and it.node != null) {
         const A = @TypeOf(ctx.adapter.*);
-        const ref = nodeRefFromRaw(A, it.node.?);
+        const ref = it.node.?;
         return switch (A.kind(ctx.adapter, ref)) {
             .bool => .{ .namespace = "System", .name = "Boolean" },
             .number => blk: {
@@ -6559,7 +6544,7 @@ fn itemIsBool(ctx: anytype, it: item.Item) bool {
     if (it.data_kind == .value and it.value != null and it.value.? == .boolean) return true;
     if (it.data_kind == .node_ref and it.node != null) {
         const A = @TypeOf(ctx.adapter.*);
-        const ref = nodeRefFromRaw(A, it.node.?);
+        const ref = it.node.?;
         return A.kind(ctx.adapter, ref) == .bool;
     }
     return false;
@@ -6569,7 +6554,7 @@ fn itemBoolValue(ctx: anytype, it: item.Item) bool {
     if (it.data_kind == .value and it.value != null and it.value.? == .boolean) return it.value.?.boolean;
     if (it.data_kind == .node_ref and it.node != null) {
         const A = @TypeOf(ctx.adapter.*);
-        const ref = nodeRefFromRaw(A, it.node.?);
+        const ref = it.node.?;
         return A.boolean(ctx.adapter, ref);
     }
     return false;
@@ -6579,7 +6564,7 @@ fn itemToValue(ctx: anytype, it: item.Item) item.Value {
     if (it.data_kind == .value and it.value != null) return it.value.?;
     if (it.data_kind == .node_ref and it.node != null) {
         const A = @TypeOf(ctx.adapter.*);
-        const ref = nodeRefFromRaw(A, it.node.?);
+        const ref = it.node.?;
         return A.toValue(ctx.adapter, ref, it.type_id);
     }
     return .{ .empty = {} };

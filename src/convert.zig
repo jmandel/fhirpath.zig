@@ -53,8 +53,7 @@ pub fn adapterItemToJsonValue(
         return valueToJson(allocator, it.value.?);
     }
     if (it.data_kind == .node_ref and it.node != null) {
-        const ref = adapterNodeRefFromRaw(A, it.node.?);
-        return adapterNodeToJsonValue(A, allocator, adapter, ref);
+        return adapterNodeToJsonValue(A, allocator, adapter, it.node.?);
     }
     return std.json.Value{ .null = {} };
 }
@@ -72,15 +71,6 @@ pub fn adapterItemToTypedJsonValue(
     const val = try adapterItemToJsonValue(A, allocator, adapter, it);
     try obj.put("value", val);
     return .{ .object = obj };
-}
-
-/// Reconstruct adapter NodeRef from stored usize (mirrors eval.nodeRefFromRaw)
-pub fn adapterNodeRefFromRaw(comptime A: type, raw: usize) A.NodeRef {
-    return switch (@typeInfo(A.NodeRef)) {
-        .pointer => @ptrFromInt(raw),
-        .int, .comptime_int => @intCast(raw),
-        else => @compileError("NodeRef must be pointer or integer"),
-    };
 }
 
 /// Convert an adapter node to std.json.Value by traversing via adapter methods

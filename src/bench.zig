@@ -1,7 +1,7 @@
-//! Performance benchmarks for StdJsonAdapter navigation patterns
+//! Performance benchmarks for JsonAdapter navigation patterns
 const std = @import("std");
 const node = @import("node.zig");
-const StdJsonAdapter = @import("backends/stdjson.zig").StdJsonAdapter;
+const JsonAdapter = @import("backends/json_adapter.zig").JsonAdapter;
 
 // Prevent the optimizer from eliminating benchmark code
 var sink: usize = 0;
@@ -102,7 +102,7 @@ fn generateBundle(allocator: std.mem.Allocator, num_entries: usize) ![]const u8 
 // Benchmark Functions
 // ============================================================================
 
-fn runSimpleNested(adapter: *StdJsonAdapter, root: StdJsonAdapter.NodeRef) void {
+fn runSimpleNested(adapter: *JsonAdapter, root: JsonAdapter.NodeRef) void {
     if (adapter.objectGet(root, "code")) |code_ref| {
         if (adapter.objectGet(code_ref, "coding")) |coding| {
             if (adapter.kind(coding) == .array and adapter.arrayLen(coding) > 0) {
@@ -115,7 +115,7 @@ fn runSimpleNested(adapter: *StdJsonAdapter, root: StdJsonAdapter.NodeRef) void 
     }
 }
 
-fn runArrayTraversal(adapter: *StdJsonAdapter, root: StdJsonAdapter.NodeRef) void {
+fn runArrayTraversal(adapter: *JsonAdapter, root: JsonAdapter.NodeRef) void {
     if (adapter.objectGet(root, "name")) |names| {
         if (adapter.kind(names) == .array) {
             for (0..adapter.arrayLen(names)) |i| {
@@ -133,7 +133,7 @@ fn runArrayTraversal(adapter: *StdJsonAdapter, root: StdJsonAdapter.NodeRef) voi
     }
 }
 
-fn runDeepComponent(adapter: *StdJsonAdapter, root: StdJsonAdapter.NodeRef) void {
+fn runDeepComponent(adapter: *JsonAdapter, root: JsonAdapter.NodeRef) void {
     if (adapter.objectGet(root, "component")) |components| {
         if (adapter.kind(components) == .array) {
             for (0..adapter.arrayLen(components)) |i| {
@@ -153,7 +153,7 @@ fn runDeepComponent(adapter: *StdJsonAdapter, root: StdJsonAdapter.NodeRef) void
     }
 }
 
-fn runWhereFilter(adapter: *StdJsonAdapter, root: StdJsonAdapter.NodeRef) void {
+fn runWhereFilter(adapter: *JsonAdapter, root: JsonAdapter.NodeRef) void {
     if (adapter.objectGet(root, "identifier")) |ids| {
         if (adapter.kind(ids) == .array) {
             for (0..adapter.arrayLen(ids)) |i| {
@@ -170,7 +170,7 @@ fn runWhereFilter(adapter: *StdJsonAdapter, root: StdJsonAdapter.NodeRef) void {
     }
 }
 
-fn runBundleTraversal(adapter: *StdJsonAdapter, root: StdJsonAdapter.NodeRef) void {
+fn runBundleTraversal(adapter: *JsonAdapter, root: JsonAdapter.NodeRef) void {
     if (adapter.objectGet(root, "entry")) |entries| {
         if (adapter.kind(entries) == .array) {
             for (0..adapter.arrayLen(entries)) |i| {
@@ -196,7 +196,7 @@ fn runBundleTraversal(adapter: *StdJsonAdapter, root: StdJsonAdapter.NodeRef) vo
     }
 }
 
-fn runCount(adapter: *StdJsonAdapter, root: StdJsonAdapter.NodeRef) void {
+fn runCount(adapter: *JsonAdapter, root: JsonAdapter.NodeRef) void {
     var count: usize = 0;
     if (adapter.objectGet(root, "name")) |names| {
         if (adapter.kind(names) == .array) {
@@ -213,7 +213,7 @@ fn runCount(adapter: *StdJsonAdapter, root: StdJsonAdapter.NodeRef) void {
     doNotOptimize(count);
 }
 
-fn benchNavOnly(comptime runFn: anytype, adapter: *StdJsonAdapter, root: StdJsonAdapter.NodeRef, iterations: usize) u64 {
+fn benchNavOnly(comptime runFn: anytype, adapter: *JsonAdapter, root: JsonAdapter.NodeRef, iterations: usize) u64 {
     const start = std.time.nanoTimestamp();
     for (0..iterations) |_| {
         runFn(adapter, root);
@@ -226,8 +226,8 @@ fn benchParseEach(comptime runFn: anytype, allocator: std.mem.Allocator, json_te
     for (0..iterations) |_| {
         const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_text, .{ .parse_numbers = false });
         defer parsed.deinit();
-        var adapter = StdJsonAdapter.init(allocator);
-        runFn(&adapter, &parsed.value);
+        var adapter = JsonAdapter.init(allocator, &parsed.value, .generic_json);
+        runFn(&adapter, adapter.root());
     }
     return @intCast(@as(i64, @intCast(std.time.nanoTimestamp())) - @as(i64, @intCast(start)));
 }
@@ -292,7 +292,7 @@ pub fn main() !void {
 
     std.debug.print("\n", .{});
     std.debug.print("=" ** 70 ++ "\n", .{});
-    std.debug.print("StdJsonAdapter Performance Benchmark\n", .{});
+    std.debug.print("JsonAdapter Performance Benchmark\n", .{});
     std.debug.print("=" ** 70 ++ "\n\n", .{});
 
     const bundle_json = try generateBundle(allocator, bundle_size);
@@ -318,22 +318,22 @@ pub fn main() !void {
     } else {
         const patient_parsed = try std.json.parseFromSlice(std.json.Value, allocator, PATIENT_JSON, .{ .parse_numbers = false });
         defer patient_parsed.deinit();
-        var patient_adapter = StdJsonAdapter.init(allocator);
+        var patient_adapter = JsonAdapter.init(allocator, &patient_parsed.value, .generic_json);
 
         const obs_parsed = try std.json.parseFromSlice(std.json.Value, allocator, OBSERVATION_JSON, .{ .parse_numbers = false });
         defer obs_parsed.deinit();
-        var obs_adapter = StdJsonAdapter.init(allocator);
+        var obs_adapter = JsonAdapter.init(allocator, &obs_parsed.value, .generic_json);
 
         const bundle_parsed = try std.json.parseFromSlice(std.json.Value, allocator, bundle_json, .{ .parse_numbers = false });
         defer bundle_parsed.deinit();
-        var bundle_adapter = StdJsonAdapter.init(allocator);
+        var bundle_adapter = JsonAdapter.init(allocator, &bundle_parsed.value, .generic_json);
 
-        printResult("code.coding.code (Observation)", benchNavOnly(runSimpleNested, &obs_adapter, &obs_parsed.value, iterations), iterations);
-        printResult("name.given (Patient)", benchNavOnly(runArrayTraversal, &patient_adapter, &patient_parsed.value, iterations), iterations);
-        printResult("component.code.coding.code (Obs)", benchNavOnly(runDeepComponent, &obs_adapter, &obs_parsed.value, iterations), iterations);
-        printResult("identifier.where(sys=X).value (Pt)", benchNavOnly(runWhereFilter, &patient_adapter, &patient_parsed.value, iterations), iterations);
-        printResult("name.given.count() (Patient)", benchNavOnly(runCount, &patient_adapter, &patient_parsed.value, iterations), iterations);
-        printResult("Bundle filter+traverse (100 entries)", benchNavOnly(runBundleTraversal, &bundle_adapter, &bundle_parsed.value, bundle_iters), bundle_iters);
+        printResult("code.coding.code (Observation)", benchNavOnly(runSimpleNested, &obs_adapter, obs_adapter.root(), iterations), iterations);
+        printResult("name.given (Patient)", benchNavOnly(runArrayTraversal, &patient_adapter, patient_adapter.root(), iterations), iterations);
+        printResult("component.code.coding.code (Obs)", benchNavOnly(runDeepComponent, &obs_adapter, obs_adapter.root(), iterations), iterations);
+        printResult("identifier.where(sys=X).value (Pt)", benchNavOnly(runWhereFilter, &patient_adapter, patient_adapter.root(), iterations), iterations);
+        printResult("name.given.count() (Patient)", benchNavOnly(runCount, &patient_adapter, patient_adapter.root(), iterations), iterations);
+        printResult("Bundle filter+traverse (100 entries)", benchNavOnly(runBundleTraversal, &bundle_adapter, bundle_adapter.root(), bundle_iters), bundle_iters);
     }
 
     std.debug.print("\nSink: {d} (prevents optimization)\n", .{sink});

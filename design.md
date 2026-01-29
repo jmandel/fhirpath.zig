@@ -520,6 +520,568 @@ Input-backed node:
 
 ---
 
+## Result Model: Adapter-Retained Results
+
+### Problem
+
+The current result flow has a mismatch between the WASM ABI (designed for
+lazy, adapter-mediated access) and the native Zig API (which eagerly
+materializes everything and drops the adapter):
+
+```
+evalExpression()             // returns ItemList with live adapter node_refs
+    ↓
+resolveResult()              // converts ALL node_refs to std.json.Value,
+                             // drops adapter, returns adapter-independent EvalResult
+    ↓
+EvalResult { items, node_values, arena }   // adapter is gone
+```
+
+This causes two problems:
+
+1. **Eager materialization waste**: Every node_ref is converted to
+   `std.json.Value` even if the caller never inspects it. For a query
+   returning 500 nodes where you inspect 3, you paid for all 500.
+
+2. **Lost navigation capability**: After `resolveResult()`, the adapter is
+   gone. You can't navigate into a result node's children, access FHIR
+   extensions on a primitive, or call `toValue()` to get a type-aware
+   system primitive. The rich adapter interface is only available during
+   eval, not after.
+
+In practice, CLI and harness work around this by calling `evalExpression()`
+directly and keeping the adapter alive alongside the raw item list. But
+there's no structured API for this — each consumer manually threads the
+adapter through conversion functions.
+
+### Design: `LiveResult(A)`
+
+Keep the adapter alive in the result. Materialization happens when (and if)
+the caller asks for it.
+
+```zig
+pub fn LiveResult(comptime A: type) type {
+    return struct {
+        items: []const item.Item,
+        adapter: *A,
+        types: *item.TypeTable,
+        schema: ?*schema.Schema,
+        arena: std.heap.ArenaAllocator,
+
+        const Self = @This();
+
+        /// Number of result items.
+        pub fn count(self: *const Self) usize {
+            return self.items.len;
+        }
+
+        /// Get the system-typed Value for item i.
+        /// Calls adapter.toValue() for node_ref items; returns stored value
+        /// for value items. Lazy — no work until called.
+        pub fn value(self: *const Self, i: usize) item.Value {
+            const it = self.items[i];
+            if (it.data_kind == .value) return it.value orelse .{ .empty = {} };
+            if (it.data_kind == .node_ref) {
+                const ref = nodeRefFromRaw(A, it.node.?);
+                return A.toValue(self.adapter, ref, it.type_id);
+            }
+            return .{ .empty = {} };
+        }
+
+        /// Get the JSON kind of item i (object, array, string, number, bool, null).
+        pub fn kind(self: *const Self, i: usize) node.Kind {
+            const it = self.items[i];
+            if (it.data_kind != .node_ref) return .null;
+            const ref = nodeRefFromRaw(A, it.node.?);
+            return A.kind(self.adapter, ref);
+        }
+
+        /// Navigate into a node_ref item's child by key.
+        /// Returns a node handle or null. Only valid for object-kinded items.
+        pub fn objectGet(self: *const Self, i: usize, key: []const u8) ?A.NodeRef {
+            const it = self.items[i];
+            if (it.data_kind != .node_ref) return null;
+            const ref = nodeRefFromRaw(A, it.node.?);
+            return A.objectGet(self.adapter, ref, key);
+        }
+
+        /// Materialize item i to std.json.Value (full recursive conversion).
+        /// This is the expensive path — only call when you need the full JSON tree.
+        pub fn toJson(self: *const Self, alloc: Allocator, i: usize) !std.json.Value {
+            const it = self.items[i];
+            return convert.adapterItemToJsonValue(A, alloc, self.adapter, it);
+        }
+
+        /// Type name for item i (e.g., "System.String", "FHIR.Patient").
+        pub fn typeName(self: *const Self, i: usize) []const u8 {
+            const it = self.items[i];
+            if (self.schema) |s| {
+                if (schema.isModelType(it.type_id)) return s.typeName(it.type_id);
+            }
+            return self.types.name(it.type_id);
+        }
+
+        pub fn deinit(self: *Self) void {
+            self.arena.deinit();
+        }
+    };
+}
+```
+
+The adapter struct is moved into the arena at construction time, so the
+`LiveResult` is self-contained — `deinit()` frees everything (adapter,
+parsed JSON, items, arena).
+
+### Zig usage
+
+```zig
+// Evaluate and get a live result
+var result = try eval.evalLive(StdJsonAdapter, allocator, expr, json, &types, schema_ptr);
+defer result.deinit();
+
+for (0..result.count()) |i| {
+    const name = result.typeName(i);
+
+    // Lazy: only compute what you need
+    switch (result.kind(i)) {
+        .object => {
+            // Navigate into result node — adapter is still live
+            if (result.objectGet(i, "extension")) |ext_ref| {
+                // ... inspect extensions without full materialization
+            }
+            // Or materialize the whole thing when needed
+            const json_val = try result.toJson(allocator, i);
+        },
+        else => {
+            // Get the closest System primitive (date, string, integer, etc.)
+            const val = result.value(i);
+            // val is .date, .string, .integer, etc. — type-aware via adapter
+        },
+    }
+}
+```
+
+### WASM ABI: unchanged
+
+The WASM path continues to resolve results eagerly because the adapter
+cannot cross the WASM ABI boundary. The existing `resolveResult()` becomes
+a method on `LiveResult` that produces the adapter-independent form:
+
+```zig
+/// Detach from adapter, producing an adapter-independent result for WASM.
+/// Eagerly resolves all node_refs to std.json.Value.
+pub fn resolve(self: *Self) !EvalResult {
+    return resolveResult(A, self.adapter, self.items, &self.arena);
+}
+```
+
+WASM calls `evalLive()` → `resolve()` → stores `EvalResult` as before.
+No ABI changes.
+
+### JS wrapper: new navigation methods
+
+The WASM ABI gains a few new exports for node-level navigation. These let
+the JS wrapper expose sub-node access without materializing the full JSON
+tree:
+
+```zig
+// Navigate into a node_ref item's children (new ABI exports)
+export fn fhirpath_item_child_ptr(ctx: u32, item: u32, key_ptr: u32, key_len: u32) u32;
+export fn fhirpath_item_child_count(ctx: u32, item: u32) u32;
+export fn fhirpath_item_child_at(ctx: u32, item: u32, index: u32) u32;
+
+// Get item's system value kind (calls adapter.toValue under the hood)
+export fn fhirpath_item_system_value_kind(ctx: u32, item: u32) u32;
+```
+
+The JS wrapper adds optional navigation on result nodes:
+
+```js
+class FhirPathNode {
+  constructor(engine, handle) {
+    this.engine = engine;
+    this.handle = handle;
+    this._data = undefined;
+    this._meta = undefined;
+    this._value = undefined;
+  }
+
+  /** Type metadata (cheap — just reads item fields). */
+  get meta() {
+    if (this._meta) return this._meta;
+    const typeId = this.engine._itemTypeId(this.handle);
+    this._meta = {
+      typeId,
+      typeName: this.engine._typeNameFromId(typeId),
+      dataKind: this.engine._itemDataKind(this.handle),
+    };
+    return this._meta;
+  }
+
+  /**
+   * System-typed scalar value (lazy).
+   * Returns the closest System primitive: boolean, integer, decimal,
+   * string, date, dateTime, time, or quantity.
+   * For complex objects (Patient, HumanName), returns null — use .data instead.
+   */
+  get value() {
+    if (this._value !== undefined) return this._value;
+    const kind = this.engine._itemDataKind(this.handle);
+    if (kind === 2) { // DataKind.value — already a scalar
+      this._value = this.engine._decodeScalarValue(this.handle);
+    } else if (kind === 1) { // DataKind.node_ref
+      // Ask the engine to convert via adapter.toValue()
+      const sysKind = this.engine._itemSystemValueKind(this.handle);
+      if (sysKind !== 0) { // not empty — it's a primitive
+        this._value = this.engine._decodeScalarValue(this.handle);
+      } else {
+        this._value = null; // complex node, use .data
+      }
+    } else {
+      this._value = null;
+    }
+    return this._value;
+  }
+
+  /**
+   * Full JSON materialization (expensive, lazy).
+   * Parses the node_ref into a full JS object. Only pay this cost if you
+   * need the complete JSON tree (e.g., for display or serialization).
+   */
+  get data() {
+    if (this._data !== undefined) return this._data;
+    const kind = this.engine._itemDataKind(this.handle);
+    if (kind === 1) { // node_ref
+      const ptr = this.engine._itemDataPtr(this.handle);
+      const len = this.engine._itemDataLen(this.handle);
+      if (len === 0) { this._data = null; return null; }
+      const text = this.engine._decoder.decode(this.engine._mem.subarray(ptr, ptr + len));
+      this._data = JSON.parse(text);
+    } else if (kind === 2) { // value
+      this._data = this.engine._decodeScalarValue(this.handle);
+    } else {
+      this._data = null;
+    }
+    return this._data;
+  }
+
+  /**
+   * Navigate into a child field without materializing the full JSON tree.
+   * Returns a new FhirPathNode or null.
+   *
+   *   const ext = node.child("extension");  // no JSON.parse
+   *   if (ext) console.log(ext.child("url")?.value);
+   */
+  child(key) {
+    const keyBytes = this.engine._encoder.encode(key);
+    this.engine._writeBytes(keyBytes);
+    const childHandle = this.engine._itemChildPtr(this.handle, keyBytes);
+    if (childHandle === 0) return null;
+    return new FhirPathNode(this.engine, childHandle);
+  }
+
+  /**
+   * Number of child fields (for object nodes) or elements (for array nodes).
+   */
+  childCount() {
+    return this.engine._itemChildCount(this.handle);
+  }
+}
+```
+
+Usage from JS showing the three access tiers:
+
+```js
+const result = engine.eval({ expr: "Patient.birthDate", json: patientJson, schema: "r5" });
+
+for (const node of result) {
+  // Tier 1: metadata only (no materialization, ~free)
+  console.log(node.meta.typeName);  // "System.Date"
+
+  // Tier 2: system-typed value (adapter.toValue, cheap)
+  console.log(node.value);          // "1974-12-25" (as a date, not a string)
+
+  // Tier 3: navigate sub-structure (no full materialization)
+  const ext = node.child("extension");
+  if (ext) {
+    const url = ext.child(0)?.child("url");
+    console.log(url?.value);         // extension URL, still no JSON.parse
+  }
+
+  // Tier 4: full JSON materialization (expensive, only when needed)
+  console.log(node.data);           // full JS object via JSON.parse
+}
+```
+
+### What changes, what doesn't
+
+| Aspect | Before | After |
+|---|---|---|
+| **Zig native callers** | Call `evalExpression()` directly, manually keep adapter alive, no structured API | Call `evalLive()`, get `LiveResult(A)` with `.value()`, `.kind()`, `.objectGet()`, `.toJson()` |
+| **WASM ABI** | `resolveResult()` eagerly materializes, stores `EvalResult` | Same — `evalLive()` → `.resolve()` → `EvalResult`. New optional ABI exports for child navigation |
+| **JS wrapper `.data`** | Materializes full JSON on access | Unchanged (still lazy JSON.parse) |
+| **JS wrapper `.value`** | Same as `.data` | New: returns system-typed scalar via `toValue()`. Cheap for primitives. Null for complex objects |
+| **JS wrapper `.child()`** | Not available | New: navigate into node children without materializing full JSON |
+| **Memory** | Arena self-contained after resolve | Arena self-contained (adapter moved into arena). Same lifetime model |
+| **Performance** | O(n) eager resolve for all items | O(1) per item, pay only for what you access |
+
+### Costs
+
+1. **Comptime generic**: `LiveResult(A)` is parameterized on the adapter type.
+   Native Zig callers already know `A` at compile time, so this is
+   transparent. WASM resolves to adapter-independent `EvalResult` as before.
+
+2. **Adapter in arena**: The adapter struct is small (StdJsonAdapter is one
+   pointer + allocator; FhirJsonAdapter adds a node list). Moving it into
+   the arena is cheap. The underlying JSON data is already arena-owned.
+
+3. **New ABI exports (optional)**: `fhirpath_item_child_ptr`,
+   `fhirpath_item_child_count`, `fhirpath_item_child_at`,
+   `fhirpath_item_system_value_kind`. These are additive — existing ABI
+   is unchanged. JS wrapper gains `.value` and `.child()` but `.data`
+   and `.meta` work exactly as before.
+
+---
+
+## Node Model and Adapter Redesign
+
+This section describes the target architecture for adapters and node handling.
+It supersedes the current two-adapter approach described in "NodeAdapter Pattern"
+below, which documents the *current* implementation.
+
+### Diagnosis: current adapter complexity
+
+Today the system has two separate adapters with different `NodeRef` types:
+
+- `StdJsonAdapter.NodeRef = *const std.json.Value` (pointer)
+- `FhirJsonAdapter.NodeRef = u32` (index into internal node table)
+
+`Item.node` is `?usize`, so the system needs bridging helpers (`rawFromNodeRef`,
+`nodeRefFromRaw`, `adapterNodeRefFromRaw`) to convert between the generic
+storage and the adapter-specific handle. This cascades complexity:
+
+- Consumers must thread the adapter to interpret node refs.
+- Conversion logic is duplicated across CLI, harness, and WASM.
+- FHIR semantics are coupled into a separate adapter rather than being a
+  reusable view/flavor.
+- Output values (`item.Value`) are not nodes, so you can't traverse them
+  uniformly without materializing.
+
+### Design principle
+
+**Adapters expose nodes; the engine owns semantics.**
+
+Backends should not embed schema/type logic; views/flavors should not embed
+output formatting logic; and callers should never have to know whether
+something is a node or a value.
+
+### NodeHandle
+
+All backends expose a single node handle type:
+
+```zig
+pub const NodeHandle = usize;
+```
+
+Convention:
+
+- **Pointer-backed node** (e.g. `*const std.json.Value`): stored directly,
+  **LSB = 0** (guaranteed by alignment of normal allocations).
+- **Index-backed virtual/synthetic node**: stored as `(index << 1) | 1`,
+  **LSB = 1**.
+
+Helpers:
+
+```zig
+pub fn isIndex(h: NodeHandle) bool { return (h & 1) == 1; }
+pub fn toIndex(h: NodeHandle) usize { return h >> 1; }
+pub fn fromIndex(i: usize) NodeHandle { return (i << 1) | 1; }
+
+pub fn fromPtr(comptime T: type, p: *const T) NodeHandle { return @intFromPtr(p); }
+pub fn toPtr(comptime T: type, h: NodeHandle) *const T { return @ptrFromInt(h); }
+```
+
+Why this is the sweet spot:
+
+- Generic JSON stays pointer-fast (no wrapper allocation per property access).
+- FHIR-aware JSON creates virtual nodes only when needed (merged primitives).
+- XML can be pointer-backed too, with virtual nodes for array-of-children views.
+- Output values can be synthetic nodes without changing the handle type.
+
+### Backend vs. Flavor separation
+
+**Backend** = where data comes from:
+
+- JSON parsed to `std.json.Value` (pointer-backed)
+- Future: custom JSON DOM (index-backed, with spans)
+- Future: XML DOM (pointer-backed or index-backed)
+
+**Flavor/View** = how traversal behaves:
+
+- **Generic JSON**: plain object/array traversal, no hiding, no merging.
+- **FHIR JSON**: hide `_foo` keys, merge `foo` + `_foo` as logical
+  primitive, hide `resourceType` from iteration.
+- **FHIR XML** (future): map `<foo value="x"/>` into logical primitive,
+  surface `id`/`extension` semantics.
+- **Generic XML** (future): repeated child elements become arrays.
+
+Flavor is not a separate adapter type. It is configuration plus a small
+amount of virtual node logic within a single adapter implementation.
+
+### Adapter contract (updated)
+
+Required (structural + scalar):
+
+```zig
+pub const NodeRef = node.NodeHandle;
+
+pub fn root(self: *A) NodeRef;
+pub fn kind(self: *A, ref: NodeRef) Kind;
+pub fn objectGet(self: *A, ref: NodeRef, key: []const u8) ?NodeRef;
+pub fn objectIter(self: *A, ref: NodeRef) ObjectIter;
+pub fn objectCount(self: *A, ref: NodeRef) usize;
+pub fn arrayLen(self: *A, ref: NodeRef) usize;
+pub fn arrayAt(self: *A, ref: NodeRef, idx: usize) NodeRef;
+pub fn string(self: *A, ref: NodeRef) []const u8;
+pub fn numberText(self: *A, ref: NodeRef) []const u8;
+pub fn boolean(self: *A, ref: NodeRef) bool;
+```
+
+Optional capabilities (detected via `@hasDecl`):
+
+```zig
+pub fn span(self: *A, ref: NodeRef) ?Span;        // source positioning
+pub fn rawSlice(self: *A, ref: NodeRef) ?[]const u8; // exact JSON/XML slice
+pub fn stringify(self: *A, ref: NodeRef, alloc: Allocator) ![]const u8; // materialize on demand
+```
+
+**Removed from adapter**: `toValue()`. Type conversion is centralized in
+the engine (see "Centralized type conversion" below).
+
+### Centralized type conversion
+
+A shared module replaces per-adapter `toValue()`:
+
+```zig
+// src/value_resolver.zig
+pub fn nodeToValue(adapter: anytype, handle: NodeHandle, type_id: u32, schema: ?*Schema) item.Value;
+```
+
+This centralizes:
+
+- JSON-kind-based conversion (current `StdJsonAdapter.toValue` logic).
+- Schema-driven implicit system type mapping (current `FhirJsonAdapter.toValue`).
+- Quantity extraction (current `FhirJsonAdapter.extractQuantity`).
+
+The adapter no longer needs to know about schemas or type semantics.
+
+### Single node model for input AND output
+
+Every result item can be treated as a node:
+
+- If an item is node-backed, it already has a NodeHandle.
+- If an item is value-backed, create a **synthetic node** in the adapter's
+  virtual-node table and return a NodeHandle for it.
+
+Synthetic node types needed:
+
+- Scalar nodes: null/bool/number/string
+- Object nodes: `System.Quantity` → `{ value, unit }`,
+  `Reflection.TypeInfo` → `{ namespace, name }`
+
+This means `kind()`, `objectGet()`, `string()`, `numberText()`, etc. all
+work uniformly on any result item.
+
+### Unified JSON adapter
+
+One `JsonAdapter` with a flavor flag replaces both `StdJsonAdapter` and
+`FhirJsonAdapter`:
+
+```zig
+pub const Flavor = enum { generic_json, fhir_json };
+
+pub const JsonAdapter = struct {
+    flavor: Flavor,
+    virtual_nodes: ArrayListUnmanaged(VirtualNode),
+    // ...
+};
+```
+
+Node dispatch:
+
+- If `!isIndex(ref)`: treat as `*const std.json.Value`, direct pointer access.
+- If `isIndex(ref)`: read `virtual_nodes[toIndex(ref)]`, dispatch on variant.
+
+Virtual node union:
+
+```zig
+const VirtualNode = union(enum) {
+    // FHIR JSON view
+    merged_primitive: struct { value: ?NodeHandle, meta: ?NodeHandle },
+    merged_array: struct { values: NodeHandle, metas: ?NodeHandle },
+
+    // Synthetic output nodes
+    value_scalar: item.Value,
+    value_quantity: item.Quantity,
+    value_typeinfo: item.TypeInfo,
+};
+```
+
+Flavor switch: `objectGet()` and `objectIter()` behavior changes based on
+`.flavor`. Generic JSON does plain traversal; FHIR JSON hides `_foo` keys,
+merges split primitives, and hides `resourceType` from iteration.
+
+### How XML fits later
+
+XML adapters use the same virtual node overlay:
+
+- Underlying nodes: pointer handles to XML DOM nodes.
+- Virtual nodes:
+  - `child_list_array`: the N `<given>` children under `<name>`.
+  - `fhir_xml_primitive`: element whose value is in `value=""` attribute.
+  - Same synthetic output nodes as JSON.
+
+The virtual node mechanism generalizes naturally to any backend that needs
+to present a different shape than the underlying DOM provides.
+
+### Results in this model
+
+**LiveResult**: holds arena + adapter (with virtual-node table) + items.
+Exposes `count()`, `node(i)` (returns NodeHandle for both node_ref and
+value items), navigation, scalar access, lazy stringify. Value items become
+synthetic nodes automatically.
+
+**EvalResult (detached)**: obtained by `live.resolve()`. Materializes JSON
+values/text for ABI boundaries. This is a boundary operation, not the
+default semantics.
+
+### Implementation phases
+
+**Phase 1 — NodeHandle unification.**
+Introduce `NodeHandle` helpers. Require `A.NodeRef = NodeHandle` everywhere.
+Eliminate `rawFromNodeRef`, `nodeRefFromRaw`, `adapterNodeRefFromRaw`.
+
+**Phase 2 — Collapse to one JsonAdapter + flavor.**
+Create `JsonAdapter` with `Flavor` enum and `virtual_nodes` list. Pointer-
+backed nodes use direct `*const std.json.Value` access. Virtual nodes
+handle FHIR merging and synthetic output. Replace `StdJsonAdapter` with
+`JsonAdapter{ .flavor = .generic_json }` and `FhirJsonAdapter` with
+`JsonAdapter{ .flavor = .fhir_json }`.
+
+**Phase 3 — Centralize type conversion.**
+Create `value_resolver.zig`. Move `toValue()` logic out of adapters. Remove
+`toValue` from the adapter contract. Update all call sites.
+
+**Phase 4 — Single node model for output.**
+Add synthetic node variants to `VirtualNode`. Add `nodeFromValue()` to
+adapter. Add `itemNode()` helper so callers can treat everything as nodes.
+
+**Phase 5 — Prepare for XML.**
+Define virtual array view pattern. Reserve virtual node variants for XML
+array-of-children and FHIR XML primitive views.
+
+---
+
 ## Testing & Debugging Plan (Zig-First)
 
 We will run the full test suite in native Zig first (non-wasm) to maximize

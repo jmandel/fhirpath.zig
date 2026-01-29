@@ -9,6 +9,8 @@
 //! All adapter calls are inlined at compile time - no vtables or runtime dispatch.
 
 const std = @import("std");
+pub const node_handle = @import("node_handle.zig");
+pub const NodeHandle = node_handle.NodeHandle;
 
 /// Node kinds that any adapter must support
 pub const Kind = enum {
@@ -37,9 +39,12 @@ pub fn ObjectEntry(comptime NodeRef: type) type {
 /// Compile-time interface validation for NodeAdapter implementations
 pub fn requireAdapter(comptime A: type) void {
     comptime {
-        // Must have NodeRef type
+        // Must have NodeRef type equal to NodeHandle
         if (!@hasDecl(A, "NodeRef")) {
             @compileError("NodeAdapter must declare NodeRef type");
+        }
+        if (A.NodeRef != NodeHandle) {
+            @compileError("NodeAdapter.NodeRef must be node.NodeHandle (usize)");
         }
 
         // Core navigation methods

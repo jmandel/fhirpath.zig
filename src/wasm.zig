@@ -4,7 +4,7 @@ const ast = @import("ast.zig");
 const eval = @import("eval.zig");
 const item = @import("item.zig");
 const schema = @import("schema.zig");
-const StdJsonAdapter = @import("backends/stdjson.zig").StdJsonAdapter;
+const JsonAdapter = @import("backends/json_adapter.zig").JsonAdapter;
 
 pub const Status = enum(u32) {
     ok = 0,
@@ -337,57 +337,33 @@ pub export fn fhirpath_eval(
     };
     defer ast.deinitExpr(ctx.allocator, expr);
 
-    if (schema_ptr != null) {
-        // FHIR-aware path: use FhirJsonAdapter (parses into std.json.Value)
-        const FhirJsonAdapter = @import("backends/fhirjson.zig").FhirJsonAdapter;
+    {
+        const flavor: JsonAdapter.Flavor = if (schema_ptr != null) .fhir_json else .generic_json;
         var arena = std.heap.ArenaAllocator.init(ctx.allocator);
         const arena_alloc = arena.allocator();
         const root_val = arena_alloc.create(std.json.Value) catch {
             arena.deinit();
             return .arena_oom;
         };
-        root_val.* = std.json.parseFromSliceLeaky(std.json.Value, arena_alloc, json_text, .{}) catch |err| {
+        const parse_opts: std.json.ParseOptions = if (schema_ptr != null) .{} else .{ .parse_numbers = false };
+        root_val.* = std.json.parseFromSliceLeaky(std.json.Value, arena_alloc, json_text, parse_opts) catch |err| {
             arena.deinit();
             return statusFromError(err);
         };
-        var fhir_adapter = FhirJsonAdapter.init(arena_alloc, root_val);
-        fhir_adapter.schema = schema_ptr;
-        var fhir_ctx = eval.EvalContext(FhirJsonAdapter){
-            .allocator = arena_alloc,
-            .adapter = &fhir_adapter,
-            .types = &ctx.types,
-            .schema = schema_ptr,
-            .timestamp = ctx.now_epoch_seconds,
-        };
-        const items = eval.evalExpression(&fhir_ctx, expr, fhir_adapter.root(), null) catch |err| {
-            arena.deinit();
-            return statusFromError(err);
-        };
-        ctx.result = eval.resolveResult(FhirJsonAdapter, &fhir_adapter, items, &arena) catch |err| {
-            arena.deinit();
-            return statusFromError(err);
-        };
-    } else {
-        // Generic JSON path: use StdJsonAdapter
-        var arena = std.heap.ArenaAllocator.init(ctx.allocator);
-        const arena_alloc = arena.allocator();
-        const parsed = std.json.parseFromSliceLeaky(std.json.Value, arena_alloc, json_text, .{ .parse_numbers = false }) catch |err| {
-            arena.deinit();
-            return statusFromError(err);
-        };
-        var adapter = StdJsonAdapter.init(arena_alloc);
-        var eval_ctx = eval.EvalContext(StdJsonAdapter){
+        var adapter = JsonAdapter.init(arena_alloc, root_val, flavor);
+        adapter.schema = schema_ptr;
+        var eval_ctx = eval.EvalContext(JsonAdapter){
             .allocator = arena_alloc,
             .adapter = &adapter,
             .types = &ctx.types,
             .schema = schema_ptr,
             .timestamp = ctx.now_epoch_seconds,
         };
-        const items = eval.evalExpression(&eval_ctx, expr, &parsed, null) catch |err| {
+        const items = eval.evalExpression(&eval_ctx, expr, adapter.root(), null) catch |err| {
             arena.deinit();
             return statusFromError(err);
         };
-        ctx.result = eval.resolveResult(StdJsonAdapter, &adapter, items, &arena) catch |err| {
+        ctx.result = eval.resolveResult(JsonAdapter, &adapter, items, &arena) catch |err| {
             arena.deinit();
             return statusFromError(err);
         };

@@ -2,7 +2,7 @@ const std = @import("std");
 const lib = @import("lib.zig");
 const eval = @import("eval.zig");
 const ast = @import("ast.zig");
-const StdJsonAdapter = @import("backends/stdjson.zig").StdJsonAdapter;
+const JsonAdapter = @import("backends/json_adapter.zig").JsonAdapter;
 const item = @import("item.zig");
 const convert = @import("convert.zig");
 const schema = @import("schema.zig");
@@ -79,15 +79,24 @@ pub fn main() !void {
     defer if (model_bytes) |bytes| allocator.free(bytes);
     defer if (schema_obj) |*s| s.deinit();
 
-    var adapter = StdJsonAdapter.init(arena_alloc);
-    var ctx = eval.EvalContext(StdJsonAdapter){
+    const schema_p = if (schema_obj) |*s| s else null;
+    const flavor: JsonAdapter.Flavor = if (schema_p != null) .fhir_json else .generic_json;
+    const root_val = arena_alloc.create(std.json.Value) catch |err| {
+        std.debug.print("Alloc error: {}\n", .{err});
+        return;
+    };
+    root_val.* = parsed;
+    var adapter = JsonAdapter.init(arena_alloc, root_val, flavor);
+    adapter.schema = schema_p;
+    defer adapter.deinit();
+    var ctx = eval.EvalContext(JsonAdapter){
         .allocator = arena_alloc,
         .adapter = &adapter,
         .types = &types,
-        .schema = if (schema_obj) |*s| s else null,
+        .schema = schema_p,
         .timestamp = std.time.timestamp(),
     };
-    var result = eval.evalExpression(&ctx, expr, &parsed, null) catch |err| {
+    var result = eval.evalExpression(&ctx, expr, adapter.root(), null) catch |err| {
         std.debug.print("Eval error: {}\n", .{err});
         return;
     };
@@ -106,10 +115,10 @@ pub fn main() !void {
             } else {
                 type_name = types.name(it.type_id);
             }
-            const val = try convert.adapterItemToTypedJsonValue(StdJsonAdapter, allocator, &adapter, it, type_name);
+            const val = try convert.adapterItemToTypedJsonValue(JsonAdapter, allocator, &adapter, it, type_name);
             try out_arr.append(allocator, val);
         } else {
-            const val = try convert.adapterItemToJsonValue(StdJsonAdapter, allocator, &adapter, it);
+            const val = try convert.adapterItemToJsonValue(JsonAdapter, allocator, &adapter, it);
             try out_arr.append(allocator, val);
         }
     }

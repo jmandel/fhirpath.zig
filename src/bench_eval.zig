@@ -5,7 +5,7 @@ const lib = @import("lib.zig");
 const eval = @import("eval.zig");
 const ast = @import("ast.zig");
 const item = @import("item.zig");
-const StdJsonAdapter = @import("backends/stdjson.zig").StdJsonAdapter;
+const JsonAdapter = @import("backends/json_adapter.zig").JsonAdapter;
 
 var sink: usize = 0;
 
@@ -97,8 +97,10 @@ fn runScenario(allocator: std.mem.Allocator, scenario: Scenario, iterations: usi
         defer arena.deinit();
         const aa = arena.allocator();
         const parsed = try std.json.parseFromSliceLeaky(std.json.Value, aa, scenario.json, .{ .parse_numbers = false });
-        var adapter = StdJsonAdapter.init(aa);
-        var ctx = eval.EvalContext(StdJsonAdapter){
+        const root_val = try aa.create(std.json.Value);
+        root_val.* = parsed;
+        var adapter = JsonAdapter.init(aa, root_val, .generic_json);
+        var ctx = eval.EvalContext(JsonAdapter){
             .allocator = aa,
             .adapter = &adapter,
             .types = undefined, // Will init below
@@ -107,7 +109,7 @@ fn runScenario(allocator: std.mem.Allocator, scenario: Scenario, iterations: usi
         };
         var types = try item.TypeTable.init(aa);
         ctx.types = &types;
-        if (eval.evalExpression(&ctx, expr, &parsed, null)) |result| {
+        if (eval.evalExpression(&ctx, expr, adapter.root(), null)) |result| {
             sink +%= result.items.len;
         } else |_| {}
     }
@@ -119,16 +121,18 @@ fn runScenario(allocator: std.mem.Allocator, scenario: Scenario, iterations: usi
         defer arena.deinit();
         const aa = arena.allocator();
         const parsed = try std.json.parseFromSliceLeaky(std.json.Value, aa, scenario.json, .{ .parse_numbers = false });
-        var adapter = StdJsonAdapter.init(aa);
+        const root_val = try aa.create(std.json.Value);
+        root_val.* = parsed;
+        var adapter = JsonAdapter.init(aa, root_val, .generic_json);
         var types = try item.TypeTable.init(aa);
-        var ctx = eval.EvalContext(StdJsonAdapter){
+        var ctx = eval.EvalContext(JsonAdapter){
             .allocator = aa,
             .adapter = &adapter,
             .types = &types,
             .schema = null,
             .timestamp = 1706500000,
         };
-        if (eval.evalExpression(&ctx, expr, &parsed, null)) |result| {
+        if (eval.evalExpression(&ctx, expr, adapter.root(), null)) |result| {
             sink +%= result.items.len;
         } else |_| {}
     }
@@ -243,16 +247,16 @@ pub fn main() !void {
             var arena = std.heap.ArenaAllocator.init(allocator);
             defer arena.deinit();
             const aa = arena.allocator();
-            var adapter = StdJsonAdapter.init(aa);
+            var adapter = JsonAdapter.init(aa, &pre_parsed.value, .generic_json);
             var types = try item.TypeTable.init(aa);
-            var ctx = eval.EvalContext(StdJsonAdapter){
+            var ctx = eval.EvalContext(JsonAdapter){
                 .allocator = aa,
                 .adapter = &adapter,
                 .types = &types,
                 .schema = null,
                 .timestamp = 1706500000,
             };
-            if (eval.evalExpression(&ctx, expr_simple, &pre_parsed.value, null)) |result| {
+            if (eval.evalExpression(&ctx, expr_simple, adapter.root(), null)) |result| {
                 sink +%= result.items.len;
             } else |_| {}
         }
@@ -279,15 +283,15 @@ pub fn main() !void {
             var arena = std.heap.ArenaAllocator.init(allocator);
             defer arena.deinit();
             const aa = arena.allocator();
-            var adapter = StdJsonAdapter.init(aa);
-            var ctx = eval.EvalContext(StdJsonAdapter){
+            var adapter = JsonAdapter.init(aa, &pre_parsed2.value, .generic_json);
+            var ctx = eval.EvalContext(JsonAdapter){
                 .allocator = aa,
                 .adapter = &adapter,
                 .types = &shared_types,
                 .schema = null,
                 .timestamp = 1706500000,
             };
-            if (eval.evalExpression(&ctx, expr2, &pre_parsed2.value, null)) |result| {
+            if (eval.evalExpression(&ctx, expr2, adapter.root(), null)) |result| {
                 sink +%= result.items.len;
             } else |_| {}
         }

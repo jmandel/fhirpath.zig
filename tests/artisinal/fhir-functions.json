@@ -1,0 +1,284 @@
+{
+  "_spec_summary": "FHIR-specific FHIRPath functions and environment variables, as defined in the 'Using FHIRPath' section of the FHIR specification (spec/fhirpath-in-fhir.md).\n\n## extension(url : string) : collection\nFilters the input collection for items named 'extension' with the given url. This is a syntactical shortcut for `.extension.where(url = string)`, but simpler to write. If the input collection is empty or the url is empty, the return value will be an empty collection. Works on any element that has extensions (including FHIR primitives via the split representation).\n\n## hasValue() : Boolean\nIf the input collection contains a single value which is a FHIR primitive, returns true if the single value has a primitive value (as opposed to not having a value and just having extensions), and false if not. If the input collection is not a single FHIR primitive, the return value is empty.\n\nKey insight: In FHIR JSON, a primitive can exist with extensions but no value (represented as null in arrays or absent value with only _field present). hasValue() distinguishes these cases.\n\n## FHIR Environment Variables\nThe FHIR specification defines several built-in environment variables:\n- %sct = 'http://snomed.info/sct' (SNOMED CT URL)\n- %loinc = 'http://loinc.org' (LOINC URL)\n- %ucum = 'http://unitsofmeasure.org' (UCUM URL)\n- %`vs-[name]` = 'http://hl7.org/fhir/ValueSet/[name]' (HL7 ValueSet URL pattern)\n- %`ext-[name]` = 'http://hl7.org/fhir/StructureDefinition/[name]' (HL7 Extension URL pattern)\n- %resource = the original resource the current context is part of\n\nThe vs- and ext- variables use backtick quoting because of the hyphen in the name.",
+  "_todo": [
+    "[ ] Improve passing rate (9/30 passing)",
+    "[ ] Implement extension() function in eval.zig",
+    "[ ] Implement hasValue() function in eval.zig",
+    "[ ] Wire FHIR environment variables (%sct, %loinc, %ucum) into harness/eval",
+    "[ ] Add tests for %resource environment variable",
+    "[ ] Add tests for extension() on complex types (not just primitives)",
+    "[ ] Add tests for resolve() function (separate file)"
+  ],
+  "meta": {
+    "status": "drafted"
+  },
+  "cases": [
+    {
+      "name": "extension(): find birth time extension on primitive",
+      "expr": "Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime').exists()",
+      "inputfile": "tests/r5/input/patient-example.json",
+
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "extension() is shortcut for .extension.where(url = string)"
+    },
+    {
+      "name": "extension(): non-matching url returns empty",
+      "expr": "Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/nonexistent').exists()",
+      "inputfile": "tests/r5/input/patient-example.json",
+
+      "expect": [{"type": "boolean", "value": false}]
+    },
+    {
+      "name": "extension(): access value of matched extension",
+      "expr": "Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime').value",
+      "inputfile": "tests/r5/input/patient-example.json",
+
+      "expect": [{"type": "dateTime", "value": "1974-12-25T14:35:45-05:00"}],
+      "comment": "After filtering extensions, .value accesses the extension's value[x]"
+    },
+    {
+      "name": "extension(): empty input returns empty",
+      "expr": "Patient.deceased.extension('http://example.com/ext').exists()",
+      "inputfile": "tests/r5/input/patient-example.json",
+
+      "expect": [{"type": "boolean", "value": false}],
+      "comment": "If input is empty, extension() returns empty"
+    },
+    {
+      "name": "extension(): on resource-level extensions",
+      "expr": "Observation.extension('http://example.com/fhir/StructureDefinition/patient-age').exists()",
+      "inputfile": "tests/r5/input/observation-example.json",
+
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "extension() also works on resource-level extensions"
+    },
+    {
+      "name": "extension(): value typing with is()",
+      "expr": "Observation.extension('http://example.com/fhir/StructureDefinition/patient-age').value is Age",
+      "inputfile": "tests/r5/input/observation-example.json",
+
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Extension values should be typed correctly"
+    },
+    {
+      "name": "extension(): value is also Quantity (Age extends Quantity)",
+      "expr": "Observation.extension('http://example.com/fhir/StructureDefinition/patient-age').value is Quantity",
+      "inputfile": "tests/r5/input/observation-example.json",
+
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Age is a subtype of Quantity per FHIR type hierarchy"
+    },
+    {
+      "name": "extension(): value is not Duration",
+      "expr": "Observation.extension('http://example.com/fhir/StructureDefinition/patient-age').value is Duration",
+      "inputfile": "tests/r5/input/observation-example.json",
+
+      "expect": [{"type": "boolean", "value": false}],
+      "comment": "Age is not Duration even though both extend Quantity"
+    },
+    {
+      "name": "extension(): with %ext- env variable",
+      "expr": "Patient.birthDate.extension(%`ext-patient-birthTime`).exists()",
+      "inputfile": "tests/r5/input/patient-example.json",
+
+      "env": {
+        "ext-patient-birthTime": "http://hl7.org/fhir/StructureDefinition/patient-birthTime"
+      },
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "%`ext-[name]` expands to the full HL7 extension URL"
+    },
+    {
+      "name": "extension(): count extensions on element with multiple",
+      "expr": "extension.count()",
+      "input": {
+        "extension": [
+          {"url": "http://example.com/ext1", "valueString": "a"},
+          {"url": "http://example.com/ext2", "valueString": "b"}
+        ]
+      },
+      "expect": [{"type": "integer", "value": 2}],
+      "comment": "Using non-FHIR input to test basic extension property navigation"
+    },
+    {
+      "name": "extension(): filter extensions by url on inline input",
+      "expr": "extension('http://example.com/ext1').value",
+      "input": {
+        "extension": [
+          {"url": "http://example.com/ext1", "valueString": "a"},
+          {"url": "http://example.com/ext2", "valueString": "b"}
+        ]
+      },
+      "expect": [{"type": "string", "value": "a"}],
+      "comment": "extension() function filters by url; requires extension() implementation"
+    },
+
+    {
+      "name": "hasValue(): primitive with value returns true",
+      "expr": "active.hasValue()",
+      "input": {"active": true},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "hasValue() on a primitive with a value should return true"
+    },
+    {
+      "name": "hasValue(): string primitive with value returns true",
+      "expr": "gender.hasValue()",
+      "input": {"gender": "male"},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "hasValue(): null primitive (extension only) returns false",
+      "expr": "Patient.name.given.first().hasValue()",
+      "inputfile": "tests/r5/input/patient-name-extensions.json",
+
+      "expect": [{"type": "boolean", "value": false}],
+      "comment": "First given is null (has extension but no value)"
+    },
+    {
+      "name": "hasValue(): non-null primitive returns true",
+      "expr": "Patient.name.given.last().hasValue()",
+      "inputfile": "tests/r5/input/patient-name-extensions.json",
+
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Second given is 'James' (has a value)"
+    },
+    {
+      "name": "hasValue(): select on mixed null/value primitives",
+      "expr": "Patient.name.given.select($this.hasValue())",
+      "inputfile": "tests/r5/input/patient-name-extensions.json",
+
+      "expect": [
+        {"type": "boolean", "value": false},
+        {"type": "boolean", "value": true}
+      ],
+      "comment": "First given has no value (null with extension), second has value 'James'"
+    },
+    {
+      "name": "hasValue(): empty input returns empty",
+      "expr": "deceased.hasValue()",
+      "input": {},
+      "expect": [],
+      "comment": "If the input collection is empty, hasValue() returns empty"
+    },
+    {
+      "name": "hasValue(): on non-primitive (complex type) returns empty",
+      "expr": "name.hasValue()",
+      "input": {"name": [{"family": "Smith"}]},
+      "expect": [],
+      "comment": "hasValue() only works on FHIR primitives, not complex types"
+    },
+    {
+      "name": "hasValue(): multiple items returns empty",
+      "expr": "name.given.hasValue()",
+      "input": {"name": [{"given": ["John", "James"]}]},
+      "expect": [],
+      "comment": "hasValue() requires singleton input; multiple items returns empty"
+    },
+
+    {
+      "name": "env: %sct equals SNOMED CT URL",
+      "expr": "%sct = 'http://snomed.info/sct'",
+      "input": {},
+      "env": {"sct": "http://snomed.info/sct"},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "env: %loinc equals LOINC URL",
+      "expr": "%loinc = 'http://loinc.org'",
+      "input": {},
+      "env": {"loinc": "http://loinc.org"},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "env: %ucum equals UCUM URL",
+      "expr": "%ucum = 'http://unitsofmeasure.org'",
+      "input": {},
+      "env": {"ucum": "http://unitsofmeasure.org"},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "env: %vs-administrative-gender expands to full ValueSet URL",
+      "expr": "%`vs-administrative-gender` = 'http://hl7.org/fhir/ValueSet/administrative-gender'",
+      "input": {},
+      "env": {"vs-administrative-gender": "http://hl7.org/fhir/ValueSet/administrative-gender"},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "env: %ext-patient-birthTime expands to full extension URL",
+      "expr": "%`ext-patient-birthTime` = 'http://hl7.org/fhir/StructureDefinition/patient-birthTime'",
+      "input": {},
+      "env": {"ext-patient-birthTime": "http://hl7.org/fhir/StructureDefinition/patient-birthTime"},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "env: backtick-quoted env var with hyphen",
+      "expr": "%`my-custom-var` = 'hello'",
+      "input": {},
+      "env": {"my-custom-var": "hello"},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Backtick quoting allows hyphens in env var names"
+    },
+    {
+      "name": "env: env var used in expression context",
+      "expr": "gender = %expectedGender",
+      "input": {"gender": "male"},
+      "env": {"expectedGender": "male"},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "env: undefined env var returns empty",
+      "expr": "%undefinedVar.exists()",
+      "input": {},
+      "expect": [{"type": "boolean", "value": false}],
+      "comment": "Referencing an undefined env var should return empty collection"
+    },
+
+    {
+      "name": "hasValue() with period invariant pattern",
+      "expr": "identifier.period.all(start.hasValue().not() or end.hasValue().not() or (start <= end))",
+      "input": {
+        "identifier": [
+          {
+            "system": "http://example.com",
+            "value": "12345",
+            "period": {
+              "start": "2020-01-01",
+              "end": "2025-12-31"
+            }
+          }
+        ]
+      },
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Common FHIR invariant: period.start <= period.end when both have values"
+    },
+    {
+      "name": "hasValue() with period invariant - reversed dates should fail",
+      "expr": "identifier.period.all(start.hasValue().not() or end.hasValue().not() or (start <= end))",
+      "input": {
+        "identifier": [
+          {
+            "system": "http://example.com",
+            "value": "12345",
+            "period": {
+              "start": "2025-12-31",
+              "end": "2020-01-01"
+            }
+          }
+        ]
+      },
+      "expect": [{"type": "boolean", "value": false}],
+      "comment": "When start > end, the invariant should return false"
+    },
+    {
+      "name": "extension() is equivalent to .extension.where(url = x)",
+      "expr": "extension('http://example.com/ext1').value = extension.where(url = 'http://example.com/ext1').value",
+      "input": {
+        "extension": [
+          {"url": "http://example.com/ext1", "valueString": "hello"},
+          {"url": "http://example.com/ext2", "valueString": "world"}
+        ]
+      },
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "extension(url) is a syntactical shortcut for .extension.where(url = string)"
+    }
+  ]
+}

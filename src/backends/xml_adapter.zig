@@ -254,10 +254,11 @@ pub const XmlAdapter = struct {
         // For primitives with value attr: support .value, .id, .extension access
         if (getValueAttr(xml_node) != null or std.mem.eql(u8, xml_node.tag, "div")) {
             if (std.mem.eql(u8, key, "value")) {
-                // "value" on a primitive returns the value attribute as a scalar
-                // But we don't create a separate node — the primitive IS the value.
-                // The evaluator accesses this via string()/boolean()/numberText().
-                return null;
+                // Per FHIRPath spec, FHIR primitives have an implicit .value child
+                // that returns the System type value. Return the same node — the
+                // evaluator will extract the value via string()/boolean()/numberText()
+                // and assign the System type via schema childTypeForField.
+                return nh.fromPtr(XmlNode, xml_node);
             }
             // id and extension are child elements even on primitives
         }

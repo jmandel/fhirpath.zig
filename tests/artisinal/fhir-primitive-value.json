@@ -1,0 +1,176 @@
+{
+  "_spec_summary": [
+    "=== .value on FHIR Primitives ===",
+    "",
+    "Per the FHIR FHIRPath spec (fhirpath-in-fhir.html):",
+    "  'FHIR.string is a different type to System.String. The FHIR.string type",
+    "   specializes FHIR.Element, and has the properties id, extension, and also",
+    "   the implicit value property that is actually of type of System.String.'",
+    "",
+    "  'FHIR primitives have a value child'",
+    "",
+    "So for any FHIR primitive (string, boolean, date, integer, etc.):",
+    "  - .value navigates to the implicit value child, returning the System type",
+    "  - This works on scalar primitives (family) and array primitives (given)",
+    "  - Each element in a primitive array has its own .value",
+    "",
+    "REQUIRES: FHIR model and FHIR JSON adapter."
+  ],
+  "meta": {
+    "status": "drafted",
+    "feature": "fhir-primitive-value",
+    "requires_fhir_json": true
+  },
+  "cases": [
+    {
+      "_section": "=== .value on scalar FHIR primitives ==="
+    },
+    {
+      "name": "name.family.value returns System.String",
+      "comment": "family is FHIR.string (0..1). .value returns the System.String primitive value.",
+      "expr": "Patient.name.family.value",
+      "input": {
+        "resourceType": "Patient",
+        "name": [{"family": "Smith", "given": ["John", "James"]}]
+      },
+      "expect": [{"type": "System.String", "value": "Smith"}]
+    },
+    {
+      "name": "active.value returns System.Boolean",
+      "comment": "active is FHIR.boolean. .value returns System.Boolean.",
+      "expr": "Patient.active.value",
+      "input": {
+        "resourceType": "Patient",
+        "active": true
+      },
+      "expect": [{"type": "System.Boolean", "value": true}]
+    },
+    {
+      "name": "birthDate.value returns System.DateTime",
+      "comment": "birthDate is FHIR.date, which maps to System.DateTime per spec.",
+      "expr": "Patient.birthDate.value",
+      "input": {
+        "resourceType": "Patient",
+        "birthDate": "1974-12-25"
+      },
+      "expect": [{"type": "System.DateTime", "value": "1974-12-25"}]
+    },
+    {
+      "_section": "=== .value on array FHIR primitives ==="
+    },
+    {
+      "name": "name.given.value returns System.String for each element",
+      "comment": "given is 0..* FHIR.string. .value on the collection should return one System.String per element.",
+      "expr": "Patient.name.given.value",
+      "input": {
+        "resourceType": "Patient",
+        "name": [{"family": "Smith", "given": ["John", "James"]}]
+      },
+      "expect": [
+        {"type": "System.String", "value": "John"},
+        {"type": "System.String", "value": "James"}
+      ]
+    },
+    {
+      "name": "name.given.value with multiple names",
+      "comment": "given from multiple HumanName entries should all contribute.",
+      "expr": "Patient.name.given.value",
+      "input": {
+        "resourceType": "Patient",
+        "name": [
+          {"family": "Smith", "given": ["John"]},
+          {"family": "Doe", "given": ["Jane", "Mary"]}
+        ]
+      },
+      "expect": [
+        {"type": "System.String", "value": "John"},
+        {"type": "System.String", "value": "Jane"},
+        {"type": "System.String", "value": "Mary"}
+      ]
+    },
+    {
+      "_section": "=== .value on primitives without _field metadata ==="
+    },
+    {
+      "name": "family.value works without _family metadata",
+      "comment": ".value must work even when no _field metadata exists. The primitive still has an implicit value.",
+      "expr": "Patient.name.family.value",
+      "input": {
+        "resourceType": "Patient",
+        "name": [{"family": "Smith"}]
+      },
+      "expect": [{"type": "System.String", "value": "Smith"}]
+    },
+    {
+      "name": "given.value works without _given metadata",
+      "comment": ".value must work even when no _given array exists.",
+      "expr": "Patient.name.given.value",
+      "input": {
+        "resourceType": "Patient",
+        "name": [{"given": ["Alice", "Bob"]}]
+      },
+      "expect": [
+        {"type": "System.String", "value": "Alice"},
+        {"type": "System.String", "value": "Bob"}
+      ]
+    },
+    {
+      "_section": "=== .value on primitives WITH _field metadata ==="
+    },
+    {
+      "name": "family.value works with _family metadata present",
+      "comment": "When _family exists for extensions, .value should still extract the primitive value.",
+      "expr": "Patient.name.family.value",
+      "input": {
+        "resourceType": "Patient",
+        "name": [{
+          "family": "Smith",
+          "_family": {
+            "extension": [{"url": "http://example.org/ext", "valueString": "info"}]
+          }
+        }]
+      },
+      "expect": [{"type": "System.String", "value": "Smith"}]
+    },
+    {
+      "name": "given.value works with _given metadata present",
+      "comment": "When parallel _given array exists, .value should still extract each element's value.",
+      "expr": "Patient.name.given.value",
+      "input": {
+        "resourceType": "Patient",
+        "name": [{
+          "given": ["Alice", "Bob"],
+          "_given": [
+            {"extension": [{"url": "http://example.org/ext", "valueString": "x"}]},
+            null
+          ]
+        }]
+      },
+      "expect": [
+        {"type": "System.String", "value": "Alice"},
+        {"type": "System.String", "value": "Bob"}
+      ]
+    },
+    {
+      "_section": "=== .value on extension-only primitives ==="
+    },
+    {
+      "name": "given.value skips null (extension-only) elements",
+      "comment": "A null in the given array with _given metadata is a primitive without a value. .value should skip it.",
+      "expr": "Patient.name.given.value",
+      "input": {
+        "resourceType": "Patient",
+        "name": [{
+          "given": ["Alice", null],
+          "_given": [
+            null,
+            {"extension": [{"url": "http://example.org/ext", "valueString": "nickname"}]}
+          ]
+        }]
+      },
+      "expect": [
+        {"type": "System.String", "value": "Alice"}
+      ]
+    }
+  ]
+}

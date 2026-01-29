@@ -216,13 +216,10 @@ pub const JsonAdapter = struct {
                     } });
                 },
                 .array => {
-                    if (meta_ptr) |mp| {
-                        return self.addVirtualNode(.{ .merged_array = .{
-                            .values = ptrHandle(vp),
-                            .metas = ptrHandle(mp),
-                        } });
-                    }
-                    return ptrHandle(vp);
+                    return self.addVirtualNode(.{ .merged_array = .{
+                        .values = ptrHandle(vp),
+                        .metas = if (meta_ptr) |mp| ptrHandle(mp) else null,
+                    } });
                 },
                 .object => {
                     return ptrHandle(vp);

@@ -385,7 +385,14 @@ pub const Schema = struct {
 
     pub fn childTypeForField(self: *Schema, type_id: u32, field_name: []const u8) ?u32 {
         const entry = self.fieldForType(type_id, field_name) orelse return null;
-        return if (entry.child_type_id == 0) null else entry.child_type_id;
+        if (entry.child_type_id == 0) return null;
+        // FHIR primitives have an implicit .value child whose type is the
+        // corresponding System type (e.g. FHIR.code.value -> System.String).
+        if (std.mem.eql(u8, field_name, "value")) {
+            const sys_id = self.implicitSystemTypeId(type_id);
+            if (sys_id != 0) return sys_id;
+        }
+        return entry.child_type_id;
     }
 
     /// Check if a field is a choice base type and return its choice_group_id.

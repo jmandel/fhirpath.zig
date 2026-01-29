@@ -3121,6 +3121,12 @@ fn itemIsTypeImpl(ctx: anytype, it: item.Item, type_name: []const u8, allow_impl
     else
         type_name;
 
+    // If item carries a well-known System type_id, compare against the target
+    if (it.type_id != 0 and !schema.isModelType(it.type_id)) {
+        const target_sys_id = resolveSystemTypeByName(type_name);
+        if (target_sys_id != 0) return it.type_id == target_sys_id;
+    }
+
     // Check value kind for value items
     if (it.data_kind == .value and it.value != null) {
         return switch (it.value.?) {

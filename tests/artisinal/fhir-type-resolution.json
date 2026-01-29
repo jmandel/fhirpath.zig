@@ -355,6 +355,185 @@
         {"type": "integer", "value": 15}
       ],
       "comment": "JSON integer 5 resolves as System.Integer even though FHIR field type is decimal. This is because value_resolver uses JSON kind, and 5 has no decimal point."
+    },
+
+    {"_section": "=== .value accessor on FHIR primitives === .value unwraps a FHIR primitive to its implicit System type"},
+
+    {
+      "name": "status is FHIR.code",
+      "expr": "Observation.status.is(code)",
+      "input": {
+        "resourceType": "Observation",
+        "status": "final"
+      },
+      "expect": [
+        {"type": "boolean", "value": true}
+      ],
+      "comment": "The node itself is FHIR.code"
+    },
+    {
+      "name": "status.value returns System.String (FHIR.code -> System.String)",
+      "expr": "Observation.status.value",
+      "input": {
+        "resourceType": "Observation",
+        "status": "final"
+      },
+      "expect": [
+        {"type": "string", "value": "final"}
+      ],
+      "comment": ".value on a FHIR primitive unwraps to the implicit System type. FHIR.code -> System.String."
+    },
+    {
+      "name": "status.value is NOT FHIR.code",
+      "expr": "Observation.status.value.is(code)",
+      "input": {
+        "resourceType": "Observation",
+        "status": "final"
+      },
+      "expect": [
+        {"type": "boolean", "value": false}
+      ],
+      "comment": ".value unwraps to System.String, so is(code) = false"
+    },
+    {
+      "name": "status.value is System.String",
+      "expr": "Observation.status.value.is(System.String)",
+      "input": {
+        "resourceType": "Observation",
+        "status": "final"
+      },
+      "expect": [
+        {"type": "boolean", "value": true}
+      ],
+      "comment": ".value on FHIR.code returns System.String"
+    },
+    {
+      "name": "birthDate.value returns System.DateTime",
+      "expr": "Patient.birthDate.value",
+      "input": {
+        "resourceType": "Patient",
+        "birthDate": "1974-12-25"
+      },
+      "expect": [
+        {"type": "dateTime", "value": "1974-12-25"}
+      ],
+      "comment": ".value on FHIR.date unwraps to System.DateTime (NOT System.Date)"
+    },
+    {
+      "name": "birthDate.value is System.DateTime",
+      "expr": "Patient.birthDate.value.is(System.DateTime)",
+      "input": {
+        "resourceType": "Patient",
+        "birthDate": "1974-12-25"
+      },
+      "expect": [
+        {"type": "boolean", "value": true}
+      ],
+      "comment": ".value unwraps FHIR.date to System.DateTime"
+    },
+    {
+      "name": "birthDate.value is NOT date (FHIR type stripped)",
+      "expr": "Patient.birthDate.value.is(date)",
+      "input": {
+        "resourceType": "Patient",
+        "birthDate": "1974-12-25"
+      },
+      "expect": [
+        {"type": "boolean", "value": false}
+      ],
+      "comment": "After .value, the FHIR type wrapper is gone"
+    },
+    {
+      "name": "active.value returns System.Boolean",
+      "expr": "Patient.active.value",
+      "input": {
+        "resourceType": "Patient",
+        "active": true
+      },
+      "expect": [
+        {"type": "boolean", "value": true}
+      ],
+      "comment": ".value on FHIR.boolean unwraps to System.Boolean"
+    },
+    {
+      "name": "active.value is System.Boolean",
+      "expr": "Patient.active.value.is(System.Boolean)",
+      "input": {
+        "resourceType": "Patient",
+        "active": true
+      },
+      "expect": [
+        {"type": "boolean", "value": true}
+      ],
+      "comment": ".value unwraps FHIR.boolean to System.Boolean"
+    },
+    {
+      "name": "active.value is NOT boolean (FHIR type stripped)",
+      "expr": "Patient.active.value.is(boolean)",
+      "input": {
+        "resourceType": "Patient",
+        "active": true
+      },
+      "expect": [
+        {"type": "boolean", "value": false}
+      ],
+      "comment": "After .value, the FHIR type wrapper is gone"
+    },
+    {
+      "name": "name.text.value returns System.String (FHIR.string -> System.String)",
+      "expr": "Patient.name.text.value",
+      "input": {
+        "resourceType": "Patient",
+        "name": [{"text": "John Doe"}]
+      },
+      "expect": [
+        {"type": "string", "value": "John Doe"}
+      ],
+      "comment": ".value on FHIR.string unwraps to System.String"
+    },
+    {
+      "name": "name.text.value is System.String",
+      "expr": "Patient.name.text.value.is(System.String)",
+      "input": {
+        "resourceType": "Patient",
+        "name": [{"text": "John Doe"}]
+      },
+      "expect": [
+        {"type": "boolean", "value": true}
+      ]
+    },
+    {
+      "name": "type() on status.value returns System namespace",
+      "expr": "Observation.status.value.type().namespace",
+      "input": {
+        "resourceType": "Observation",
+        "status": "final"
+      },
+      "expect": [
+        {"type": "string", "value": "System"}
+      ],
+      "comment": "After .value, type() reflects the System type, not FHIR"
+    },
+    {
+      "name": "type() on status.value returns String name",
+      "expr": "Observation.status.value.type().name",
+      "input": {
+        "resourceType": "Observation",
+        "status": "final"
+      },
+      "expect": [
+        {"type": "string", "value": "String"}
+      ]
+    },
+    {
+      "name": "complex type .value returns empty (HumanName has no .value)",
+      "expr": "Patient.name.first().value",
+      "input": {
+        "resourceType": "Patient",
+        "name": [{"text": "John Doe"}]
+      },
+      "expect": [],
+      "comment": "Complex types like HumanName do not have a .value primitive accessor"
     }
   ]
 }

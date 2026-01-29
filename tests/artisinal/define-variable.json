@@ -137,10 +137,10 @@
       "expr": "items.defineVariable('all').select($this + %all.count())",
       "input": {"items": [1, 2]},
       "expect": [
-        {"type": "decimal", "value": 3.0},
-        {"type": "decimal", "value": 4.0}
+        {"type": "integer", "value": 3},
+        {"type": "integer", "value": 4}
       ],
-      "comment": "Variable defined outside select is accessible inside; JSON numbers promote to decimal"
+      "comment": "Variable defined outside select is accessible inside; JSON integer numbers produce integer values"
     },
     {
       "name": "defineVariable: multiple variables in sequence",

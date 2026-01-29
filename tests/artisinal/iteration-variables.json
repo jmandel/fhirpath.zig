@@ -271,19 +271,19 @@
       },
       "expect": [
         {
-          "type": "decimal",
-          "value": 2.0
+          "type": "integer",
+          "value": 2
         },
         {
-          "type": "decimal",
-          "value": 4.0
+          "type": "integer",
+          "value": 4
         },
         {
-          "type": "decimal",
-          "value": 6.0
+          "type": "integer",
+          "value": 6
         }
       ],
-      "comment": "JSON numbers parsed as decimal, so result is decimal"
+      "comment": "JSON integer numbers produce integer values"
     },
     {
       "name": "$this: negation",
@@ -297,19 +297,19 @@
       },
       "expect": [
         {
-          "type": "decimal",
-          "value": -1.0
+          "type": "integer",
+          "value": -1
         },
         {
-          "type": "decimal",
-          "value": -2.0
+          "type": "integer",
+          "value": -2
         },
         {
-          "type": "decimal",
-          "value": -3.0
+          "type": "integer",
+          "value": -3
         }
       ],
-      "comment": "JSON numbers parsed as decimal"
+      "comment": "JSON integer numbers produce integer values"
     },
     {
       "name": "$this: in sort key expression",
@@ -399,11 +399,11 @@
       },
       "expect": [
         {
-          "type": "decimal",
-          "value": 14.0
+          "type": "integer",
+          "value": 14
         }
       ],
-      "comment": "1*1 + 2*2 + 3*3 = 1 + 4 + 9 = 14; JSON numbers are decimal"
+      "comment": "1*1 + 2*2 + 3*3 = 1 + 4 + 9 = 14; JSON integer numbers produce integer values"
     },
     {
       "name": "$index: collect indices",
@@ -507,19 +507,19 @@
       },
       "expect": [
         {
-          "type": "decimal",
-          "value": 11.0
+          "type": "integer",
+          "value": 11
         },
         {
-          "type": "decimal",
-          "value": 12.0
+          "type": "integer",
+          "value": 12
         },
         {
-          "type": "decimal",
-          "value": 13.0
+          "type": "integer",
+          "value": 13
         }
       ],
-      "comment": "JSON numbers are decimal"
+      "comment": "JSON integer numbers produce integer values"
     },
     {
       "_section": "=== EDGE CASES ==="

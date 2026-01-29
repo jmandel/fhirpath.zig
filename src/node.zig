@@ -63,6 +63,11 @@ pub fn requireAdapter(comptime A: type) void {
         if (!@hasDecl(A, "objectIter")) {
             @compileError("NodeAdapter must have objectIter() method");
         }
+
+        // Type-aware value conversion
+        if (!@hasDecl(A, "toValue")) {
+            @compileError("NodeAdapter must have toValue() method");
+        }
     }
 }
 

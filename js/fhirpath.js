@@ -127,12 +127,11 @@ export class FhirPathEngine {
   async registerSchema({ name, prefix = "FHIR", url, model, isDefault = false }) {
     if (!name) throw new Error("schema name required");
     let bytes;
-    if (url) {
-      bytes = toUint8Array(await resolveBytes(url));
-    } else if (model) {
+    if (model) {
       bytes = toUint8Array(model);
     } else {
-      throw new Error("schema requires either url or model");
+      const resolvedUrl = url ?? new URL(`./model-${name}.bin`, import.meta.url);
+      bytes = toUint8Array(await resolveBytes(resolvedUrl));
     }
 
     const nameBuf = this.#writeString(name);

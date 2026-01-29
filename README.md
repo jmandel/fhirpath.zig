@@ -59,8 +59,7 @@ Minimal usage from JS:
 import { FhirPathEngine } from "./js/fhirpath.js";
 
 const engine = await FhirPathEngine.instantiate({
-  wasmUrl: "./fhirpath.wasm",
-  schemas: [{ name: "r5", url: "./model-r5.bin", isDefault: true }],
+  schemas: [{ name: "r5", isDefault: true }],
 });
 
 for (const node of engine.eval({ expr: "name.given", json: patientJson, schema: "r5" })) {

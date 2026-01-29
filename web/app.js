@@ -224,39 +224,16 @@ let engine;
 async function init() {
   try {
     statusEl.textContent = "Loading WASM + schemas…";
+    engine = await FhirPathEngine.instantiate();
+
     const availableSchemas = [];
-    const schemas = [];
-    schemas.push({
-      name: "r5",
-      prefix: "FHIR",
-      url: new URL("./model-r5.bin", import.meta.url),
-      isDefault: true,
-    });
-    schemas.push({
-      name: "r4",
-      prefix: "FHIR",
-      url: new URL("./model-r4.bin", import.meta.url),
-      isDefault: false,
-    });
-
-    engine = await FhirPathEngine.instantiate({
-      wasmUrl: new URL("./fhirpath.wasm", import.meta.url),
-    });
-
-    for (const s of schemas) {
+    for (const s of [{ name: "r5", isDefault: true }, { name: "r4" }]) {
       try {
         await engine.registerSchema(s);
         availableSchemas.push(s.name);
       } catch (err) {
         console.warn(`${s.name} model not available`, err);
       }
-    }
-
-    if (availableSchemas.length === 0) {
-      throw new Error("No schema models available");
-    }
-    if (availableSchemas.length > 0 && !availableSchemas.includes("r5")) {
-      schemas.find(s => s.name === availableSchemas[0]).isDefault = true;
     }
     if (!availableSchemas.includes(schemaSelect.value)) {
       schemaSelect.value = availableSchemas[0];

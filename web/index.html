@@ -25,9 +25,9 @@
           A greenfield Zig engine compiled to WASM, with schema-aware typing
           and native FHIR JSON + XML support.
         </p>
-        <pre class="code-inline"><code>import {FhirPathEngine} from "https://joshuamandel.com/fhirpath.zig/fhirpath.js";
-const engine = await FhirPathEngine.instantiate({schemas: [{name: "r5", isDefault: true}]});
-engine.eval({expr: "name.given", json: patientJson, schema: "r5"});</code></pre>
+        <pre class="code-inline"><code><span class="hl-kw">import</span> {FhirPathEngine} <span class="hl-kw">from</span> <span class="hl-str">"https://joshuamandel.com/fhirpath.zig/fhirpath.js"</span>;
+<span class="hl-kw">const</span> engine = <span class="hl-kw">await</span> FhirPathEngine.<span class="hl-fn">instantiate</span>({schemas: [{name: <span class="hl-str">"r5"</span>, isDefault: <span class="hl-lit">true</span>}]});
+engine.<span class="hl-fn">eval</span>({expr: <span class="hl-str">"name.given"</span>, json: patientJson, schema: <span class="hl-str">"r5"</span>});</code></pre>
         <div class="hero-links">
           <a href="./tests.json">Test suite</a>
           <span class="hero-links-sep">·</span>
@@ -74,9 +74,9 @@ engine.eval({expr: "name.given", json: patientJson, schema: "r5"});</code></pre>
     </section>
 
     <footer class="mobile-footer">
-      <pre class="code-inline"><code>import {FhirPathEngine} from "https://joshuamandel.com/fhirpath.zig/fhirpath.js";
-const engine = await FhirPathEngine.instantiate({schemas: [{name: "r5", isDefault: true}]});
-engine.eval({expr: "name.given", json: patientJson, schema: "r5"});</code></pre>
+      <pre class="code-inline"><code><span class="hl-kw">import</span> {FhirPathEngine} <span class="hl-kw">from</span> <span class="hl-str">"https://joshuamandel.com/fhirpath.zig/fhirpath.js"</span>;
+<span class="hl-kw">const</span> engine = <span class="hl-kw">await</span> FhirPathEngine.<span class="hl-fn">instantiate</span>({schemas: [{name: <span class="hl-str">"r5"</span>, isDefault: <span class="hl-lit">true</span>}]});
+engine.<span class="hl-fn">eval</span>({expr: <span class="hl-str">"name.given"</span>, json: patientJson, schema: <span class="hl-str">"r5"</span>});</code></pre>
       <div class="hero-links">
         <a href="./tests.json">Test suite</a>
         <span class="hero-links-sep">·</span>

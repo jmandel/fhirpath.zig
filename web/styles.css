@@ -116,8 +116,13 @@ h1 {
   font-family: var(--mono);
   font-size: 0.75rem;
   line-height: 1.5;
-  color: var(--muted);
+  color: #abb2bf;
 }
+
+.hl-kw { color: #c678dd; }
+.hl-str { color: #98c379; }
+.hl-fn { color: #61afef; }
+.hl-lit { color: #d19a66; }
 
 .hero-links {
   display: flex;

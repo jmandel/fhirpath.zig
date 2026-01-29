@@ -448,11 +448,11 @@
       },
       "expect": [
         {
-          "type": "decimal",
-          "value": -42.0
+          "type": "integer",
+          "value": -42
         }
       ],
-      "comment": "JSON numbers have no integer/decimal distinction; engine treats as decimal"
+      "comment": "JSON integer numbers now correctly produce integer values; engine distinguishes integers from decimals"
     },
     {
       "name": "negate decimal field",
@@ -475,11 +475,11 @@
       },
       "expect": [
         {
-          "type": "decimal",
-          "value": 100.0
+          "type": "integer",
+          "value": 100
         }
       ],
-      "comment": "JSON numbers have no integer/decimal distinction; engine treats as decimal"
+      "comment": "JSON integer numbers now correctly produce integer values; engine distinguishes integers from decimals"
     }
   ]
 }

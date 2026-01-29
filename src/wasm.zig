@@ -351,6 +351,7 @@ pub export fn fhirpath_eval(
             return statusFromError(err);
         };
         var fhir_adapter = FhirJsonAdapter.init(arena_alloc, root_val);
+        fhir_adapter.schema = schema_ptr;
         var fhir_ctx = eval.EvalContext(FhirJsonAdapter){
             .allocator = arena_alloc,
             .adapter = &fhir_adapter,

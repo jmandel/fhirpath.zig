@@ -14,6 +14,8 @@
 
 const std = @import("std");
 const node = @import("../node.zig");
+const item = @import("../item.zig");
+const schema_mod = @import("../schema.zig");
 
 pub const FhirNode = union(enum) {
     /// Direct passthrough to a std.json.Value
@@ -34,6 +36,7 @@ pub const FhirJsonAdapter = struct {
     allocator: std.mem.Allocator,
     root_value: *const std.json.Value,
     nodes: std.ArrayListUnmanaged(FhirNode),
+    schema: ?*schema_mod.Schema = null,
 
     pub const NodeRef = u32;
 
@@ -440,6 +443,109 @@ pub const FhirJsonAdapter = struct {
     }
 
     // No span() or stringify() support
+
+    /// Convert a node to a typed Value, using the schema to determine the
+    /// correct System type for FHIR model types.
+    pub fn toValue(self: *FhirJsonAdapter, ref: NodeRef, type_id: u32) item.Value {
+        // If we have a schema and the type_id is a model type, check for implicit System type
+        if (self.schema) |s| {
+            if (schema_mod.isModelType(type_id)) {
+                const sys_id = s.implicitSystemTypeId(type_id);
+                if (sys_id != 0) {
+                    const sys_name = schema_mod.systemTypeName(sys_id);
+                    return self.toValueForSystemType(ref, sys_name);
+                }
+            }
+        }
+        // Fall back to JSON-kind-based conversion
+        return self.toValueFromJsonKind(ref);
+    }
+
+    /// Convert using a known System type name (e.g., "System.Date", "System.Quantity")
+    fn toValueForSystemType(self: *FhirJsonAdapter, ref: NodeRef, sys_name: []const u8) item.Value {
+        if (std.mem.eql(u8, sys_name, "System.Boolean")) {
+            return self.toValueFromJsonKind(ref);
+        }
+        if (std.mem.eql(u8, sys_name, "System.Integer")) {
+            return self.toValueFromJsonKind(ref);
+        }
+        if (std.mem.eql(u8, sys_name, "System.Decimal")) {
+            return self.toValueFromJsonKind(ref);
+        }
+        if (std.mem.eql(u8, sys_name, "System.String")) {
+            return self.toValueFromJsonKind(ref);
+        }
+        if (std.mem.eql(u8, sys_name, "System.Date")) {
+            const k = kind(self, ref);
+            if (k == .string) return .{ .date = string(self, ref) };
+            return self.toValueFromJsonKind(ref);
+        }
+        if (std.mem.eql(u8, sys_name, "System.DateTime")) {
+            const k = kind(self, ref);
+            if (k == .string) return .{ .dateTime = string(self, ref) };
+            return self.toValueFromJsonKind(ref);
+        }
+        if (std.mem.eql(u8, sys_name, "System.Time")) {
+            const k = kind(self, ref);
+            if (k == .string) return .{ .time = string(self, ref) };
+            return self.toValueFromJsonKind(ref);
+        }
+        if (std.mem.eql(u8, sys_name, "System.Quantity")) {
+            return self.extractQuantity(ref);
+        }
+        // Unknown system type, fall back
+        return self.toValueFromJsonKind(ref);
+    }
+
+    /// Extract a FHIR Quantity from an object node with value/code/unit fields.
+    fn extractQuantity(self: *FhirJsonAdapter, ref: NodeRef) item.Value {
+        const k = kind(self, ref);
+        if (k != .object) return self.toValueFromJsonKind(ref);
+
+        // Get the numeric value
+        const value_ref = objectGet(self, ref, "value") orelse return .{ .empty = {} };
+        const value_kind = kind(self, value_ref);
+        if (value_kind != .number) return .{ .empty = {} };
+        const value_text = numberText(self, value_ref);
+
+        // Prefer "code" over "unit" (UCUM code is more precise)
+        var unit_text: []const u8 = "1";
+        if (objectGet(self, ref, "code")) |code_ref| {
+            if (kind(self, code_ref) == .string) {
+                unit_text = string(self, code_ref);
+            }
+        } else if (objectGet(self, ref, "unit")) |unit_ref| {
+            if (kind(self, unit_ref) == .string) {
+                unit_text = string(self, unit_ref);
+            }
+        }
+
+        return .{ .quantity = .{ .value = value_text, .unit = unit_text } };
+    }
+
+    /// Pure JSON-kind-based conversion (no schema awareness).
+    fn toValueFromJsonKind(self: *FhirJsonAdapter, ref: NodeRef) item.Value {
+        return switch (kind(self, ref)) {
+            .null => .{ .empty = {} },
+            .bool => .{ .boolean = boolean(self, ref) },
+            .number => {
+                const text = numberText(self, ref);
+                if (isIntegerText(text)) {
+                    const parsed = std.fmt.parseInt(i64, text, 10) catch return .{ .decimal = text };
+                    return .{ .integer = parsed };
+                }
+                return .{ .decimal = text };
+            },
+            .string => .{ .string = string(self, ref) },
+            else => .{ .empty = {} },
+        };
+    }
+
+    /// Check if number text represents an integer (no decimal point, no exponent)
+    fn isIntegerText(text: []const u8) bool {
+        return std.mem.indexOfScalar(u8, text, '.') == null and
+            std.mem.indexOfAny(u8, text, "eE") == null;
+    }
 
     // -- Helpers --
 

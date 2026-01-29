@@ -2,6 +2,7 @@
 const std = @import("std");
 const jsondoc = @import("../jsondoc.zig");
 const node = @import("../node.zig");
+const item = @import("../item.zig");
 
 pub const ObjectEntry = node.ObjectEntry(NodeIndex);
 pub const NodeIndex = jsondoc.NodeIndex;
@@ -100,6 +101,31 @@ pub const JsonDocAdapter = struct {
     pub inline fn stringify(self: *JsonDocAdapter, ref: NodeRef) []const u8 {
         const n = self.doc.node(ref);
         return self.doc.text[n.start..n.end];
+    }
+
+    /// Convert a node to a typed Value. No schema available, so purely JSON-kind-based.
+    pub fn toValue(self: *JsonDocAdapter, ref: NodeRef, type_id: u32) item.Value {
+        _ = type_id;
+        return switch (kind(self, ref)) {
+            .null => .{ .empty = {} },
+            .bool => .{ .boolean = boolean(self, ref) },
+            .number => {
+                const text = numberText(self, ref);
+                if (isIntegerText(text)) {
+                    const parsed = std.fmt.parseInt(i64, text, 10) catch return .{ .decimal = text };
+                    return .{ .integer = parsed };
+                }
+                return .{ .decimal = text };
+            },
+            .string => .{ .string = string(self, ref) },
+            else => .{ .empty = {} },
+        };
+    }
+
+    /// Check if number text represents an integer (no decimal point, no exponent)
+    fn isIntegerText(text: []const u8) bool {
+        return std.mem.indexOfScalar(u8, text, '.') == null and
+            std.mem.indexOfAny(u8, text, "eE") == null;
     }
 };
 

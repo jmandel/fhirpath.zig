@@ -13,6 +13,7 @@
 
 const std = @import("std");
 const node = @import("../node.zig");
+const item = @import("../item.zig");
 
 pub const StdJsonAdapter = struct {
     allocator: std.mem.Allocator,
@@ -88,6 +89,31 @@ pub const StdJsonAdapter = struct {
 
     pub fn boolean(_: *StdJsonAdapter, ref: NodeRef) bool {
         return ref.bool;
+    }
+
+    /// Convert a node to a typed Value. No schema available, so purely JSON-kind-based.
+    pub fn toValue(self: *StdJsonAdapter, ref: NodeRef, type_id: u32) item.Value {
+        _ = type_id;
+        return switch (kind(self, ref)) {
+            .null => .{ .empty = {} },
+            .bool => .{ .boolean = boolean(self, ref) },
+            .number => {
+                const text = numberText(self, ref);
+                if (isIntegerText(text)) {
+                    const parsed = std.fmt.parseInt(i64, text, 10) catch return .{ .decimal = text };
+                    return .{ .integer = parsed };
+                }
+                return .{ .decimal = text };
+            },
+            .string => .{ .string = string(self, ref) },
+            else => .{ .empty = {} },
+        };
+    }
+
+    /// Check if number text represents an integer (no decimal point, no exponent)
+    fn isIntegerText(text: []const u8) bool {
+        return std.mem.indexOfScalar(u8, text, '.') == null and
+            std.mem.indexOfAny(u8, text, "eE") == null;
     }
 
     // StdJsonAdapter does NOT support span() or stringify()

@@ -106,37 +106,15 @@ pub fn resolveResult(
             const jv = try convert.adapterNodeToJsonValue(A, arena_alloc, adapter, ref);
             const idx = node_values.items.len;
             try node_values.append(arena_alloc, jv);
-            it.node = idx;
-            // Promote primitive node_refs to value items
-            switch (jv) {
-                .bool => |b| {
-                    it.data_kind = .value;
-                    it.value_kind = .boolean;
-                    it.value = .{ .boolean = b };
-                },
-                .integer => |i| {
-                    it.data_kind = .value;
-                    it.value_kind = .integer;
-                    it.value = .{ .integer = i };
-                },
-                .string => |s| {
-                    it.data_kind = .value;
-                    it.value_kind = .string;
-                    it.value = .{ .string = s };
-                },
-                .number_string => |s| {
-                    it.data_kind = .value;
-                    it.value_kind = .decimal;
-                    it.value = .{ .decimal = s };
-                },
-                .float => |f| {
-                    it.data_kind = .value;
-                    it.value_kind = .decimal;
-                    const text = try std.fmt.allocPrint(arena_alloc, "{d}", .{f});
-                    it.value = .{ .decimal = text };
-                },
-                else => {}, // objects/arrays stay as node_ref
+            // Promote primitive node_refs to value items using adapter's toValue
+            const val = A.toValue(adapter, ref, it.type_id);
+            if (val != .empty) {
+                it.data_kind = .value;
+                it.value_kind = std.meta.activeTag(val);
+                it.value = val;
             }
+            // Always update node to resolved index (for objects/arrays that stay as node_ref)
+            it.node = idx;
         }
     }
     return .{
@@ -1122,38 +1100,24 @@ fn dateTimeEquivalent(a: []const u8, b: []const u8) bool {
 }
 
 fn valueEquivalent(ctx: anytype, a_val: item.Value, a_type: u32, b_val: item.Value, b_type: u32) bool {
+    _ = ctx;
+    _ = a_type;
+    _ = b_type;
     if (a_val == .empty or b_val == .empty) return a_val == .empty and b_val == .empty;
 
-    const date_id = ctx.types.getOrAdd("System.Date") catch 0;
-    const time_id = ctx.types.getOrAdd("System.Time") catch 0;
-    const datetime_id = ctx.types.getOrAdd("System.DateTime") catch 0;
-    const string_id = ctx.types.getOrAdd("System.String") catch 0;
-
-    const a_is_date = a_val == .date or a_type == date_id;
-    const b_is_date = b_val == .date or b_type == date_id;
-    if (a_is_date or b_is_date) {
-        if (!(a_is_date and b_is_date)) return false;
-        const a_text = if (a_val == .date) a_val.date else if (a_val == .string) a_val.string else return false;
-        const b_text = if (b_val == .date) b_val.date else if (b_val == .string) b_val.string else return false;
-        return dateEquivalent(a_text, b_text);
+    if (a_val == .date or b_val == .date) {
+        if (!(a_val == .date and b_val == .date)) return false;
+        return dateEquivalent(a_val.date, b_val.date);
     }
 
-    const a_is_time = a_val == .time or a_type == time_id;
-    const b_is_time = b_val == .time or b_type == time_id;
-    if (a_is_time or b_is_time) {
-        if (!(a_is_time and b_is_time)) return false;
-        const a_text = if (a_val == .time) a_val.time else if (a_val == .string) a_val.string else return false;
-        const b_text = if (b_val == .time) b_val.time else if (b_val == .string) b_val.string else return false;
-        return timeEquivalent(a_text, b_text);
+    if (a_val == .time or b_val == .time) {
+        if (!(a_val == .time and b_val == .time)) return false;
+        return timeEquivalent(a_val.time, b_val.time);
     }
 
-    const a_is_datetime = a_val == .dateTime or a_type == datetime_id;
-    const b_is_datetime = b_val == .dateTime or b_type == datetime_id;
-    if (a_is_datetime or b_is_datetime) {
-        if (!(a_is_datetime and b_is_datetime)) return false;
-        const a_text = if (a_val == .dateTime) a_val.dateTime else if (a_val == .string) a_val.string else return false;
-        const b_text = if (b_val == .dateTime) b_val.dateTime else if (b_val == .string) b_val.string else return false;
-        return dateTimeEquivalent(a_text, b_text);
+    if (a_val == .dateTime or b_val == .dateTime) {
+        if (!(a_val == .dateTime and b_val == .dateTime)) return false;
+        return dateTimeEquivalent(a_val.dateTime, b_val.dateTime);
     }
 
     const a_numeric = a_val == .integer or a_val == .long or a_val == .decimal;
@@ -1176,18 +1140,8 @@ fn valueEquivalent(ctx: anytype, a_val: item.Value, a_type: u32, b_val: item.Val
         return decimalEquivalentText(text_a, text_b);
     }
 
-    const a_is_string = a_val == .string or a_type == string_id;
-    const b_is_string = b_val == .string or b_type == string_id;
-    if (a_is_string and b_is_string) {
-        const a_text = switch (a_val) {
-            .string => a_val.string,
-            else => return false,
-        };
-        const b_text = switch (b_val) {
-            .string => b_val.string,
-            else => return false,
-        };
-        return stringEquivalent(a_text, b_text);
+    if (a_val == .string and b_val == .string) {
+        return stringEquivalent(a_val.string, b_val.string);
     }
 
     if (a_val == .boolean and b_val == .boolean) return a_val.boolean == b_val.boolean;
@@ -1213,24 +1167,12 @@ fn itemsEquivalent(ctx: anytype, a: item.Item, b: item.Item) bool {
         const b_ref = nodeRefFromRaw(A, b.node.?);
         const kind_a = A.kind(ctx.adapter, a_ref);
         const kind_b = A.kind(ctx.adapter, b_ref);
-        if (kind_a != kind_b) return false;
-        return switch (kind_a) {
-            .null => true,
-            .bool => A.boolean(ctx.adapter, a_ref) == A.boolean(ctx.adapter, b_ref),
-            .number => decimalEquivalentText(A.numberText(ctx.adapter, a_ref), A.numberText(ctx.adapter, b_ref)),
-            .string => blk: {
-                const text_a = A.string(ctx.adapter, a_ref);
-                const text_b = A.string(ctx.adapter, b_ref);
-                const date_id = ctx.types.getOrAdd("System.Date") catch 0;
-                const time_id = ctx.types.getOrAdd("System.Time") catch 0;
-                const datetime_id = ctx.types.getOrAdd("System.DateTime") catch 0;
-                if (a.type_id == date_id and b.type_id == date_id) break :blk dateEquivalent(text_a, text_b);
-                if (a.type_id == time_id and b.type_id == time_id) break :blk timeEquivalent(text_a, text_b);
-                if (a.type_id == datetime_id and b.type_id == datetime_id) break :blk dateTimeEquivalent(text_a, text_b);
-                break :blk stringEquivalent(text_a, text_b);
-            },
-            .array, .object => nodeEqual(ctx, a_ref, b_ref),
-        };
+        if (kind_a == .array or kind_a == .object or kind_b == .array or kind_b == .object) {
+            if (kind_a != kind_b) return false;
+            return nodeEqual(ctx, a_ref, b_ref);
+        }
+        // For scalar nodes, use toValue to get proper type tags
+        return valueEquivalent(ctx, itemToValue(ctx, a), a.type_id, itemToValue(ctx, b), b.type_id);
     }
 
     if (a_is_node or b_is_node) {
@@ -1284,16 +1226,16 @@ fn compareItems(ctx: anytype, a: item.Item, b: item.Item) EvalError!?i32 {
     const va = itemToValue(ctx, a);
     const vb = itemToValue(ctx, b);
 
-    // Check if either operand is Date or DateTime (by type_id or value kind)
-    const a_is_date = isDateTypeId(ctx, a.type_id) or va == .date;
-    const a_is_datetime = isDateTimeTypeId(ctx, a.type_id) or va == .dateTime;
-    const b_is_date = isDateTypeId(ctx, b.type_id) or vb == .date;
-    const b_is_datetime = isDateTimeTypeId(ctx, b.type_id) or vb == .dateTime;
+    // Check if either operand is Date or DateTime (by value kind)
+    const a_is_date = va == .date;
+    const a_is_datetime = va == .dateTime;
+    const b_is_date = vb == .date;
+    const b_is_datetime = vb == .dateTime;
 
     // Cross-type Date/DateTime comparison (implicit conversion)
     if ((a_is_date or a_is_datetime) and (b_is_date or b_is_datetime)) {
-        const a_text = if (va == .dateTime) va.dateTime else if (va == .date) va.date else if (va == .string) va.string else return error.InvalidOperand;
-        const b_text = if (vb == .dateTime) vb.dateTime else if (vb == .date) vb.date else if (vb == .string) vb.string else return error.InvalidOperand;
+        const a_text = if (va == .dateTime) va.dateTime else va.date;
+        const b_text = if (vb == .dateTime) vb.dateTime else vb.date;
         return compareDateAndDateTime(a_text, a_is_datetime, b_text, b_is_datetime);
     }
 
@@ -4315,33 +4257,17 @@ fn evalFunction(
         if (call.args.len != 0) return error.InvalidFunction;
         if (input.len == 0) return ItemList.empty;
 
-        const integer_type_id = ctx.types.getOrAdd("System.Integer") catch 0;
-        const decimal_type_id = ctx.types.getOrAdd("System.Decimal") catch 0;
-        const quantity_type_id = ctx.types.getOrAdd("System.Quantity") catch 0;
-        const long_type_id = ctx.types.getOrAdd("System.Long") catch 0;
-
-        const first_kind = sumKindForItem(input[0], integer_type_id, decimal_type_id, quantity_type_id, long_type_id) orelse return error.InvalidOperand;
+        const first_val = itemToValue(ctx, input[0]);
+        const first_kind = sumKindForValue(first_val) orelse return error.InvalidOperand;
 
         var out = ItemList.empty;
         switch (first_kind) {
             .integer => {
                 var total: i64 = 0;
                 for (input) |it| {
-                    if (sumKindForItem(it, integer_type_id, decimal_type_id, quantity_type_id, long_type_id) != .integer) {
-                        return error.InvalidOperand;
-                    }
-                    if (it.data_kind == .value and it.value != null and it.value.? == .integer) {
-                        total +%= it.value.?.integer;
-                    } else if (it.data_kind == .node_ref and it.node != null) {
-                        const A = @TypeOf(ctx.adapter.*);
-                        const ref = nodeRefFromRaw(A, it.node.?);
-                        if (A.kind(ctx.adapter, ref) != .number) return error.InvalidOperand;
-                        const text = A.numberText(ctx.adapter, ref);
-                        const parsed = parseIntegerString(text) orelse return error.InvalidOperand;
-                        total +%= parsed;
-                    } else {
-                        return error.InvalidOperand;
-                    }
+                    const val = itemToValue(ctx, it);
+                    if (val != .integer) return error.InvalidOperand;
+                    total +%= val.integer;
                 }
                 try out.append(ctx.allocator, makeIntegerItem(ctx, total));
                 return out;
@@ -4349,14 +4275,9 @@ fn evalFunction(
             .long => {
                 var total: i64 = 0;
                 for (input) |it| {
-                    if (sumKindForItem(it, integer_type_id, decimal_type_id, quantity_type_id, long_type_id) != .long) {
-                        return error.InvalidOperand;
-                    }
-                    if (it.data_kind == .value and it.value != null and it.value.? == .long) {
-                        total +%= it.value.?.long;
-                    } else {
-                        return error.InvalidOperand;
-                    }
+                    const val = itemToValue(ctx, it);
+                    if (val != .long) return error.InvalidOperand;
+                    total +%= val.long;
                 }
                 try out.append(ctx.allocator, makeLongItemFromValue(ctx, total));
                 return out;
@@ -4364,17 +4285,16 @@ fn evalFunction(
             .decimal => {
                 var max_scale: u32 = 0;
                 for (input) |it| {
-                    if (sumKindForItem(it, integer_type_id, decimal_type_id, quantity_type_id, long_type_id) != .decimal) {
-                        return error.InvalidOperand;
-                    }
-                    const text = decimalTextFromItem(ctx, it) orelse return error.InvalidOperand;
-                    const scale = decimalScale(text) orelse return error.InvalidOperand;
+                    const val = itemToValue(ctx, it);
+                    if (val != .decimal) return error.InvalidOperand;
+                    const scale = decimalScale(val.decimal) orelse return error.InvalidOperand;
                     if (scale > max_scale) max_scale = scale;
                 }
 
                 var total: i128 = 0;
                 for (input) |it| {
-                    const text = decimalTextFromItem(ctx, it) orelse return error.InvalidOperand;
+                    const val = itemToValue(ctx, it);
+                    const text = val.decimal;
                     const scaled = parseDecimalScaled(text, max_scale) orelse return error.InvalidOperand;
                     const add = @addWithOverflow(total, scaled);
                     if (add[1] != 0) return error.InvalidOperand;
@@ -4389,13 +4309,9 @@ fn evalFunction(
                 var unit: ?[]const u8 = null;
                 var max_scale: u32 = 0;
                 for (input) |it| {
-                    if (sumKindForItem(it, integer_type_id, decimal_type_id, quantity_type_id, long_type_id) != .quantity) {
-                        return error.InvalidOperand;
-                    }
-                    if (it.data_kind != .value or it.value == null or it.value.? != .quantity) {
-                        return error.InvalidOperand;
-                    }
-                    const q = it.value.?.quantity;
+                    const val = itemToValue(ctx, it);
+                    if (val != .quantity) return error.InvalidOperand;
+                    const q = val.quantity;
                     if (unit == null) {
                         unit = q.unit;
                     } else if (!std.mem.eql(u8, unit.?, q.unit)) {
@@ -4407,7 +4323,8 @@ fn evalFunction(
 
                 var total: i128 = 0;
                 for (input) |it| {
-                    const q = it.value.?.quantity;
+                    const val = itemToValue(ctx, it);
+                    const q = val.quantity;
                     const scaled = parseDecimalScaled(q.value, max_scale) orelse return error.InvalidOperand;
                     const add = @addWithOverflow(total, scaled);
                     if (add[1] != 0) return error.InvalidOperand;
@@ -4424,52 +4341,29 @@ fn evalFunction(
         if (call.args.len != 0) return error.InvalidFunction;
         if (input.len == 0) return ItemList.empty;
 
-        const integer_type_id = ctx.types.getOrAdd("System.Integer") catch 0;
-        const decimal_type_id = ctx.types.getOrAdd("System.Decimal") catch 0;
-        const quantity_type_id = ctx.types.getOrAdd("System.Quantity") catch 0;
-        const long_type_id = ctx.types.getOrAdd("System.Long") catch 0;
-
-        const first_kind = sumKindForItem(input[0], integer_type_id, decimal_type_id, quantity_type_id, long_type_id) orelse return error.InvalidOperand;
+        const first_val = itemToValue(ctx, input[0]);
+        const first_kind = sumKindForValue(first_val) orelse return error.InvalidOperand;
 
         var out = ItemList.empty;
         const count: f64 = @floatFromInt(input.len);
 
         switch (first_kind) {
             .integer => {
-                // Integer inputs are implicitly converted to Decimal for avg()
                 var total: f64 = 0;
                 for (input) |it| {
-                    if (sumKindForItem(it, integer_type_id, decimal_type_id, quantity_type_id, long_type_id) != .integer) {
-                        return error.InvalidOperand;
-                    }
-                    if (it.data_kind == .value and it.value != null and it.value.? == .integer) {
-                        total += @floatFromInt(it.value.?.integer);
-                    } else if (it.data_kind == .node_ref and it.node != null) {
-                        const A = @TypeOf(ctx.adapter.*);
-                        const ref = nodeRefFromRaw(A, it.node.?);
-                        if (A.kind(ctx.adapter, ref) != .number) return error.InvalidOperand;
-                        const text = A.numberText(ctx.adapter, ref);
-                        const parsed = parseIntegerString(text) orelse return error.InvalidOperand;
-                        total += @floatFromInt(parsed);
-                    } else {
-                        return error.InvalidOperand;
-                    }
+                    const val = itemToValue(ctx, it);
+                    if (val != .integer) return error.InvalidOperand;
+                    total += @floatFromInt(val.integer);
                 }
                 try out.append(ctx.allocator, try makeDecimalItem(ctx, total / count));
                 return out;
             },
             .long => {
-                // Long inputs are implicitly converted to Decimal for avg()
                 var total: f64 = 0;
                 for (input) |it| {
-                    if (sumKindForItem(it, integer_type_id, decimal_type_id, quantity_type_id, long_type_id) != .long) {
-                        return error.InvalidOperand;
-                    }
-                    if (it.data_kind == .value and it.value != null and it.value.? == .long) {
-                        total += @floatFromInt(it.value.?.long);
-                    } else {
-                        return error.InvalidOperand;
-                    }
+                    const val = itemToValue(ctx, it);
+                    if (val != .long) return error.InvalidOperand;
+                    total += @floatFromInt(val.long);
                 }
                 try out.append(ctx.allocator, try makeDecimalItem(ctx, total / count));
                 return out;
@@ -4477,12 +4371,10 @@ fn evalFunction(
             .decimal => {
                 var total: f64 = 0;
                 for (input) |it| {
-                    if (sumKindForItem(it, integer_type_id, decimal_type_id, quantity_type_id, long_type_id) != .decimal) {
-                        return error.InvalidOperand;
-                    }
-                    const text = decimalTextFromItem(ctx, it) orelse return error.InvalidOperand;
-                    const val = std.fmt.parseFloat(f64, text) catch return error.InvalidOperand;
-                    total += val;
+                    const val = itemToValue(ctx, it);
+                    if (val != .decimal) return error.InvalidOperand;
+                    const parsed = std.fmt.parseFloat(f64, val.decimal) catch return error.InvalidOperand;
+                    total += parsed;
                 }
                 try out.append(ctx.allocator, try makeDecimalItem(ctx, total / count));
                 return out;
@@ -4491,20 +4383,16 @@ fn evalFunction(
                 var unit: ?[]const u8 = null;
                 var total: f64 = 0;
                 for (input) |it| {
-                    if (sumKindForItem(it, integer_type_id, decimal_type_id, quantity_type_id, long_type_id) != .quantity) {
-                        return error.InvalidOperand;
-                    }
-                    if (it.data_kind != .value or it.value == null or it.value.? != .quantity) {
-                        return error.InvalidOperand;
-                    }
-                    const q = it.value.?.quantity;
+                    const val = itemToValue(ctx, it);
+                    if (val != .quantity) return error.InvalidOperand;
+                    const q = val.quantity;
                     if (unit == null) {
                         unit = q.unit;
                     } else if (!std.mem.eql(u8, unit.?, q.unit)) {
                         return error.InvalidOperand;
                     }
-                    const val = std.fmt.parseFloat(f64, q.value) catch return error.InvalidOperand;
-                    total += val;
+                    const parsed = std.fmt.parseFloat(f64, q.value) catch return error.InvalidOperand;
+                    total += parsed;
                 }
 
                 const avg_val = total / count;
@@ -6298,11 +6186,11 @@ fn itemsEqualTriState(ctx: anytype, a: item.Item, b: item.Item) ?bool {
     const va = itemToValue(ctx, a);
     const vb = itemToValue(ctx, b);
 
-    // Check if either operand is Date or DateTime (by type_id or value kind)
-    const a_is_date = isDateTypeId(ctx, a.type_id) or va == .date;
-    const a_is_datetime = isDateTimeTypeId(ctx, a.type_id) or va == .dateTime;
-    const b_is_date = isDateTypeId(ctx, b.type_id) or vb == .date;
-    const b_is_datetime = isDateTimeTypeId(ctx, b.type_id) or vb == .dateTime;
+    // Check if either operand is Date or DateTime (by value kind)
+    const a_is_date = va == .date;
+    const a_is_datetime = va == .dateTime;
+    const b_is_date = vb == .date;
+    const b_is_datetime = vb == .dateTime;
 
     // Cross-type Date/DateTime equality (implicit conversion)
     // Note: equality also returns null for precision mismatch
@@ -6743,45 +6631,9 @@ fn itemToValue(ctx: anytype, it: item.Item) item.Value {
     if (it.data_kind == .node_ref and it.node != null) {
         const A = @TypeOf(ctx.adapter.*);
         const ref = nodeRefFromRaw(A, it.node.?);
-        return switch (A.kind(ctx.adapter, ref)) {
-            .null => .{ .empty = {} },
-            .bool => .{ .boolean = A.boolean(ctx.adapter, ref) },
-            .number => .{ .decimal = A.numberText(ctx.adapter, ref) },
-            .string => .{ .string = A.string(ctx.adapter, ref) },
-            else => .{ .empty = {} },
-        };
+        return A.toValue(ctx.adapter, ref, it.type_id);
     }
     return .{ .empty = {} };
-}
-
-/// Check if a type_id represents a Date type (System.Date or FHIR.date)
-fn isDateTypeId(ctx: anytype, type_id: u32) bool {
-    const date_id = ctx.types.getOrAdd("System.Date") catch 0;
-    if (type_id == date_id) return true;
-    // Check schema for FHIR types
-    if (ctx.schema) |s| {
-        const prim_base = s.primBaseId(type_id);
-        if (prim_base == date_id) return true;
-        // Also check type name ends with ".date"
-        const name = s.typeName(type_id);
-        if (name.len > 0 and std.mem.endsWith(u8, name, ".date")) return true;
-    }
-    return false;
-}
-
-/// Check if a type_id represents a DateTime type (System.DateTime or FHIR.dateTime)
-fn isDateTimeTypeId(ctx: anytype, type_id: u32) bool {
-    const datetime_id = ctx.types.getOrAdd("System.DateTime") catch 0;
-    if (type_id == datetime_id) return true;
-    // Check schema for FHIR types
-    if (ctx.schema) |s| {
-        const prim_base = s.primBaseId(type_id);
-        if (prim_base == datetime_id) return true;
-        // Also check type name ends with ".dateTime"
-        const name = s.typeName(type_id);
-        if (name.len > 0 and std.mem.endsWith(u8, name, ".dateTime")) return true;
-    }
-    return false;
 }
 
 fn convertToInteger(ctx: anytype, it: item.Item) ?i64 {
@@ -7478,42 +7330,14 @@ fn isTime(s: []const u8) bool {
 
 const SumKind = enum { integer, long, decimal, quantity };
 
-fn sumKindForItem(
-    it: item.Item,
-    integer_type_id: u32,
-    decimal_type_id: u32,
-    quantity_type_id: u32,
-    long_type_id: u32,
-) ?SumKind {
-    if (it.data_kind == .value and it.value != null) {
-        return switch (it.value.?) {
-            .integer => .integer,
-            .long => .long,
-            .decimal => .decimal,
-            .quantity => .quantity,
-            else => null,
-        };
-    }
-    if (it.data_kind == .node_ref) {
-        if (it.type_id == integer_type_id) return .integer;
-        if (it.type_id == long_type_id) return .long;
-        if (it.type_id == decimal_type_id) return .decimal;
-        if (it.type_id == quantity_type_id) return .quantity;
-    }
-    return null;
-}
-
-fn decimalTextFromItem(ctx: anytype, it: item.Item) ?[]const u8 {
-    if (it.data_kind == .value and it.value != null and it.value.? == .decimal) {
-        return it.value.?.decimal;
-    }
-    if (it.data_kind == .node_ref and it.node != null) {
-        const A = @TypeOf(ctx.adapter.*);
-        const ref = nodeRefFromRaw(A, it.node.?);
-        if (A.kind(ctx.adapter, ref) != .number) return null;
-        return A.numberText(ctx.adapter, ref);
-    }
-    return null;
+fn sumKindForValue(val: item.Value) ?SumKind {
+    return switch (val) {
+        .integer => .integer,
+        .long => .long,
+        .decimal => .decimal,
+        .quantity => .quantity,
+        else => null,
+    };
 }
 
 fn decimalScale(text: []const u8) ?u32 {

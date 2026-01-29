@@ -463,6 +463,7 @@ fn runTestFile(
             const arena_alloc = fhir_arena.allocator();
 
             var fhir_adapter = FhirJsonAdapter.init(arena_alloc, &std_parsed.value);
+            fhir_adapter.schema = schema_ptr;
             defer fhir_adapter.deinit();
 
             var fhir_ctx = eval.EvalContext(FhirJsonAdapter){

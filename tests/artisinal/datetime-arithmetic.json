@@ -545,7 +545,17 @@
       "expr": "@2025-01-15 + 1.9 years",
       "input": {},
       "expect": [{"type": "date", "value": "2026-01-15"}],
-      "_note": "Per spec: decimal portion ignored for calendar units"
+      "_note": "Per spec: decimal portion ignored for calendar units",
+      "_adjudicated": {
+        "engines": {
+          "fhirpath_js": [{"type": "dateTime", "value": "2026-01-15"}]
+        },
+        "our_old_value": null,
+        "verdict": "ours_correct",
+        "reason": "Spec says 'Returns the value of the given Date' - the result type should match the input type. Input @2025-01-15 is a Date, so result should be Date, not DateTime. fhirpath.js incorrectly reports the type as dateTime.",
+        "spec_ref": "§6.6 + (addition) date/time arithmetic",
+        "official_test": null
+      }
     },
     {
       "name": "decimal months (fraction ignored)",

@@ -23,7 +23,17 @@
           "value": "2024-01-02"
         }
       ],
-      "comment": "R5 testPlusDate13: UCUM 'd' is equivalent to calendar 'day'"
+      "comment": "R5 testPlusDate13: UCUM 'd' is equivalent to calendar 'day'",
+      "_adjudicated": {
+        "engines": {
+          "fhirpath_js": [{"type": "dateTime", "value": "2024-01-02"}]
+        },
+        "our_old_value": null,
+        "verdict": "ours_correct",
+        "reason": "Spec says 'Returns the value of the given Date' - result type should match input. Input @2024-01-01 is a Date, result should be Date not DateTime. fhirpath.js incorrectly reports the type as dateTime.",
+        "spec_ref": "§6.6 + (addition) date/time arithmetic",
+        "official_test": "testPlusDate13"
+      }
     },
     {
       "name": "UCUM 'wk' in date arithmetic works",
@@ -73,7 +83,17 @@
           "value": "2024-01-01T00:01:00"
         }
       ],
-      "comment": "R5 testPlusDate21: UCUM 'min' is equivalent to calendar 'minute'"
+      "comment": "R5 testPlusDate21: UCUM 'min' is equivalent to calendar 'minute'",
+      "_adjudicated": {
+        "engines": {
+          "fhirpath_js": [{"type": "dateTime", "value": "2024-01-01T00:01:00-06:00"}]
+        },
+        "our_old_value": null,
+        "verdict": "ours_correct",
+        "reason": "fhirpath.js appends the local timezone offset (-06:00) to the result, but the input literal @2024-01-01T00:00:00 has no timezone. The spec does not say to inject timezone information during arithmetic. The result should preserve the input's precision/structure.",
+        "spec_ref": "§6.6 + (addition) date/time arithmetic",
+        "official_test": "testPlusDate21"
+      }
     },
     {
       "name": "UCUM 's' in datetime arithmetic is valid",

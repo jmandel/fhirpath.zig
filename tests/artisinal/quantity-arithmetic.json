@@ -289,7 +289,17 @@
       "expr": "10 'mg' / 5 'mg'",
       "input": {},
       "expect": [{"type": "decimal", "value": 2.0}],
-      "comment": "Dividing same-unit quantities produces a dimensionless decimal"
+      "comment": "Dividing same-unit quantities produces a dimensionless decimal",
+      "_adjudicated": {
+        "engines": {
+          "fhirpath_js": [{"type": "Quantity", "value": {"value": 2, "unit": "1"}}]
+        },
+        "our_old_value": null,
+        "verdict": "engines_disagree",
+        "reason": "Spec says division is 'always Decimal' but also says quantity division produces 'an appropriate unit'. When units cancel (mg/mg), fhirpath.js returns Quantity with UCUM dimensionless unit '1'. Our interpretation (plain decimal when units cancel completely) is also defensible since the spec says division result is always Decimal. Both readings are reasonable; we follow the 'always Decimal' rule.",
+        "spec_ref": "§6.6 / (division)",
+        "official_test": null
+      }
     },
     {
       "name": "add: negative quantity values",

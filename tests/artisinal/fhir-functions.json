@@ -117,7 +117,17 @@
       "expr": "active.hasValue()",
       "input": {"active": true},
       "expect": [{"type": "boolean", "value": true}],
-      "comment": "hasValue() on a primitive with a value should return true"
+      "comment": "hasValue() on a primitive with a value should return true",
+      "_adjudicated": {
+        "engines": {
+          "fhirpath_js": [{"type": "boolean", "value": false}]
+        },
+        "our_old_value": null,
+        "verdict": "engine_limitation",
+        "reason": "fhirpath.js returns false because it likely requires FHIR model context (resourceType, schema) to recognize a primitive with a value. Our test uses plain JSON without a FHIR resource wrapper. The spec (fhirpath-in-fhir.md) says hasValue() returns true if a single FHIR primitive has a value. With value true present, the correct answer is true.",
+        "spec_ref": "fhirpath-in-fhir.md hasValue()",
+        "official_test": null
+      }
     },
     {
       "name": "hasValue(): string primitive with value returns true",

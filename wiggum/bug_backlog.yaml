@@ -296,3 +296,11 @@ bugs:
     created: 2026-01-29
     updated: 2026-01-29
     tags: [fhir, functions, host]
+  - slug: abs-missing-long
+    status: open
+    severity: medium
+    title: abs() does not handle Long type
+    description: evalAbs() in eval.zig handles .integer and .decimal but not .long, returning empty for Long inputs. Spec line 1810 says abs() accepts Integer, Long, Decimal, or Quantity.
+    created: 2026-01-29
+    updated: 2026-01-29
+    tags: [eval, long, math]

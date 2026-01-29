@@ -7,6 +7,7 @@
     "  - 0L, 45L, -5L",
     "  - Range: -2^63 to 2^63-1 (-9223372036854775808 to 9223372036854775807)",
     "  - The minus sign is the unary negation operator, not part of the literal",
+    "  - No official R5 tests exist for Long at all (STU feature, sparse coverage)",
     "",
     "=== TYPE IDENTITY ===",
     "  - A Long literal (e.g., 45L) is of type Long, NOT Integer",
@@ -14,46 +15,68 @@
     "  - 45L.is(Integer) = false",
     "  - Long and Integer are distinct types for is/as/ofType operations",
     "",
-    "=== TYPE CONVERSIONS ===",
-    "According to spec conversion table (implicitly converted when necessary):",
+    "=== TYPE CONVERSIONS (spec line 985-989) ===",
+    "According to spec conversion table:",
     "  - Integer -> Long: Implicit",
     "  - Long -> Decimal: Implicit",
-    "  - Long -> Integer: Explicit only (requires toInteger(), may lose precision)",
+    "  - Long -> Integer: Explicit only (via toInteger())",
+    "  - Long -> Boolean: Explicit (via toBoolean())",
+    "  - Long -> String: Explicit (via toString())",
+    "  - Long -> Quantity: NOT supported (dash in table)",
     "",
     "=== ARITHMETIC (SPEC AMBIGUITY) ===",
-    "IMPORTANT: The spec does NOT explicitly define Long arithmetic!",
-    "  - Spec says +,-,*,/ are 'for Integer, Decimal, and Quantity'",
-    "  - Spec says div/mod are 'for Integer and Decimal'",
-    "  - Long is NOT mentioned in arithmetic operator definitions",
-    "  - Reasonable interpretation: Long behaves like Integer for arithmetic",
-    "  - Alternative: Long could convert to Decimal (via implicit conversion)",
-    "Our tests assume Long+Long returns Long (intuitive behavior)",
+    "The spec does NOT explicitly include Long in arithmetic operator definitions!",
+    "  - Spec says +,-,* are 'for Integer, Decimal, and Quantity' (lines 2953,2975,2985)",
+    "  - Spec says / 'is always Decimal, even if inputs are both Integer' (line 2962)",
+    "  - Spec says div/mod are 'for Integer and Decimal' (lines 2995,3005)",
+    "  - Long is NOT mentioned in any arithmetic operator definition",
+    "  - Strict reading: Long implicitly converts to Decimal for arithmetic",
+    "  - Practical reading: Long behaves like Integer for +,-,*,div,mod",
+    "  - / (division) should return Decimal regardless (spec is explicit about this)",
+    "Our implementation: Long+Long returns Long (intuitive, matches Integer analogy)",
+    "This is documented as SPEC AMBIGUITY on each affected test case.",
     "",
-    "=== toLong() : Long ===",
+    "=== toLong() : Long (spec line 1098) ===",
     "Converts input to Long if possible, empty otherwise:",
     "  - Integer or Long: passthrough/convert",
     "  - String: must match regex (\\+|-)?\\d+ and fit in 64 bits",
     "  - Boolean: true -> 1L, false -> 0L",
-    "  - Other types: empty",
-    "Note: Spec says 'return a single integer' but function is toLong().",
+    "  - Other types (Decimal, Date, etc.): empty",
+    "  - Empty input: empty",
+    "  - Multiple items: ERROR (singleton evaluation)",
+    "Note: Spec text says 'return a single integer' but function signature is toLong().",
     "",
-    "=== convertsToLong() : Boolean ===",
+    "=== convertsToLong() : Boolean (spec line 1122) ===",
     "Returns true if input can be converted to Long:",
     "  - Integer or Long: always true",
     "  - String matching (\\+|-)?\\d+ and fitting in 64 bits: true",
     "  - Boolean: always true",
     "  - Other types: false",
     "  - Empty input: empty (not false!)",
+    "  - Multiple items: ERROR (singleton evaluation)",
     "",
     "=== COMPARISON ===",
     "  - Long values compare with = and ~ using numeric equality",
     "  - Long can be compared with Integer via implicit Integer->Long conversion",
+    "  - Long can be compared with Decimal via implicit Long->Decimal conversion",
     "  - Ordering comparisons (<, >, <=, >=) work normally",
     "",
-    "Spec refs: spec/index.md Long literal section, toLong(), convertsToLong()."
+    "=== MATH FUNCTIONS (spec line 1804+) ===",
+    "  - abs(): accepts Integer, Long, Decimal, or Quantity; returns same type",
+    "  - ceiling()/floor()/truncate(): accept Decimal (Long implicitly converts)",
+    "  - exp()/ln()/log()/sqrt(): accept Decimal (Long implicitly converts)",
+    "  - round(): accepts Decimal (Long implicitly converts)",
+    "",
+    "=== AGGREGATE FUNCTIONS (spec lines 3217-3293) ===",
+    "  - sum(): accepts Integer, Long, Decimal, Quantity - returns same type",
+    "  - min()/max(): accepts Integer, Long, Decimal, Quantity, Date, DateTime, Time, String",
+    "  - avg(): implicitly converts Integer/Long to Decimal, always returns Decimal",
+    "",
+    "Spec refs: spec/index.md lines 271-282 (literal), 985-989 (conversion table),",
+    "  1098-1120 (toLong), 1122-1140 (convertsToLong), 2933-3011 (arithmetic),",
+    "  1804-1810 (abs), 3217-3293 (aggregates)."
   ],
   "_todo": [
-    "[x] All 45 tests passing",
     "[x] Long literal parsing works (0L, 45L syntax)",
     "[x] Long type identity checks work (is/as/ofType Long)",
     "[x] Long equality/comparison with same type works",
@@ -62,11 +85,16 @@
     "[x] Implement Long ordering comparisons (<, >, <=, >=)",
     "[x] Implement Long equivalence with Integer (45L ~ 45)",
     "[x] Implement Long aggregate functions (sum, min, max, avg)",
-    "[ ] Add tests for 64-bit boundary values (max/min Long)",
-    "[x] Resolution: Long+Long returns Long (intuitive behavior per spec Integer analogy)"
+    "[x] Resolution: Long+Long returns Long (intuitive behavior per spec Integer analogy)",
+    "[x] CONFIRM review: verify spec compliance, add missing tests",
+    "[x] Add tests for Long division (/) returning Decimal",
+    "[x] Add tests for mixed Long+Integer arithmetic",
+    "[x] Add tests for Long abs()",
+    "[ ] Improve passing rate (54/57 passing)",
+    "[ ] Fix evalAbs() to handle .long case (3 failing abs tests)"
   ],
   "meta": {
-    "status": "implemented",
+    "status": "reviewed",
     "feature": "long-type",
     "source": "spec/index.md#Long"
   },
@@ -377,6 +405,104 @@
       "input": {},
       "expect": [{"type": "decimal", "value": 4.0}],
       "comment": "avg() always returns Decimal, even for Long input"
+    },
+    {
+      "_section": "=== MIXED LONG/INTEGER COMPARISON ==="
+    },
+    {
+      "name": "Long: less than Integer (implicit conversion)",
+      "expr": "10L < 20",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Integer 20 implicitly converts to Long for comparison"
+    },
+    {
+      "name": "Long: Integer less than Long",
+      "expr": "5 < 10L",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}],
+      "comment": "Integer 5 implicitly converts to Long for comparison"
+    },
+    {
+      "name": "Long: inequality with Integer",
+      "expr": "45L != 46",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "_section": "=== SINGLETON ERROR HANDLING ==="
+    },
+    {
+      "name": "toLong: multiple items is error",
+      "expr": "(1 | 2).toLong()",
+      "input": {},
+      "expect_error": true,
+      "comment": "Singleton evaluation: multiple items cause error per spec line 1116"
+    },
+    {
+      "name": "convertsToLong: multiple items is error",
+      "expr": "(1 | 2).convertsToLong()",
+      "input": {},
+      "expect_error": true,
+      "comment": "Singleton evaluation: multiple items cause error per spec line 1136"
+    },
+    {
+      "_section": "=== LONG ABS() ==="
+    },
+    {
+      "name": "abs: positive Long unchanged",
+      "expr": "42L.abs()",
+      "input": {},
+      "expect": [{"type": "Long", "value": 42}],
+      "comment": "abs() accepts Long per spec line 1810, returns Long. Engine evalAbs() missing .long case - returns empty."
+    },
+    {
+      "name": "abs: negative Long",
+      "expr": "(-42L).abs()",
+      "input": {},
+      "expect": [{"type": "Long", "value": 42}],
+      "comment": "Engine evalAbs() missing .long case - returns empty."
+    },
+    {
+      "name": "abs: zero Long",
+      "expr": "0L.abs()",
+      "input": {},
+      "expect": [{"type": "Long", "value": 0}],
+      "comment": "Engine evalAbs() missing .long case - returns empty."
+    },
+    {
+      "_section": "=== LONG DIVISION ==="
+    },
+    {
+      "name": "Long: division returns Decimal",
+      "expr": "10L / 3L",
+      "input": {},
+      "expect": [{"type": "decimal", "value": 3.3333333333333335}],
+      "comment": "Spec line 2962: result of division is always Decimal even for Integer inputs. Long follows same rule. Precision matches engine's decimal implementation."
+    },
+    {
+      "name": "Long: division by zero returns empty",
+      "expr": "10L / 0L",
+      "input": {},
+      "expect": [],
+      "comment": "Division by zero returns empty per spec line 2964"
+    },
+    {
+      "_section": "=== MIXED LONG/INTEGER ARITHMETIC ==="
+    },
+    {
+      "name": "Long + Integer (mixed)",
+      "expr": "10L + 5",
+      "input": {},
+      "expect": [{"type": "Long", "value": 15}],
+      "comment": "Integer 5 implicitly converts to Long; result is Long"
+    },
+    {
+      "name": "Integer + Long (mixed)",
+      "expr": "10 + 5L",
+      "input": {},
+      "expect": [{"type": "Long", "value": 15}],
+      "comment": "Integer 10 implicitly converts to Long; result is Long"
     }
   ]
 }

@@ -87,11 +87,21 @@ function decimalToString(dec) {
 }
 
 export class FhirPathEngine {
-  static async instantiate(wasm, options = {}) {
-    const resolved = await resolveWasm(wasm);
+  static async instantiate(options = {}) {
+    const wasmSource = options.wasmModule ?? options.wasmBytes ?? options.wasmUrl
+      ?? new URL("./fhirpath.wasm", import.meta.url);
+    const resolved = await resolveWasm(wasmSource);
     const imports = options.imports ?? {};
     const result = await WebAssembly.instantiate(resolved, imports);
-    return new FhirPathEngine(result.instance);
+    const engine = new FhirPathEngine(result.instance);
+
+    if (options.schemas) {
+      for (const schema of options.schemas) {
+        await engine.registerSchema(schema);
+      }
+    }
+
+    return engine;
   }
 
   constructor(instance) {
@@ -114,11 +124,20 @@ export class FhirPathEngine {
     }
   }
 
-  registerSchema({ name, prefix = "FHIR", model, isDefault = false }) {
+  async registerSchema({ name, prefix = "FHIR", url, model, isDefault = false }) {
     if (!name) throw new Error("schema name required");
+    let bytes;
+    if (url) {
+      bytes = toUint8Array(await resolveBytes(url));
+    } else if (model) {
+      bytes = toUint8Array(model);
+    } else {
+      throw new Error("schema requires either url or model");
+    }
+
     const nameBuf = this.#writeString(name);
     const prefixBuf = this.#writeString(prefix);
-    const modelBuf = this.#writeBytes(toUint8Array(model));
+    const modelBuf = this.#writeBytes(bytes);
 
     const status = this.exports.fhirpath_ctx_register_schema(
       this.ctx,
@@ -138,12 +157,6 @@ export class FhirPathEngine {
     if (status !== Status.ok) {
       throw new Error(`register_schema failed: ${status}`);
     }
-  }
-
-  async registerSchemaFromUrl({ name, prefix = "FHIR", url, isDefault = false }) {
-    if (!url) throw new Error("schema url required");
-    const bytes = await resolveBytes(url);
-    this.registerSchema({ name, prefix, model: bytes, isDefault });
   }
 
   eval({ expr, json, schema = "", env = null, now = undefined } = {}) {

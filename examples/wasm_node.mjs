@@ -2,14 +2,15 @@ import fs from "node:fs";
 import path from "node:path";
 import { FhirPathEngine } from "../js/fhirpath.js";
 
-const wasmPath = path.resolve("zig-out/bin/fhirpath.wasm");
-const wasmBytes = fs.readFileSync(wasmPath);
-
-const engine = await FhirPathEngine.instantiate(wasmBytes);
-
-// Register FHIR R5 schema (checked into repo)
-const modelBytes = fs.readFileSync(path.resolve("models/r5/model.bin"));
-engine.registerSchema({ name: "r5", prefix: "FHIR", model: modelBytes, isDefault: true });
+const engine = await FhirPathEngine.instantiate({
+  wasmBytes: fs.readFileSync(path.resolve("zig-out/bin/fhirpath.wasm")),
+  schemas: [{
+    name: "r5",
+    prefix: "FHIR",
+    model: fs.readFileSync(path.resolve("models/r5/model.bin")),
+    isDefault: true,
+  }],
+});
 
 const expr = "name.given";
 const input = JSON.stringify({

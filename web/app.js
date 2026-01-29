@@ -14,8 +14,8 @@ let currentFormat = "json";
 
 const examples = [
   {
-    label: "Patient names",
-    expr: "name.given",
+    label: "Names",
+    expr: "// Extract all given names\nname.given",
     json: {
       resourceType: "Patient",
       id: "example",
@@ -38,8 +38,8 @@ const examples = [
 </Patient>`,
   },
   {
-    label: "Identifier filtering",
-    expr: "identifier.where(system = 'http://acme.org/mrn').value",
+    label: "Where",
+    expr: "// Filter identifiers by system\nidentifier\n  .where(system = 'http://acme.org/mrn')\n  .value",
     json: {
       resourceType: "Patient",
       identifier: [
@@ -59,8 +59,8 @@ const examples = [
 </Patient>`,
   },
   {
-    label: "Observation quantity",
-    expr: "valueQuantity",
+    label: "Quantity",
+    expr: "// Access a Quantity value\nvalueQuantity",
     json: {
       resourceType: "Observation",
       status: "final",
@@ -82,8 +82,8 @@ const examples = [
 </Observation>`,
   },
   {
-    label: "Telecom lookup",
-    expr: "telecom.where(system = 'phone').value",
+    label: "Telecom",
+    expr: "// Find phone numbers\ntelecom\n  .where(system = 'phone')\n  .value",
     json: {
       resourceType: "Patient",
       telecom: [
@@ -103,8 +103,8 @@ const examples = [
 </Patient>`,
   },
   {
-    label: "Type reflection",
-    expr: "birthDate.type() | active.type() | gender.type()",
+    label: "Types",
+    expr: "// Reflect on element types\nbirthDate.type() |\n  active.type() |\n  gender.type()",
     json: {
       resourceType: "Patient",
       active: true,
@@ -116,6 +116,62 @@ const examples = [
   <birthDate value="1974-12-25"/>
   <gender value="male"/>
 </Patient>`,
+  },
+  {
+    label: "Exists",
+    expr: "// Check element existence\nname.where(family.exists()).count()",
+    json: {
+      resourceType: "Patient",
+      name: [
+        { family: "Smith", given: ["Alice"] },
+        { given: ["Bob"] },
+      ],
+    },
+    xml: `<Patient>
+  <name>
+    <family value="Smith"/>
+    <given value="Alice"/>
+  </name>
+  <name>
+    <given value="Bob"/>
+  </name>
+</Patient>`,
+  },
+  {
+    label: "Math",
+    expr: "// Arithmetic on quantity values\nvalueQuantity.value * 2",
+    json: {
+      resourceType: "Observation",
+      status: "final",
+      valueQuantity: { value: 98.6, unit: "degF" },
+    },
+    xml: `<Observation>
+  <status value="final"/>
+  <valueQuantity>
+    <value value="98.6"/>
+    <unit value="degF"/>
+  </valueQuantity>
+</Observation>`,
+  },
+  {
+    label: "Resolve",
+    expr: "// Navigate contained references\nsubject.resolve().name.family",
+    json: {
+      resourceType: "Observation",
+      contained: [
+        { resourceType: "Patient", id: "p1", name: [{ family: "Doe" }] },
+      ],
+      subject: { reference: "#p1" },
+    },
+    xml: `<Observation>
+  <contained>
+    <Patient>
+      <id value="p1"/>
+      <name><family value="Doe"/></name>
+    </Patient>
+  </contained>
+  <subject><reference value="#p1"/></subject>
+</Observation>`,
   },
 ];
 
@@ -187,36 +243,40 @@ let engine;
 
 async function init() {
   try {
-    statusEl.textContent = "Loading WASM…";
-    engine = await FhirPathEngine.instantiate(new URL("./fhirpath.wasm", import.meta.url));
-
-    statusEl.textContent = "Loading schema…";
+    statusEl.textContent = "Loading WASM + schemas…";
     const availableSchemas = [];
-    try {
-      await engine.registerSchemaFromUrl({
-        name: "r5",
-        prefix: "FHIR",
-        url: new URL("./model-r5.bin", import.meta.url),
-        isDefault: true,
-      });
-      availableSchemas.push("r5");
-    } catch (err) {
-      console.error("Failed to load R5 model", err);
-    }
-    try {
-      await engine.registerSchemaFromUrl({
-        name: "r4",
-        prefix: "FHIR",
-        url: new URL("./model-r4.bin", import.meta.url),
-        isDefault: availableSchemas.length === 0,
-      });
-      availableSchemas.push("r4");
-    } catch (err) {
-      console.warn("R4 model not available", err);
+    const schemas = [];
+    schemas.push({
+      name: "r5",
+      prefix: "FHIR",
+      url: new URL("./model-r5.bin", import.meta.url),
+      isDefault: true,
+    });
+    schemas.push({
+      name: "r4",
+      prefix: "FHIR",
+      url: new URL("./model-r4.bin", import.meta.url),
+      isDefault: false,
+    });
+
+    engine = await FhirPathEngine.instantiate({
+      wasmUrl: new URL("./fhirpath.wasm", import.meta.url),
+    });
+
+    for (const s of schemas) {
+      try {
+        await engine.registerSchema(s);
+        availableSchemas.push(s.name);
+      } catch (err) {
+        console.warn(`${s.name} model not available`, err);
+      }
     }
 
     if (availableSchemas.length === 0) {
       throw new Error("No schema models available");
+    }
+    if (availableSchemas.length > 0 && !availableSchemas.includes("r5")) {
+      schemas.find(s => s.name === availableSchemas[0]).isDefault = true;
     }
     if (!availableSchemas.includes(schemaSelect.value)) {
       schemaSelect.value = availableSchemas[0];

@@ -222,6 +222,12 @@ h1 {
   font-size: 0.95rem;
 }
 
+.expr-input {
+  resize: vertical;
+  line-height: 1.5;
+  min-height: 72px;
+}
+
 .json-input {
   min-height: 320px;
   resize: vertical;

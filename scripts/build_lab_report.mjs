@@ -68,19 +68,14 @@ async function main() {
   const { FhirPathEngine } = await import(
     path.join(ROOT, "js/fhirpath.js")
   );
-  const wasmBytes = fs.readFileSync(
-    path.join(ROOT, "zig-out/bin/fhirpath.wasm")
-  );
-  const engine = await FhirPathEngine.instantiate(wasmBytes);
-
-  const modelBytes = fs.readFileSync(
-    path.join(ROOT, "models/r5/model.bin")
-  );
-  engine.registerSchema({
-    name: "r5",
-    prefix: "FHIR",
-    model: modelBytes,
-    isDefault: true,
+  const engine = await FhirPathEngine.instantiate({
+    wasmBytes: fs.readFileSync(path.join(ROOT, "zig-out/bin/fhirpath.wasm")),
+    schemas: [{
+      name: "r5",
+      prefix: "FHIR",
+      model: fs.readFileSync(path.join(ROOT, "models/r5/model.bin")),
+      isDefault: true,
+    }],
   });
   engine.setNowDate(new Date());
 

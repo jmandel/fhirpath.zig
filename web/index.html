@@ -72,6 +72,17 @@ engine.eval({expr: "name.given", json: patientJson, schema: "r5"});</code></pre>
         <div class="results-body" id="results"></div>
       </div>
     </section>
+
+    <footer class="mobile-footer">
+      <pre class="code-inline"><code>import {FhirPathEngine} from "https://joshuamandel.com/fhirpath.zig/fhirpath.js";
+const engine = await FhirPathEngine.instantiate({schemas: [{name: "r5", isDefault: true}]});
+engine.eval({expr: "name.given", json: patientJson, schema: "r5"});</code></pre>
+      <div class="hero-links">
+        <a href="./tests.json">Test suite</a>
+        <span class="hero-links-sep">·</span>
+        <a href="https://dev.fhirpath-lab.com/FhirPath-engines?engines=https%3A%2F%2Fjoshuamandel.com%2Ffhirpath.zig%2Flabreport-r5.json">Lab report</a>
+      </div>
+    </footer>
   </main>
 
   <script type="module" src="./app.js"></script>

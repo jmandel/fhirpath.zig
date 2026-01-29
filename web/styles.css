@@ -140,6 +140,10 @@ h1 {
   color: var(--muted);
 }
 
+.mobile-footer {
+  display: none;
+}
+
 .toolbar {
   display: flex;
   align-items: center;
@@ -336,6 +340,17 @@ h1 {
 
   .hero {
     margin-bottom: 12px;
+  }
+
+  .hero .code-inline,
+  .hero .hero-links {
+    display: none;
+  }
+
+  .mobile-footer {
+    display: block;
+    margin-top: 20px;
+    flex-shrink: 0;
   }
 
   .toolbar {

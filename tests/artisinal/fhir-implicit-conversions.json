@@ -246,7 +246,28 @@
         "resourceType": "Patient",
         "active": true
       },
-      "expect": [{"type": "System.Boolean", "value": false}]
+      "expect": [{"type": "System.Boolean", "value": false}],
+      "_adjudicated": {
+        "engines": {
+          "fhirpath_js": [
+            {
+              "type": "boolean",
+              "value": true
+            }
+          ],
+          "firely_net": {
+            "error": "dotnet not available in this environment"
+          },
+          "hapi_fhir": {
+            "error": "hapi runner jar not available in this environment"
+          }
+        },
+        "our_old_value": null,
+        "verdict": "ours_correct",
+        "reason": "FHIRPath-in-FHIR explicitly calls out that automatic conversion of FHIR primitives to System types does not apply to is(). The examples show FHIR.string is not System.String for is(). With Boolean resolving to System.Boolean, Patient.active.is(Boolean) must be false for a FHIR.boolean item.",
+        "spec_ref": "FHIRPath in FHIR Section 2.1.9.1.2",
+        "official_test": null
+      }
     },
     {
       "name": "is(boolean) returns true for FHIR.boolean item",

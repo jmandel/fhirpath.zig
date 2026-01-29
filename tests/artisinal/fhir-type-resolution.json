@@ -283,7 +283,28 @@
       },
       "expect": [
         {"type": "string", "value": "FHIR"}
-      ]
+      ],
+      "_adjudicated": {
+        "engines": {
+          "fhirpath_js": [
+            {
+              "type": "string",
+              "value": "System"
+            }
+          ],
+          "firely_net": {
+            "error": "dotnet not available in this environment"
+          },
+          "hapi_fhir": {
+            "error": "hapi runner jar not available in this environment"
+          }
+        },
+        "our_old_value": null,
+        "verdict": "ours_correct",
+        "reason": "Reflection returns model type info. In the FHIR context, model types are namespaced as FHIR.* (Models section). Observation.valueQuantity is typed as FHIR.Quantity, which is a FHIR model type, so type().namespace should be FHIR. Returning System implies the implicit conversion mapping, but that mapping is for evaluation, not for reflection on model types.",
+        "spec_ref": "Types and Reflection (Models, Class Types); FHIRPath in FHIR Section 2.1.9.1.2",
+        "official_test": null
+      }
     },
     {
       "name": "type() on valueQuantity returns Quantity name",

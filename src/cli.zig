@@ -102,7 +102,6 @@ pub fn main() !void {
     defer result.deinit(arena_alloc);
 
     var out_arr = std.ArrayList(std.json.Value).empty;
-    defer out_arr.deinit(allocator);
     for (result.items) |it| {
         if (typed_output) {
             // Get type name from schema or TypeTable
@@ -114,23 +113,22 @@ pub fn main() !void {
             } else {
                 type_name = types.name(it.type_id);
             }
-            const val = try convert.adapterItemToTypedJsonValue(JsonAdapter, allocator, &adapter, it, type_name);
-            try out_arr.append(allocator, val);
+            const val = try convert.adapterItemToTypedJsonValue(JsonAdapter, arena_alloc, &adapter, it, type_name);
+            try out_arr.append(arena_alloc, val);
         } else {
-            const val = try convert.adapterItemToJsonValue(JsonAdapter, allocator, &adapter, it);
-            try out_arr.append(allocator, val);
+            const val = try convert.adapterItemToJsonValue(JsonAdapter, arena_alloc, &adapter, it);
+            try out_arr.append(arena_alloc, val);
         }
     }
 
     const output = std.json.Stringify.valueAlloc(
-        allocator,
-        std.json.Value{ .array = std.json.Array{ .items = out_arr.items, .capacity = out_arr.capacity, .allocator = allocator } },
+        arena_alloc,
+        std.json.Value{ .array = std.json.Array{ .items = out_arr.items, .capacity = out_arr.capacity, .allocator = arena_alloc } },
         .{ .whitespace = .indent_2 },
     ) catch |err| {
         std.debug.print("Output error: {}\n", .{err});
         return;
     };
-    defer allocator.free(output);
     std.debug.print("{s}\n", .{output});
 }
 

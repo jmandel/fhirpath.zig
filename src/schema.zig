@@ -11,6 +11,7 @@ pub const SystemTypeNames = [_][]const u8{
     "System.DateTime",
     "System.Time",
     "System.Quantity",
+    "System.TypeInfo",
 };
 
 pub fn systemTypeName(id: u32) []const u8 {

@@ -71,6 +71,7 @@ pub const SystemTypeIds = struct {
     pub const dateTime = 8;
     pub const time = 9;
     pub const quantity = 10;
+    pub const typeInfo = 11;
 };
 
 pub const TypeTable = struct {
@@ -93,6 +94,7 @@ pub const TypeTable = struct {
         _ = try table.getOrAdd("System.DateTime");
         _ = try table.getOrAdd("System.Time");
         _ = try table.getOrAdd("System.Quantity");
+        _ = try table.getOrAdd("System.TypeInfo");
         return table;
     }
 

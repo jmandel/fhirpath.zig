@@ -6469,12 +6469,10 @@ fn makeQuantityItem(ctx: anytype, value: []const u8, unit: []const u8) item.Item
 }
 
 fn makeTypeInfoItem(_: anytype, namespace: []const u8, name: []const u8) item.Item {
-    // TypeInfo items have type System.TypeInfo (conceptually)
-    // For simplicity, we don't register a type_id for TypeInfo itself
     return .{
         .data_kind = .value,
         .value_kind = .typeInfo,
-        .type_id = 0, // TypeInfo is a meta-type, not a regular type
+        .type_id = item.SystemTypeIds.typeInfo,
         .source_pos = 0,
         .source_end = 0,
         .node = null,

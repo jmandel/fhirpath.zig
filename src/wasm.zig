@@ -4,7 +4,7 @@ const ast = @import("ast.zig");
 const eval = @import("eval.zig");
 const item = @import("item.zig");
 const schema = @import("schema.zig");
-const jsondoc = @import("jsondoc.zig");
+const StdJsonAdapter = @import("backends/stdjson.zig").StdJsonAdapter;
 
 pub const Status = enum(u32) {
     ok = 0,
@@ -367,26 +367,27 @@ pub export fn fhirpath_eval(
             return statusFromError(err);
         };
     } else {
-        // Generic JSON path: use JsonDocAdapter (span-preserving)
-        const JsonDocAdapter = @import("backends/jsondoc.zig").JsonDocAdapter;
-        var doc = jsondoc.JsonDoc.init(ctx.allocator, json_text) catch |err| {
+        // Generic JSON path: use StdJsonAdapter
+        var arena = std.heap.ArenaAllocator.init(ctx.allocator);
+        const arena_alloc = arena.allocator();
+        const parsed = std.json.parseFromSliceLeaky(std.json.Value, arena_alloc, json_text, .{ .parse_numbers = false }) catch |err| {
+            arena.deinit();
             return statusFromError(err);
         };
-        var adapter = JsonDocAdapter.init(&doc);
-        var eval_ctx = eval.EvalContext(JsonDocAdapter){
-            .allocator = doc.arena.allocator(),
+        var adapter = StdJsonAdapter.init(arena_alloc);
+        var eval_ctx = eval.EvalContext(StdJsonAdapter){
+            .allocator = arena_alloc,
             .adapter = &adapter,
             .types = &ctx.types,
             .schema = schema_ptr,
             .timestamp = ctx.now_epoch_seconds,
         };
-        const items = eval.evalExpression(&eval_ctx, expr, adapter.root(), null) catch |err| {
-            doc.deinit();
+        const items = eval.evalExpression(&eval_ctx, expr, &parsed, null) catch |err| {
+            arena.deinit();
             return statusFromError(err);
         };
-        // Transfer doc's arena to the result — don't call doc.deinit()
-        ctx.result = eval.resolveResult(JsonDocAdapter, &adapter, items, &doc.arena) catch |err| {
-            doc.deinit();
+        ctx.result = eval.resolveResult(StdJsonAdapter, &adapter, items, &arena) catch |err| {
+            arena.deinit();
             return statusFromError(err);
         };
     }

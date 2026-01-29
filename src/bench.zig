@@ -1,10 +1,6 @@
-//! Performance benchmarks comparing NodeAdapter implementations
-//! 
-//! Tests realistic FHIRPath-like navigation patterns on FHIR resources.
+//! Performance benchmarks for StdJsonAdapter navigation patterns
 const std = @import("std");
-const jsondoc = @import("jsondoc.zig");
 const node = @import("node.zig");
-const JsonDocAdapter = @import("backends/jsondoc.zig").JsonDocAdapter;
 const StdJsonAdapter = @import("backends/stdjson.zig").StdJsonAdapter;
 
 // Prevent the optimizer from eliminating benchmark code
@@ -25,10 +21,6 @@ fn doNotOptimize(val: anytype) void {
         sink +%= @sizeOf(T);
     }
 }
-
-// ============================================================================
-// Sample FHIR Resources
-// ============================================================================
 
 const PATIENT_JSON =
     \\{
@@ -81,41 +73,38 @@ const OBSERVATION_JSON =
     \\}
 ;
 
-// Generate a Bundle with multiple entries
 fn generateBundle(allocator: std.mem.Allocator, num_entries: usize) ![]const u8 {
     var buf = std.ArrayList(u8).empty;
     const w = buf.writer(allocator);
-    
+
     try w.writeAll(
         \\{"resourceType": "Bundle", "id": "bundle-1", "type": "searchset", "entry": [
     );
-    
+
     for (0..num_entries) |i| {
         if (i > 0) try w.writeByte(',');
-        // Alternate between Patient and Observation
         if (i % 2 == 0) {
             try w.print(
                 \\{{"resource": {{"resourceType": "Patient", "id": "p{d}", "name": [{{"given": ["Name{d}"]}}]}}}}
-            , .{i, i});
+            , .{ i, i });
         } else {
             try w.print(
                 \\{{"resource": {{"resourceType": "Observation", "id": "o{d}", "code": {{"coding": [{{"code": "code{d}"}}]}}, "valueQuantity": {{"value": {d}}}}}}}
-            , .{i, i, i});
+            , .{ i, i, i });
         }
     }
-    
+
     try w.writeAll("]}");
     return buf.toOwnedSlice(allocator);
 }
 
 // ============================================================================
-// Benchmark Functions - JsonDocAdapter
+// Benchmark Functions
 // ============================================================================
 
-fn runJsonDoc_SimpleNested(adapter: *JsonDocAdapter, root: JsonDocAdapter.NodeRef) void {
-    // code.coding.code (3-level nest)
-    if (adapter.objectGet(root, "code")) |code| {
-        if (adapter.objectGet(code, "coding")) |coding| {
+fn runSimpleNested(adapter: *StdJsonAdapter, root: StdJsonAdapter.NodeRef) void {
+    if (adapter.objectGet(root, "code")) |code_ref| {
+        if (adapter.objectGet(code_ref, "coding")) |coding| {
             if (adapter.kind(coding) == .array and adapter.arrayLen(coding) > 0) {
                 const first = adapter.arrayAt(coding, 0);
                 if (adapter.objectGet(first, "code")) |c| {
@@ -126,23 +115,12 @@ fn runJsonDoc_SimpleNested(adapter: *JsonDocAdapter, root: JsonDocAdapter.NodeRe
     }
 }
 
-fn benchJsonDoc_SimpleNested(adapter: *JsonDocAdapter, root: JsonDocAdapter.NodeRef, iterations: usize) u64 {
-    const start = std.time.nanoTimestamp();
-    
-    for (0..iterations) |_| {
-        runJsonDoc_SimpleNested(adapter, root);
-    }
-    
-    return @intCast(@as(i64, @intCast(std.time.nanoTimestamp())) - @as(i64, @intCast(start)));
-}
-
-fn runJsonDoc_ArrayTraversal(adapter: *JsonDocAdapter, root: JsonDocAdapter.NodeRef) void {
-    // name.given (collect all given names from all name entries)
+fn runArrayTraversal(adapter: *StdJsonAdapter, root: StdJsonAdapter.NodeRef) void {
     if (adapter.objectGet(root, "name")) |names| {
         if (adapter.kind(names) == .array) {
             for (0..adapter.arrayLen(names)) |i| {
-                const name = adapter.arrayAt(names, i);
-                if (adapter.objectGet(name, "given")) |given| {
+                const name_ref = adapter.arrayAt(names, i);
+                if (adapter.objectGet(name_ref, "given")) |given| {
                     if (adapter.kind(given) == .array) {
                         for (0..adapter.arrayLen(given)) |j| {
                             const g = adapter.arrayAt(given, j);
@@ -155,24 +133,13 @@ fn runJsonDoc_ArrayTraversal(adapter: *JsonDocAdapter, root: JsonDocAdapter.Node
     }
 }
 
-fn benchJsonDoc_ArrayTraversal(adapter: *JsonDocAdapter, root: JsonDocAdapter.NodeRef, iterations: usize) u64 {
-    const start = std.time.nanoTimestamp();
-    
-    for (0..iterations) |_| {
-        runJsonDoc_ArrayTraversal(adapter, root);
-    }
-    
-    return @intCast(@as(i64, @intCast(std.time.nanoTimestamp())) - @as(i64, @intCast(start)));
-}
-
-fn runJsonDoc_DeepComponent(adapter: *JsonDocAdapter, root: JsonDocAdapter.NodeRef) void {
-    // component.code.coding.code (4-level with arrays)
+fn runDeepComponent(adapter: *StdJsonAdapter, root: StdJsonAdapter.NodeRef) void {
     if (adapter.objectGet(root, "component")) |components| {
         if (adapter.kind(components) == .array) {
             for (0..adapter.arrayLen(components)) |i| {
                 const comp = adapter.arrayAt(components, i);
-                if (adapter.objectGet(comp, "code")) |code| {
-                    if (adapter.objectGet(code, "coding")) |coding| {
+                if (adapter.objectGet(comp, "code")) |code_ref| {
+                    if (adapter.objectGet(code_ref, "coding")) |coding| {
                         if (adapter.kind(coding) == .array and adapter.arrayLen(coding) > 0) {
                             const first = adapter.arrayAt(coding, 0);
                             if (adapter.objectGet(first, "code")) |c| {
@@ -186,18 +153,7 @@ fn runJsonDoc_DeepComponent(adapter: *JsonDocAdapter, root: JsonDocAdapter.NodeR
     }
 }
 
-fn benchJsonDoc_DeepComponent(adapter: *JsonDocAdapter, root: JsonDocAdapter.NodeRef, iterations: usize) u64 {
-    const start = std.time.nanoTimestamp();
-    
-    for (0..iterations) |_| {
-        runJsonDoc_DeepComponent(adapter, root);
-    }
-    
-    return @intCast(@as(i64, @intCast(std.time.nanoTimestamp())) - @as(i64, @intCast(start)));
-}
-
-fn runJsonDoc_WhereFilter(adapter: *JsonDocAdapter, root: JsonDocAdapter.NodeRef) void {
-    // identifier.where(system='urn:foo').value
+fn runWhereFilter(adapter: *StdJsonAdapter, root: StdJsonAdapter.NodeRef) void {
     if (adapter.objectGet(root, "identifier")) |ids| {
         if (adapter.kind(ids) == .array) {
             for (0..adapter.arrayLen(ids)) |i| {
@@ -214,18 +170,7 @@ fn runJsonDoc_WhereFilter(adapter: *JsonDocAdapter, root: JsonDocAdapter.NodeRef
     }
 }
 
-fn benchJsonDoc_WhereFilter(adapter: *JsonDocAdapter, root: JsonDocAdapter.NodeRef, iterations: usize) u64 {
-    const start = std.time.nanoTimestamp();
-    
-    for (0..iterations) |_| {
-        runJsonDoc_WhereFilter(adapter, root);
-    }
-    
-    return @intCast(@as(i64, @intCast(std.time.nanoTimestamp())) - @as(i64, @intCast(start)));
-}
-
-fn runJsonDoc_BundleTraversal(adapter: *JsonDocAdapter, root: JsonDocAdapter.NodeRef) void {
-    // entry.resource.where(resourceType='Observation').code.coding.code
+fn runBundleTraversal(adapter: *StdJsonAdapter, root: StdJsonAdapter.NodeRef) void {
     if (adapter.objectGet(root, "entry")) |entries| {
         if (adapter.kind(entries) == .array) {
             for (0..adapter.arrayLen(entries)) |i| {
@@ -233,8 +178,8 @@ fn runJsonDoc_BundleTraversal(adapter: *JsonDocAdapter, root: JsonDocAdapter.Nod
                 if (adapter.objectGet(entry, "resource")) |resource| {
                     if (adapter.objectGet(resource, "resourceType")) |rt| {
                         if (std.mem.eql(u8, adapter.string(rt), "Observation")) {
-                            if (adapter.objectGet(resource, "code")) |code| {
-                                if (adapter.objectGet(code, "coding")) |coding| {
+                            if (adapter.objectGet(resource, "code")) |code_ref| {
+                                if (adapter.objectGet(code_ref, "coding")) |coding| {
                                     if (adapter.kind(coding) == .array and adapter.arrayLen(coding) > 0) {
                                         const first = adapter.arrayAt(coding, 0);
                                         if (adapter.objectGet(first, "code")) |c| {
@@ -251,24 +196,13 @@ fn runJsonDoc_BundleTraversal(adapter: *JsonDocAdapter, root: JsonDocAdapter.Nod
     }
 }
 
-fn benchJsonDoc_BundleTraversal(adapter: *JsonDocAdapter, root: JsonDocAdapter.NodeRef, iterations: usize) u64 {
-    const start = std.time.nanoTimestamp();
-    
-    for (0..iterations) |_| {
-        runJsonDoc_BundleTraversal(adapter, root);
-    }
-    
-    return @intCast(@as(i64, @intCast(std.time.nanoTimestamp())) - @as(i64, @intCast(start)));
-}
-
-fn runJsonDoc_Count(adapter: *JsonDocAdapter, root: JsonDocAdapter.NodeRef) void {
-    // name.given.count() - count all given names
+fn runCount(adapter: *StdJsonAdapter, root: StdJsonAdapter.NodeRef) void {
     var count: usize = 0;
     if (adapter.objectGet(root, "name")) |names| {
         if (adapter.kind(names) == .array) {
             for (0..adapter.arrayLen(names)) |i| {
-                const name = adapter.arrayAt(names, i);
-                if (adapter.objectGet(name, "given")) |given| {
+                const name_ref = adapter.arrayAt(names, i);
+                if (adapter.objectGet(name_ref, "given")) |given| {
                     if (adapter.kind(given) == .array) {
                         count += adapter.arrayLen(given);
                     }
@@ -279,340 +213,29 @@ fn runJsonDoc_Count(adapter: *JsonDocAdapter, root: JsonDocAdapter.NodeRef) void
     doNotOptimize(count);
 }
 
-fn benchJsonDoc_Count(adapter: *JsonDocAdapter, root: JsonDocAdapter.NodeRef, iterations: usize) u64 {
-    const start = std.time.nanoTimestamp();
-    
-    for (0..iterations) |_| {
-        runJsonDoc_Count(adapter, root);
-    }
-    
-    return @intCast(@as(i64, @intCast(std.time.nanoTimestamp())) - @as(i64, @intCast(start)));
-}
-
-// ============================================================================
-// Benchmark Functions - StdJsonAdapter
-// ============================================================================
-
-fn runStdJson_SimpleNested(adapter: *StdJsonAdapter, root: StdJsonAdapter.NodeRef) void {
-    if (adapter.objectGet(root, "code")) |code| {
-        if (adapter.objectGet(code, "coding")) |coding| {
-            if (adapter.kind(coding) == .array and adapter.arrayLen(coding) > 0) {
-                const first = adapter.arrayAt(coding, 0);
-                if (adapter.objectGet(first, "code")) |c| {
-                    doNotOptimize(adapter.string(c));
-                }
-            }
-        }
-    }
-}
-
-fn benchStdJson_SimpleNested(adapter: *StdJsonAdapter, root: StdJsonAdapter.NodeRef, iterations: usize) u64 {
-    const start = std.time.nanoTimestamp();
-    
-    for (0..iterations) |_| {
-        runStdJson_SimpleNested(adapter, root);
-    }
-    
-    return @intCast(@as(i64, @intCast(std.time.nanoTimestamp())) - @as(i64, @intCast(start)));
-}
-
-fn runStdJson_ArrayTraversal(adapter: *StdJsonAdapter, root: StdJsonAdapter.NodeRef) void {
-    if (adapter.objectGet(root, "name")) |names| {
-        if (adapter.kind(names) == .array) {
-            for (0..adapter.arrayLen(names)) |i| {
-                const name = adapter.arrayAt(names, i);
-                if (adapter.objectGet(name, "given")) |given| {
-                    if (adapter.kind(given) == .array) {
-                        for (0..adapter.arrayLen(given)) |j| {
-                            const g = adapter.arrayAt(given, j);
-                            doNotOptimize(adapter.string(g));
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-fn benchStdJson_ArrayTraversal(adapter: *StdJsonAdapter, root: StdJsonAdapter.NodeRef, iterations: usize) u64 {
-    const start = std.time.nanoTimestamp();
-    
-    for (0..iterations) |_| {
-        runStdJson_ArrayTraversal(adapter, root);
-    }
-    
-    return @intCast(@as(i64, @intCast(std.time.nanoTimestamp())) - @as(i64, @intCast(start)));
-}
-
-fn runStdJson_DeepComponent(adapter: *StdJsonAdapter, root: StdJsonAdapter.NodeRef) void {
-    if (adapter.objectGet(root, "component")) |components| {
-        if (adapter.kind(components) == .array) {
-            for (0..adapter.arrayLen(components)) |i| {
-                const comp = adapter.arrayAt(components, i);
-                if (adapter.objectGet(comp, "code")) |code| {
-                    if (adapter.objectGet(code, "coding")) |coding| {
-                        if (adapter.kind(coding) == .array and adapter.arrayLen(coding) > 0) {
-                            const first = adapter.arrayAt(coding, 0);
-                            if (adapter.objectGet(first, "code")) |c| {
-                                doNotOptimize(adapter.string(c));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-fn benchStdJson_DeepComponent(adapter: *StdJsonAdapter, root: StdJsonAdapter.NodeRef, iterations: usize) u64 {
-    const start = std.time.nanoTimestamp();
-    
-    for (0..iterations) |_| {
-        runStdJson_DeepComponent(adapter, root);
-    }
-    
-    return @intCast(@as(i64, @intCast(std.time.nanoTimestamp())) - @as(i64, @intCast(start)));
-}
-
-fn runStdJson_WhereFilter(adapter: *StdJsonAdapter, root: StdJsonAdapter.NodeRef) void {
-    if (adapter.objectGet(root, "identifier")) |ids| {
-        if (adapter.kind(ids) == .array) {
-            for (0..adapter.arrayLen(ids)) |i| {
-                const id = adapter.arrayAt(ids, i);
-                if (adapter.objectGet(id, "system")) |sys| {
-                    if (std.mem.eql(u8, adapter.string(sys), "urn:foo")) {
-                        if (adapter.objectGet(id, "value")) |val| {
-                            doNotOptimize(adapter.string(val));
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-fn benchStdJson_WhereFilter(adapter: *StdJsonAdapter, root: StdJsonAdapter.NodeRef, iterations: usize) u64 {
-    const start = std.time.nanoTimestamp();
-    
-    for (0..iterations) |_| {
-        runStdJson_WhereFilter(adapter, root);
-    }
-    
-    return @intCast(@as(i64, @intCast(std.time.nanoTimestamp())) - @as(i64, @intCast(start)));
-}
-
-fn runStdJson_BundleTraversal(adapter: *StdJsonAdapter, root: StdJsonAdapter.NodeRef) void {
-    if (adapter.objectGet(root, "entry")) |entries| {
-        if (adapter.kind(entries) == .array) {
-            for (0..adapter.arrayLen(entries)) |i| {
-                const entry = adapter.arrayAt(entries, i);
-                if (adapter.objectGet(entry, "resource")) |resource| {
-                    if (adapter.objectGet(resource, "resourceType")) |rt| {
-                        if (std.mem.eql(u8, adapter.string(rt), "Observation")) {
-                            if (adapter.objectGet(resource, "code")) |code| {
-                                if (adapter.objectGet(code, "coding")) |coding| {
-                                    if (adapter.kind(coding) == .array and adapter.arrayLen(coding) > 0) {
-                                        const first = adapter.arrayAt(coding, 0);
-                                        if (adapter.objectGet(first, "code")) |c| {
-                                            doNotOptimize(adapter.string(c));
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-fn benchStdJson_BundleTraversal(adapter: *StdJsonAdapter, root: StdJsonAdapter.NodeRef, iterations: usize) u64 {
-    const start = std.time.nanoTimestamp();
-    
-    for (0..iterations) |_| {
-        runStdJson_BundleTraversal(adapter, root);
-    }
-    
-    return @intCast(@as(i64, @intCast(std.time.nanoTimestamp())) - @as(i64, @intCast(start)));
-}
-
-fn runStdJson_Count(adapter: *StdJsonAdapter, root: StdJsonAdapter.NodeRef) void {
-    var count: usize = 0;
-    if (adapter.objectGet(root, "name")) |names| {
-        if (adapter.kind(names) == .array) {
-            for (0..adapter.arrayLen(names)) |i| {
-                const name = adapter.arrayAt(names, i);
-                if (adapter.objectGet(name, "given")) |given| {
-                    if (adapter.kind(given) == .array) {
-                        count += adapter.arrayLen(given);
-                    }
-                }
-            }
-        }
-    }
-    doNotOptimize(count);
-}
-
-fn benchStdJson_Count(adapter: *StdJsonAdapter, root: StdJsonAdapter.NodeRef, iterations: usize) u64 {
-    const start = std.time.nanoTimestamp();
-    
-    for (0..iterations) |_| {
-        runStdJson_Count(adapter, root);
-    }
-    
-    return @intCast(@as(i64, @intCast(std.time.nanoTimestamp())) - @as(i64, @intCast(start)));
-}
-
-// ============================================================================
-// Benchmark Functions - Parse Each (includes parse cost)
-// ============================================================================
-
-fn benchJsonDoc_SimpleNestedParseEach(allocator: std.mem.Allocator, json_text: []const u8, iterations: usize) !u64 {
+fn benchNavOnly(comptime runFn: anytype, adapter: *StdJsonAdapter, root: StdJsonAdapter.NodeRef, iterations: usize) u64 {
     const start = std.time.nanoTimestamp();
     for (0..iterations) |_| {
-        var doc = try jsondoc.JsonDoc.init(allocator, json_text);
-        defer doc.deinit();
-        var adapter = JsonDocAdapter.init(&doc);
-        runJsonDoc_SimpleNested(&adapter, adapter.root());
+        runFn(adapter, root);
     }
     return @intCast(@as(i64, @intCast(std.time.nanoTimestamp())) - @as(i64, @intCast(start)));
 }
 
-fn benchJsonDoc_ArrayTraversalParseEach(allocator: std.mem.Allocator, json_text: []const u8, iterations: usize) !u64 {
-    const start = std.time.nanoTimestamp();
-    for (0..iterations) |_| {
-        var doc = try jsondoc.JsonDoc.init(allocator, json_text);
-        defer doc.deinit();
-        var adapter = JsonDocAdapter.init(&doc);
-        runJsonDoc_ArrayTraversal(&adapter, adapter.root());
-    }
-    return @intCast(@as(i64, @intCast(std.time.nanoTimestamp())) - @as(i64, @intCast(start)));
-}
-
-fn benchJsonDoc_DeepComponentParseEach(allocator: std.mem.Allocator, json_text: []const u8, iterations: usize) !u64 {
-    const start = std.time.nanoTimestamp();
-    for (0..iterations) |_| {
-        var doc = try jsondoc.JsonDoc.init(allocator, json_text);
-        defer doc.deinit();
-        var adapter = JsonDocAdapter.init(&doc);
-        runJsonDoc_DeepComponent(&adapter, adapter.root());
-    }
-    return @intCast(@as(i64, @intCast(std.time.nanoTimestamp())) - @as(i64, @intCast(start)));
-}
-
-fn benchJsonDoc_WhereFilterParseEach(allocator: std.mem.Allocator, json_text: []const u8, iterations: usize) !u64 {
-    const start = std.time.nanoTimestamp();
-    for (0..iterations) |_| {
-        var doc = try jsondoc.JsonDoc.init(allocator, json_text);
-        defer doc.deinit();
-        var adapter = JsonDocAdapter.init(&doc);
-        runJsonDoc_WhereFilter(&adapter, adapter.root());
-    }
-    return @intCast(@as(i64, @intCast(std.time.nanoTimestamp())) - @as(i64, @intCast(start)));
-}
-
-fn benchJsonDoc_CountParseEach(allocator: std.mem.Allocator, json_text: []const u8, iterations: usize) !u64 {
-    const start = std.time.nanoTimestamp();
-    for (0..iterations) |_| {
-        var doc = try jsondoc.JsonDoc.init(allocator, json_text);
-        defer doc.deinit();
-        var adapter = JsonDocAdapter.init(&doc);
-        runJsonDoc_Count(&adapter, adapter.root());
-    }
-    return @intCast(@as(i64, @intCast(std.time.nanoTimestamp())) - @as(i64, @intCast(start)));
-}
-
-fn benchJsonDoc_BundleTraversalParseEach(allocator: std.mem.Allocator, json_text: []const u8, iterations: usize) !u64 {
-    const start = std.time.nanoTimestamp();
-    for (0..iterations) |_| {
-        var doc = try jsondoc.JsonDoc.init(allocator, json_text);
-        defer doc.deinit();
-        var adapter = JsonDocAdapter.init(&doc);
-        runJsonDoc_BundleTraversal(&adapter, adapter.root());
-    }
-    return @intCast(@as(i64, @intCast(std.time.nanoTimestamp())) - @as(i64, @intCast(start)));
-}
-
-fn benchStdJson_SimpleNestedParseEach(allocator: std.mem.Allocator, json_text: []const u8, iterations: usize) !u64 {
+fn benchParseEach(comptime runFn: anytype, allocator: std.mem.Allocator, json_text: []const u8, iterations: usize) !u64 {
     const start = std.time.nanoTimestamp();
     for (0..iterations) |_| {
         const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_text, .{ .parse_numbers = false });
         defer parsed.deinit();
         var adapter = StdJsonAdapter.init(allocator);
-        runStdJson_SimpleNested(&adapter, &parsed.value);
+        runFn(&adapter, &parsed.value);
     }
     return @intCast(@as(i64, @intCast(std.time.nanoTimestamp())) - @as(i64, @intCast(start)));
 }
 
-fn benchStdJson_ArrayTraversalParseEach(allocator: std.mem.Allocator, json_text: []const u8, iterations: usize) !u64 {
-    const start = std.time.nanoTimestamp();
-    for (0..iterations) |_| {
-        const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_text, .{ .parse_numbers = false });
-        defer parsed.deinit();
-        var adapter = StdJsonAdapter.init(allocator);
-        runStdJson_ArrayTraversal(&adapter, &parsed.value);
-    }
-    return @intCast(@as(i64, @intCast(std.time.nanoTimestamp())) - @as(i64, @intCast(start)));
-}
-
-fn benchStdJson_DeepComponentParseEach(allocator: std.mem.Allocator, json_text: []const u8, iterations: usize) !u64 {
-    const start = std.time.nanoTimestamp();
-    for (0..iterations) |_| {
-        const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_text, .{ .parse_numbers = false });
-        defer parsed.deinit();
-        var adapter = StdJsonAdapter.init(allocator);
-        runStdJson_DeepComponent(&adapter, &parsed.value);
-    }
-    return @intCast(@as(i64, @intCast(std.time.nanoTimestamp())) - @as(i64, @intCast(start)));
-}
-
-fn benchStdJson_WhereFilterParseEach(allocator: std.mem.Allocator, json_text: []const u8, iterations: usize) !u64 {
-    const start = std.time.nanoTimestamp();
-    for (0..iterations) |_| {
-        const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_text, .{ .parse_numbers = false });
-        defer parsed.deinit();
-        var adapter = StdJsonAdapter.init(allocator);
-        runStdJson_WhereFilter(&adapter, &parsed.value);
-    }
-    return @intCast(@as(i64, @intCast(std.time.nanoTimestamp())) - @as(i64, @intCast(start)));
-}
-
-fn benchStdJson_CountParseEach(allocator: std.mem.Allocator, json_text: []const u8, iterations: usize) !u64 {
-    const start = std.time.nanoTimestamp();
-    for (0..iterations) |_| {
-        const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_text, .{ .parse_numbers = false });
-        defer parsed.deinit();
-        var adapter = StdJsonAdapter.init(allocator);
-        runStdJson_Count(&adapter, &parsed.value);
-    }
-    return @intCast(@as(i64, @intCast(std.time.nanoTimestamp())) - @as(i64, @intCast(start)));
-}
-
-fn benchStdJson_BundleTraversalParseEach(allocator: std.mem.Allocator, json_text: []const u8, iterations: usize) !u64 {
-    const start = std.time.nanoTimestamp();
-    for (0..iterations) |_| {
-        const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_text, .{ .parse_numbers = false });
-        defer parsed.deinit();
-        var adapter = StdJsonAdapter.init(allocator);
-        runStdJson_BundleTraversal(&adapter, &parsed.value);
-    }
-    return @intCast(@as(i64, @intCast(std.time.nanoTimestamp())) - @as(i64, @intCast(start)));
-}
-
-// ============================================================================
-// Main
-// ============================================================================
-
-fn printResult(name: []const u8, jdoc_ns: u64, stdjson_ns: u64, iterations: usize) void {
-    const jdoc_ms = @as(f64, @floatFromInt(jdoc_ns)) / 1_000_000.0;
-    const stdjson_ms = @as(f64, @floatFromInt(stdjson_ns)) / 1_000_000.0;
-    const ratio = @as(f64, @floatFromInt(stdjson_ns)) / @as(f64, @floatFromInt(jdoc_ns));
-    const jdoc_ops = @as(f64, @floatFromInt(iterations)) / (@as(f64, @floatFromInt(jdoc_ns)) / 1_000_000_000.0);
-    
-    std.debug.print("{s:<35} JsonDoc: {d:>7.2}ms  StdJson: {d:>7.2}ms  ratio: {d:.2}x  ({d:.0} ops/s)\n", .{
-        name, jdoc_ms, stdjson_ms, ratio, jdoc_ops,
-    });
+fn printResult(name: []const u8, ns: u64, iterations: usize) void {
+    const ms = @as(f64, @floatFromInt(ns)) / 1_000_000.0;
+    const ops = @as(f64, @floatFromInt(iterations)) / (@as(f64, @floatFromInt(ns)) / 1_000_000_000.0);
+    std.debug.print("{s:<40} {d:>8.2}ms  ({d:.0} ops/s)\n", .{ name, ms, ops });
 }
 
 const BenchOptions = struct {
@@ -668,115 +291,50 @@ pub fn main() !void {
     const bundle_iters = if (iterations >= 10) iterations / 10 else 1;
 
     std.debug.print("\n", .{});
-    std.debug.print("=" ** 80 ++ "\n", .{});
-    std.debug.print("NodeAdapter Performance Benchmark - Realistic FHIRPath Patterns\n", .{});
-    std.debug.print("=" ** 80 ++ "\n\n", .{});
+    std.debug.print("=" ** 70 ++ "\n", .{});
+    std.debug.print("StdJsonAdapter Performance Benchmark\n", .{});
+    std.debug.print("=" ** 70 ++ "\n\n", .{});
 
-    // Generate bundle
     const bundle_json = try generateBundle(allocator, bundle_size);
     defer allocator.free(bundle_json);
 
     std.debug.print("Test Data:\n", .{});
     std.debug.print("  Patient JSON:     {d:>6} bytes\n", .{PATIENT_JSON.len});
     std.debug.print("  Observation JSON: {d:>6} bytes\n", .{OBSERVATION_JSON.len});
-    std.debug.print("  Bundle JSON:      {d:>6} bytes ({d} entries)\n", .{bundle_json.len, bundle_size});
+    std.debug.print("  Bundle JSON:      {d:>6} bytes ({d} entries)\n", .{ bundle_json.len, bundle_size });
     std.debug.print("  Iterations:       {d:>6}\n\n", .{iterations});
-    std.debug.print("  Mode:             {s}\n\n", .{if (options.parse_each) "parse-each (parse+eval)" else "parse-once (navigation only)"});
+    std.debug.print("  Mode:             {s}\n\n", .{if (options.parse_each) "parse-each (parse+nav)" else "parse-once (navigation only)"});
 
-    // Run benchmarks
-    std.debug.print("Benchmark                            JsonDoc         StdJson         Ratio   Throughput\n", .{});
-    std.debug.print("-" ** 95 ++ "\n", .{});
+    std.debug.print("Benchmark                                    Time        Throughput\n", .{});
+    std.debug.print("-" ** 70 ++ "\n", .{});
 
     if (options.parse_each) {
-        {
-            const jdoc_ns = try benchJsonDoc_SimpleNestedParseEach(allocator, OBSERVATION_JSON, iterations);
-            const stdjson_ns = try benchStdJson_SimpleNestedParseEach(allocator, OBSERVATION_JSON, iterations);
-            printResult("code.coding.code (Observation)", jdoc_ns, stdjson_ns, iterations);
-        }
-        {
-            const jdoc_ns = try benchJsonDoc_ArrayTraversalParseEach(allocator, PATIENT_JSON, iterations);
-            const stdjson_ns = try benchStdJson_ArrayTraversalParseEach(allocator, PATIENT_JSON, iterations);
-            printResult("name.given (Patient)", jdoc_ns, stdjson_ns, iterations);
-        }
-        {
-            const jdoc_ns = try benchJsonDoc_DeepComponentParseEach(allocator, OBSERVATION_JSON, iterations);
-            const stdjson_ns = try benchStdJson_DeepComponentParseEach(allocator, OBSERVATION_JSON, iterations);
-            printResult("component.code.coding.code (Obs)", jdoc_ns, stdjson_ns, iterations);
-        }
-        {
-            const jdoc_ns = try benchJsonDoc_WhereFilterParseEach(allocator, PATIENT_JSON, iterations);
-            const stdjson_ns = try benchStdJson_WhereFilterParseEach(allocator, PATIENT_JSON, iterations);
-            printResult("identifier.where(sys=X).value (Pt)", jdoc_ns, stdjson_ns, iterations);
-        }
-        {
-            const jdoc_ns = try benchJsonDoc_CountParseEach(allocator, PATIENT_JSON, iterations);
-            const stdjson_ns = try benchStdJson_CountParseEach(allocator, PATIENT_JSON, iterations);
-            printResult("name.given.count() (Patient)", jdoc_ns, stdjson_ns, iterations);
-        }
-        {
-            const jdoc_ns = try benchJsonDoc_BundleTraversalParseEach(allocator, bundle_json, bundle_iters);
-            const stdjson_ns = try benchStdJson_BundleTraversalParseEach(allocator, bundle_json, bundle_iters);
-            printResult("Bundle filter+traverse (100 entries)", jdoc_ns, stdjson_ns, bundle_iters);
-        }
+        printResult("code.coding.code (Observation)", try benchParseEach(runSimpleNested, allocator, OBSERVATION_JSON, iterations), iterations);
+        printResult("name.given (Patient)", try benchParseEach(runArrayTraversal, allocator, PATIENT_JSON, iterations), iterations);
+        printResult("component.code.coding.code (Obs)", try benchParseEach(runDeepComponent, allocator, OBSERVATION_JSON, iterations), iterations);
+        printResult("identifier.where(sys=X).value (Pt)", try benchParseEach(runWhereFilter, allocator, PATIENT_JSON, iterations), iterations);
+        printResult("name.given.count() (Patient)", try benchParseEach(runCount, allocator, PATIENT_JSON, iterations), iterations);
+        printResult("Bundle filter+traverse (100 entries)", try benchParseEach(runBundleTraversal, allocator, bundle_json, bundle_iters), bundle_iters);
     } else {
-        // Parse all documents
-        var patient_jdoc = try jsondoc.JsonDoc.init(allocator, PATIENT_JSON);
-        defer patient_jdoc.deinit();
-        var patient_jdoc_adapter = JsonDocAdapter.init(&patient_jdoc);
-        
-        const patient_stdjson = try std.json.parseFromSlice(std.json.Value, allocator, PATIENT_JSON, .{ .parse_numbers = false });
-        defer patient_stdjson.deinit();
-        var patient_stdjson_adapter = StdJsonAdapter.init(allocator);
+        const patient_parsed = try std.json.parseFromSlice(std.json.Value, allocator, PATIENT_JSON, .{ .parse_numbers = false });
+        defer patient_parsed.deinit();
+        var patient_adapter = StdJsonAdapter.init(allocator);
 
-        var obs_jdoc = try jsondoc.JsonDoc.init(allocator, OBSERVATION_JSON);
-        defer obs_jdoc.deinit();
-        var obs_jdoc_adapter = JsonDocAdapter.init(&obs_jdoc);
-        
-        const obs_stdjson = try std.json.parseFromSlice(std.json.Value, allocator, OBSERVATION_JSON, .{ .parse_numbers = false });
-        defer obs_stdjson.deinit();
-        var obs_stdjson_adapter = StdJsonAdapter.init(allocator);
+        const obs_parsed = try std.json.parseFromSlice(std.json.Value, allocator, OBSERVATION_JSON, .{ .parse_numbers = false });
+        defer obs_parsed.deinit();
+        var obs_adapter = StdJsonAdapter.init(allocator);
 
-        var bundle_jdoc = try jsondoc.JsonDoc.init(allocator, bundle_json);
-        defer bundle_jdoc.deinit();
-        var bundle_jdoc_adapter = JsonDocAdapter.init(&bundle_jdoc);
-        
-        const bundle_stdjson = try std.json.parseFromSlice(std.json.Value, allocator, bundle_json, .{ .parse_numbers = false });
-        defer bundle_stdjson.deinit();
-        var bundle_stdjson_adapter = StdJsonAdapter.init(allocator);
+        const bundle_parsed = try std.json.parseFromSlice(std.json.Value, allocator, bundle_json, .{ .parse_numbers = false });
+        defer bundle_parsed.deinit();
+        var bundle_adapter = StdJsonAdapter.init(allocator);
 
-        {
-            const jdoc_ns = benchJsonDoc_SimpleNested(&obs_jdoc_adapter, obs_jdoc_adapter.root(), iterations);
-            const stdjson_ns = benchStdJson_SimpleNested(&obs_stdjson_adapter, &obs_stdjson.value, iterations);
-            printResult("code.coding.code (Observation)", jdoc_ns, stdjson_ns, iterations);
-        }
-        {
-            const jdoc_ns = benchJsonDoc_ArrayTraversal(&patient_jdoc_adapter, patient_jdoc_adapter.root(), iterations);
-            const stdjson_ns = benchStdJson_ArrayTraversal(&patient_stdjson_adapter, &patient_stdjson.value, iterations);
-            printResult("name.given (Patient)", jdoc_ns, stdjson_ns, iterations);
-        }
-        {
-            const jdoc_ns = benchJsonDoc_DeepComponent(&obs_jdoc_adapter, obs_jdoc_adapter.root(), iterations);
-            const stdjson_ns = benchStdJson_DeepComponent(&obs_stdjson_adapter, &obs_stdjson.value, iterations);
-            printResult("component.code.coding.code (Obs)", jdoc_ns, stdjson_ns, iterations);
-        }
-        {
-            const jdoc_ns = benchJsonDoc_WhereFilter(&patient_jdoc_adapter, patient_jdoc_adapter.root(), iterations);
-            const stdjson_ns = benchStdJson_WhereFilter(&patient_stdjson_adapter, &patient_stdjson.value, iterations);
-            printResult("identifier.where(sys=X).value (Pt)", jdoc_ns, stdjson_ns, iterations);
-        }
-        {
-            const jdoc_ns = benchJsonDoc_Count(&patient_jdoc_adapter, patient_jdoc_adapter.root(), iterations);
-            const stdjson_ns = benchStdJson_Count(&patient_stdjson_adapter, &patient_stdjson.value, iterations);
-            printResult("name.given.count() (Patient)", jdoc_ns, stdjson_ns, iterations);
-        }
-        {
-            const jdoc_ns = benchJsonDoc_BundleTraversal(&bundle_jdoc_adapter, bundle_jdoc_adapter.root(), bundle_iters);
-            const stdjson_ns = benchStdJson_BundleTraversal(&bundle_stdjson_adapter, &bundle_stdjson.value, bundle_iters);
-            printResult("Bundle filter+traverse (100 entries)", jdoc_ns, stdjson_ns, bundle_iters);
-        }
+        printResult("code.coding.code (Observation)", benchNavOnly(runSimpleNested, &obs_adapter, &obs_parsed.value, iterations), iterations);
+        printResult("name.given (Patient)", benchNavOnly(runArrayTraversal, &patient_adapter, &patient_parsed.value, iterations), iterations);
+        printResult("component.code.coding.code (Obs)", benchNavOnly(runDeepComponent, &obs_adapter, &obs_parsed.value, iterations), iterations);
+        printResult("identifier.where(sys=X).value (Pt)", benchNavOnly(runWhereFilter, &patient_adapter, &patient_parsed.value, iterations), iterations);
+        printResult("name.given.count() (Patient)", benchNavOnly(runCount, &patient_adapter, &patient_parsed.value, iterations), iterations);
+        printResult("Bundle filter+traverse (100 entries)", benchNavOnly(runBundleTraversal, &bundle_adapter, &bundle_parsed.value, bundle_iters), bundle_iters);
     }
 
-    std.debug.print("\n", .{});
-    std.debug.print("Note: ratio > 1.0 means JsonDoc is faster than StdJson\n", .{});
-    std.debug.print("Sink: {d} (prevents optimization)\n", .{sink});
+    std.debug.print("\nSink: {d} (prevents optimization)\n", .{sink});
 }

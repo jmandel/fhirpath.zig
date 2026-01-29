@@ -1,11 +1,10 @@
 const std = @import("std");
 const ast = @import("ast.zig");
-const jsondoc = @import("jsondoc.zig");
 const node = @import("node.zig");
 const item = @import("item.zig");
 const schema = @import("schema.zig");
 const regex = @import("regex.zig");
-const JsonDocAdapter = @import("backends/jsondoc.zig").JsonDocAdapter;
+const StdJsonAdapter = @import("backends/stdjson.zig").StdJsonAdapter;
 
 pub const ItemList = std.ArrayList(item.Item);
 
@@ -71,18 +70,20 @@ pub fn evalWithJson(
     types: *item.TypeTable,
     schema_ptr: ?*schema.Schema,
 ) !EvalResult {
-    var doc = try jsondoc.JsonDoc.init(allocator, json_text);
-    // Don't defer doc.deinit() — we transfer doc.arena to the result.
-    var adapter = JsonDocAdapter.init(&doc);
-    var ctx = EvalContext(JsonDocAdapter){
-        .allocator = doc.arena.allocator(),
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    errdefer arena.deinit();
+    const arena_alloc = arena.allocator();
+    const parsed = try std.json.parseFromSliceLeaky(std.json.Value, arena_alloc, json_text, .{ .parse_numbers = false });
+    var adapter = StdJsonAdapter.init(arena_alloc);
+    var ctx = EvalContext(StdJsonAdapter){
+        .allocator = arena_alloc,
         .adapter = &adapter,
         .types = types,
         .schema = schema_ptr,
         .timestamp = std.time.timestamp(),
     };
-    const items = try evalExpression(&ctx, expr, adapter.root(), env);
-    return resolveResult(JsonDocAdapter, &adapter, items, &doc.arena);
+    const items = try evalExpression(&ctx, expr, &parsed, env);
+    return resolveResult(StdJsonAdapter, &adapter, items, &arena);
 }
 
 /// Resolve adapter-specific node_ref items to adapter-independent std.json.Value entries,

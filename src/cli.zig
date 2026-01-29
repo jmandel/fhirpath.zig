@@ -2,8 +2,7 @@ const std = @import("std");
 const lib = @import("lib.zig");
 const eval = @import("eval.zig");
 const ast = @import("ast.zig");
-const jsondoc = @import("jsondoc.zig");
-const JsonDocAdapter = @import("backends/jsondoc.zig").JsonDocAdapter;
+const StdJsonAdapter = @import("backends/stdjson.zig").StdJsonAdapter;
 const item = @import("item.zig");
 const convert = @import("convert.zig");
 const schema = @import("schema.zig");
@@ -53,11 +52,14 @@ pub fn main() !void {
     var types = try item.TypeTable.init(allocator);
     defer types.deinit();
 
-    var doc = jsondoc.JsonDoc.init(allocator, json_str) catch |err| {
+    var eval_arena = std.heap.ArenaAllocator.init(allocator);
+    defer eval_arena.deinit();
+    const arena_alloc = eval_arena.allocator();
+
+    const parsed = std.json.parseFromSliceLeaky(std.json.Value, arena_alloc, json_str, .{ .parse_numbers = false }) catch |err| {
         std.debug.print("JSON parse error: {}\n", .{err});
         return;
     };
-    defer doc.deinit();
 
     // Load schema if specified
     var schema_obj: ?schema.Schema = null;
@@ -77,19 +79,19 @@ pub fn main() !void {
     defer if (model_bytes) |bytes| allocator.free(bytes);
     defer if (schema_obj) |*s| s.deinit();
 
-    var adapter = JsonDocAdapter.init(&doc);
-    var ctx = eval.EvalContext(JsonDocAdapter){
-        .allocator = doc.arena.allocator(),
+    var adapter = StdJsonAdapter.init(arena_alloc);
+    var ctx = eval.EvalContext(StdJsonAdapter){
+        .allocator = arena_alloc,
         .adapter = &adapter,
         .types = &types,
         .schema = if (schema_obj) |*s| s else null,
         .timestamp = std.time.timestamp(),
     };
-    var result = eval.evalExpression(&ctx, expr, adapter.root(), null) catch |err| {
+    var result = eval.evalExpression(&ctx, expr, &parsed, null) catch |err| {
         std.debug.print("Eval error: {}\n", .{err});
         return;
     };
-    defer result.deinit(doc.arena.allocator());
+    defer result.deinit(arena_alloc);
 
     var out_arr = std.ArrayList(std.json.Value).empty;
     defer out_arr.deinit(allocator);
@@ -104,10 +106,10 @@ pub fn main() !void {
             } else {
                 type_name = types.name(it.type_id);
             }
-            const val = try convert.itemToTypedJsonValue(allocator, &doc, it, type_name);
+            const val = try convert.adapterItemToTypedJsonValue(StdJsonAdapter, allocator, &adapter, it, type_name);
             try out_arr.append(allocator, val);
         } else {
-            const val = try convert.itemToJsonValue(allocator, &doc, it);
+            const val = try convert.adapterItemToJsonValue(StdJsonAdapter, allocator, &adapter, it);
             try out_arr.append(allocator, val);
         }
     }
@@ -127,22 +129,22 @@ pub fn main() !void {
 fn printUsage() void {
     const usage =
         \\Usage: fhirpath [options] <expression> [json]
-        \\ 
+        \\
         \\Evaluate a FHIRPath expression against JSON input.
-        \\ 
+        \\
         \\Options:
         \\  -t, --typed       Output {type, value} objects
         \\  -m, --model PATH  Load FHIR model for type resolution
-        \\ 
+        \\
         \\Arguments:
         \\  expression  FHIRPath expression to evaluate
         \\  json        JSON input (default: {})
-        \\ 
+        \\
         \\Examples:
         \\  fhirpath 'name.given' '{"name":{"given":["Ann","Bob"]}}'
         \\  fhirpath -t 'true'   # outputs [{"type":"System.Boolean","value":true}]
         \\  fhirpath -t -m models/r5/model.bin 'identifier' '<patient-json>'
-        \\ 
+        \\
     ;
     std.debug.print("{s}", .{usage});
 }

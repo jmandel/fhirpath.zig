@@ -2,8 +2,7 @@ const std = @import("std");
 const lib = @import("lib.zig");
 const eval = @import("eval.zig");
 const ast = @import("ast.zig");
-const jsondoc = @import("jsondoc.zig");
-const JsonDocAdapter = @import("backends/jsondoc.zig").JsonDocAdapter;
+const StdJsonAdapter = @import("backends/stdjson.zig").StdJsonAdapter;
 const FhirJsonAdapter = @import("backends/fhirjson.zig").FhirJsonAdapter;
 const item = @import("item.zig");
 const convert = @import("convert.zig");
@@ -534,7 +533,7 @@ fn runTestFile(
                 deinitValue(allocator, val);
             }
         } else {
-            // === Standard JsonDoc adapter path ===
+            // === Standard StdJson adapter path ===
             // Get env and build combined JSON if needed
             const env_val = obj.get("env");
             var combined_json: ?[]const u8 = null;
@@ -552,7 +551,11 @@ fn runTestFile(
                 break :blk combined_json.?;
             } else input_str;
 
-            var doc = jsondoc.JsonDoc.init(allocator, doc_json) catch {
+            var eval_arena = std.heap.ArenaAllocator.init(allocator);
+            defer eval_arena.deinit();
+            const arena_alloc = eval_arena.allocator();
+
+            const std_parsed = std.json.parseFromSliceLeaky(std.json.Value, arena_alloc, doc_json, .{ .parse_numbers = false }) catch {
                 if (expect_error) {
                     result.passed += 1;
                     if (opts.verbose) {
@@ -565,26 +568,25 @@ fn runTestFile(
                 }
                 continue;
             };
-            defer doc.deinit();
 
-            var adapter = JsonDocAdapter.init(&doc);
+            var adapter = StdJsonAdapter.init(arena_alloc);
 
             // Extract root and build env map if we have env values
-            const root_idx = if (env_val != null)
-                adapter.objectGet(adapter.root(), "__input") orelse adapter.root()
+            const root_ref: StdJsonAdapter.NodeRef = if (env_val != null)
+                adapter.objectGet(&std_parsed, "__input") orelse &std_parsed
             else
-                adapter.root();
+                &std_parsed;
 
-            var env_map = eval.Env.init(doc.arena.allocator());
+            var env_map = eval.Env.init(arena_alloc);
             var env_ptr: ?*eval.Env = null;
 
             if (env_val != null) {
-                if (adapter.objectGet(adapter.root(), "__env")) |env_idx| {
-                    if (adapter.kind(env_idx) == .object) {
-                        var iter = adapter.objectIter(env_idx);
+                if (adapter.objectGet(&std_parsed, "__env")) |env_ref| {
+                    if (adapter.kind(env_ref) == .object) {
+                        var iter = adapter.objectIter(env_ref);
                         while (iter.next()) |entry| {
                             const env_item = makeEnvItem(&adapter, entry.value);
-                            const slice = try doc.arena.allocator().alloc(item.Item, 1);
+                            const slice = try arena_alloc.alloc(item.Item, 1);
                             slice[0] = env_item;
                             try env_map.put(entry.key, slice);
                         }
@@ -593,14 +595,14 @@ fn runTestFile(
                 }
             }
 
-            var ctx = eval.EvalContext(JsonDocAdapter){
-                .allocator = doc.arena.allocator(),
+            var ctx = eval.EvalContext(StdJsonAdapter){
+                .allocator = arena_alloc,
                 .adapter = &adapter,
                 .types = &types,
                 .schema = schema_ptr,
                 .timestamp = std.time.timestamp(),
             };
-            var eval_result = eval.evalExpression(&ctx, expr, root_idx, env_ptr) catch {
+            var eval_result = eval.evalExpression(&ctx, expr, root_ref, env_ptr) catch {
                 if (expect_error) {
                     result.passed += 1;
                     if (opts.verbose) {
@@ -617,10 +619,10 @@ fn runTestFile(
             if (expect_error) {
                 result.failed += 1;
                 try addFailure(allocator, failures, result.name, name_str, expr_str, "expected error but succeeded", null, null);
-                eval_result.deinit(doc.arena.allocator());
+                eval_result.deinit(arena_alloc);
                 continue;
             }
-            defer eval_result.deinit(doc.arena.allocator());
+            defer eval_result.deinit(arena_alloc);
 
             const expect_val = obj.get(expect_key);
             const empty_items: []const std.json.Value = &[_]std.json.Value{};
@@ -631,7 +633,7 @@ fn runTestFile(
                 }
             }
 
-            var actual_values = try itemsToJsonArray(allocator, &doc, eval_result.items, &types, schema_ptr);
+            var actual_values = try stdItemsToJsonArray(allocator, &adapter, eval_result.items, &types, schema_ptr);
             defer actual_values.deinit(allocator);
 
             const unordered = if (obj.get("unordered")) |uv| uv == .bool and uv.bool else false;
@@ -703,9 +705,9 @@ fn addFailure(
     });
 }
 
-fn itemsToJsonArray(
+fn stdItemsToJsonArray(
     allocator: std.mem.Allocator,
-    doc: *jsondoc.JsonDoc,
+    adapter: *StdJsonAdapter,
     items: []const item.Item,
     types: *item.TypeTable,
     schema_ptr: ?*schema.Schema,
@@ -720,7 +722,7 @@ fn itemsToJsonArray(
         } else {
             type_name = types.name(it.type_id);
         }
-        const val = try convert.itemToTypedJsonValue(allocator, doc, it, type_name);
+        const val = try convert.adapterItemToTypedJsonValue(StdJsonAdapter, allocator, adapter, it, type_name);
         try out.append(allocator, val);
     }
     return out;
@@ -883,15 +885,14 @@ fn deinitValue(allocator: std.mem.Allocator, v: std.json.Value) void {
     }
 }
 
-fn makeEnvItem(adapter: *JsonDocAdapter, node_idx: JsonDocAdapter.NodeRef) item.Item {
-    const n = adapter.doc.node(node_idx);
+fn makeEnvItem(_: *StdJsonAdapter, ref: StdJsonAdapter.NodeRef) item.Item {
     return .{
         .data_kind = .node_ref,
         .value_kind = .empty,
         .type_id = 0,
-        .source_pos = n.start,
-        .source_end = n.end,
-        .node = node_idx,
+        .source_pos = 0,
+        .source_end = 0,
+        .node = @intFromPtr(ref),
         .value = null,
     };
 }

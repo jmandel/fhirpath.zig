@@ -1,0 +1,151 @@
+{
+  "_spec_summary": [
+    "=== resolve() (FHIR-specific) ===",
+    "resolve() is defined in the FHIRPath-in-FHIR specification, not in core FHIRPath.",
+    "It resolves references to resources within the evaluation context.",
+    "",
+    "=== CORE BEHAVIOR ===",
+    "- For each item in the input collection:",
+    "  - If the item is a Reference, resolve Reference.reference to a target resource.",
+    "  - If the item is a string typed as uri/canonical/url, resolve it to a target resource.",
+    "  - If the item does not resolve to a resource, it is ignored (no output item).",
+    "- The output is the collection of resolved resources.",
+    "- Unresolvable items do NOT cause an error; they are simply omitted.",
+    "",
+    "=== TYPE HANDLING ===",
+    "- Only Reference items (and uri/canonical/url strings) are eligible for resolution.",
+    "- For Reference items, only Reference.reference is used.",
+    "- If Reference.reference is missing or empty, the item is ignored.",
+    "- Non-reference, non-uri items yield no output.",
+    "",
+    "=== EMPTY COLLECTION SEMANTICS ===",
+    "- Empty input collection => empty output collection.",
+    "",
+    "=== ORDERING & DUPLICATES ===",
+    "- The spec does not define ordering; implementations typically preserve input order.",
+    "- Duplicates are not removed; if two inputs resolve to the same resource, both appear.",
+    "",
+    "=== CONTEXT & RESOLUTION STRATEGY ===",
+    "- Resolution is context-dependent. Common strategies include:",
+    "  - Resolving contained references (Reference.reference = '#id') within %resource.contained.",
+    "  - Resolving Bundle references via fullUrl or entry.resource.id.",
+    "  - External resolution via FHIR server or caller-supplied resolver.",
+    "- These tests focus on contained-resource resolution, which is the minimum viable strategy.",
+    "",
+    "Spec ref: spec/fhirpath-in-fhir.md §2.1.9.1.5.5 resolve()."
+  ],
+  "_todo": [
+    "[ ] Improve passing rate (0/6 passing)",
+    "[ ] Implement resolve() with contained-resource support (#id)",
+    "[ ] Decide resolution strategy for absolute/relative URLs (Bundle vs external)"
+  ],
+  "meta": {
+    "status": "drafted",
+    "requires_fhir_json": true,
+    "feature": "resolve"
+  },
+  "cases": [
+    {
+      "name": "resolve: empty input yields empty",
+      "expr": "{}.resolve().empty()",
+      "input": {},
+      "expect": [
+        {"type": "boolean", "value": true}
+      ]
+    },
+    {
+      "name": "resolve: subject reference resolves to contained Patient",
+      "expr": "Observation.subject.resolve().resourceType",
+      "input": {
+        "resourceType": "Observation",
+        "id": "obs1",
+        "subject": {"reference": "#pat1"},
+        "contained": [
+          {
+            "resourceType": "Patient",
+            "id": "pat1",
+            "name": [{"family": "Smith"}]
+          }
+        ]
+      },
+      "expect": [
+        {"type": "string", "value": "Patient"}
+      ]
+    },
+    {
+      "name": "resolve: can navigate into resolved resource",
+      "expr": "Observation.subject.resolve().name.family",
+      "input": {
+        "resourceType": "Observation",
+        "id": "obs1",
+        "subject": {"reference": "#pat1"},
+        "contained": [
+          {
+            "resourceType": "Patient",
+            "id": "pat1",
+            "name": [{"family": "Smith"}]
+          }
+        ]
+      },
+      "expect": [
+        {"type": "string", "value": "Smith"}
+      ]
+    },
+    {
+      "name": "resolve: ignores missing reference targets",
+      "expr": "Observation.performer.resolve().count()",
+      "input": {
+        "resourceType": "Observation",
+        "id": "obs1",
+        "performer": [
+          {"reference": "#pr1"},
+          {"reference": "#pr2"},
+          {"reference": "#missing"},
+          {"display": "No reference"}
+        ],
+        "contained": [
+          {"resourceType": "Practitioner", "id": "pr1", "name": [{"family": "Who"}]},
+          {"resourceType": "Practitioner", "id": "pr2", "name": [{"family": "Doe"}]}
+        ]
+      },
+      "expect": [
+        {"type": "integer", "value": 2}
+      ]
+    },
+    {
+      "name": "resolve: resolved performer ids",
+      "expr": "Observation.performer.resolve().id",
+      "unordered": true,
+      "input": {
+        "resourceType": "Observation",
+        "id": "obs1",
+        "performer": [
+          {"reference": "#pr1"},
+          {"reference": "#pr2"},
+          {"reference": "#missing"}
+        ],
+        "contained": [
+          {"resourceType": "Practitioner", "id": "pr1", "name": [{"family": "Who"}]},
+          {"resourceType": "Practitioner", "id": "pr2", "name": [{"family": "Doe"}]}
+        ]
+      },
+      "expect": [
+        {"type": "string", "value": "pr1"},
+        {"type": "string", "value": "pr2"}
+      ]
+    },
+    {
+      "name": "resolve: unresolved reference returns empty",
+      "expr": "Observation.subject.resolve().empty()",
+      "input": {
+        "resourceType": "Observation",
+        "id": "obs1",
+        "subject": {"reference": "#missing"},
+        "contained": []
+      },
+      "expect": [
+        {"type": "boolean", "value": true}
+      ]
+    }
+  ]
+}

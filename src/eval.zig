@@ -82,7 +82,7 @@ pub fn evalWithJson(
         .timestamp = std.time.timestamp(),
     };
     const items = try evalExpression(&ctx, expr, adapter.root(), env);
-    return resolveResult(JsonDocAdapter, &adapter, items, doc.arena);
+    return resolveResult(JsonDocAdapter, &adapter, items, &doc.arena);
 }
 
 /// Resolve adapter-specific node_ref items to adapter-independent std.json.Value entries,
@@ -94,10 +94,9 @@ pub fn resolveResult(
     comptime A: type,
     adapter: *A,
     items: ItemList,
-    arena_in: std.heap.ArenaAllocator,
+    arena: *std.heap.ArenaAllocator,
 ) !EvalResult {
     const convert = @import("convert.zig");
-    var arena = arena_in;
     const arena_alloc = arena.allocator();
     var node_values = std.ArrayListUnmanaged(std.json.Value){};
 
@@ -143,7 +142,7 @@ pub fn resolveResult(
     return .{
         .items = items,
         .node_values = node_values,
-        .arena = arena,
+        .arena = arena.*,
     };
 }
 

@@ -362,7 +362,7 @@ pub export fn fhirpath_eval(
             arena.deinit();
             return statusFromError(err);
         };
-        ctx.result = eval.resolveResult(FhirJsonAdapter, &fhir_adapter, items, arena) catch |err| {
+        ctx.result = eval.resolveResult(FhirJsonAdapter, &fhir_adapter, items, &arena) catch |err| {
             arena.deinit();
             return statusFromError(err);
         };
@@ -385,7 +385,7 @@ pub export fn fhirpath_eval(
             return statusFromError(err);
         };
         // Transfer doc's arena to the result — don't call doc.deinit()
-        ctx.result = eval.resolveResult(JsonDocAdapter, &adapter, items, doc.arena) catch |err| {
+        ctx.result = eval.resolveResult(JsonDocAdapter, &adapter, items, &doc.arena) catch |err| {
             doc.deinit();
             return statusFromError(err);
         };

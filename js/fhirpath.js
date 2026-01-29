@@ -11,12 +11,13 @@ const ValueKind = {
   empty: 0,
   boolean: 1,
   integer: 2,
-  decimal: 3,
-  string: 4,
-  date: 5,
-  time: 6,
-  dateTime: 7,
-  quantity: 8,
+  long: 3,
+  decimal: 4,
+  string: 5,
+  date: 6,
+  time: 7,
+  dateTime: 8,
+  quantity: 9,
 };
 
 const Status = {
@@ -225,7 +226,14 @@ export class FhirPathEngine {
       case ValueKind.boolean:
         return !!this.exports.fhirpath_item_bool(this.ctx, item);
       case ValueKind.integer:
-        return this.exports.fhirpath_item_i64(this.ctx, item);
+      case ValueKind.long: {
+        const bigVal = this.exports.fhirpath_item_i64(this.ctx, item);
+        if (typeof bigVal === "bigint") {
+          if (bigVal >= -9007199254740991n && bigVal <= 9007199254740991n) return Number(bigVal);
+          return bigVal;
+        }
+        return bigVal;
+      }
       case ValueKind.decimal:
         return this.#readDecimalValue(item);
       case ValueKind.string:

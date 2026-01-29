@@ -4,6 +4,7 @@ pub const SystemTypeNames = [_][]const u8{
     "System.Any",
     "System.Boolean",
     "System.Integer",
+    "System.Long",
     "System.Decimal",
     "System.String",
     "System.Date",

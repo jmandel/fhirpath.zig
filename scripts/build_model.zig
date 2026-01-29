@@ -20,6 +20,42 @@ const KIND_COMPLEX: u8 = 2;
 const KIND_RESOURCE: u8 = 3;
 const KIND_BACKBONE: u8 = 4;
 
+/// Map a FHIR primitive type local name to its FHIRPath System type id.
+/// This is the spec-defined conversion table from fhirpath-in-fhir.html.
+/// System type IDs are 1-based indices into SystemTypes.
+fn fhirPrimToSystemTypeId(name: []const u8) ?u32 {
+    const map = .{
+        .{ "boolean", "System.Boolean" },
+        .{ "string", "System.String" },
+        .{ "uri", "System.String" },
+        .{ "code", "System.String" },
+        .{ "oid", "System.String" },
+        .{ "id", "System.String" },
+        .{ "uuid", "System.String" },
+        .{ "markdown", "System.String" },
+        .{ "base64Binary", "System.String" },
+        .{ "integer", "System.Integer" },
+        .{ "unsignedInt", "System.Integer" },
+        .{ "positiveInt", "System.Integer" },
+        .{ "integer64", "System.Long" },
+        .{ "decimal", "System.Decimal" },
+        .{ "date", "System.DateTime" },
+        .{ "dateTime", "System.DateTime" },
+        .{ "instant", "System.DateTime" },
+        .{ "time", "System.Time" },
+        .{ "Quantity", "System.Quantity" },
+    };
+    inline for (map) |entry| {
+        if (std.mem.eql(u8, name, entry[0])) {
+            // Find index in SystemTypes array (1-based)
+            inline for (SystemTypes, 0..) |st, i| {
+                if (std.mem.eql(u8, entry[1], st)) return @intCast(i + 1);
+            }
+        }
+    }
+    return null;
+}
+
 const FIELD_MULTIPLE: u32 = 1 << 0;
 const FIELD_CHOICE_BASE: u32 = 1 << 1;
 const FIELD_CHOICE_VARIANT: u32 = 1 << 2;
@@ -456,10 +492,28 @@ fn emitTables(
                 base_id = 0x8000_0000 | (base_idx + 1);
             }
         }
+        // Compute the System type ID for primitive types.
+        // First check the type's own name, then walk up the base chain.
         var prim_base_id: u32 = 0;
-        if (t.prim_base_name) |prim| {
-            if (type_index_map.get(prim)) |prim_idx| {
-                prim_base_id = 0x8000_0000 | (prim_idx + 1);
+        if (t.kind == KIND_PRIMITIVE) {
+            if (fhirPrimToSystemTypeId(t.name)) |sys_id| {
+                prim_base_id = sys_id;
+            } else if (t.prim_base_name) |prim_name| {
+                // Walk the base chain at build time to find the mapping
+                var current_name: ?[]const u8 = prim_name;
+                var walk_depth: u32 = 0;
+                while (current_name != null and walk_depth < 20) : (walk_depth += 1) {
+                    if (fhirPrimToSystemTypeId(current_name.?)) |sys_id| {
+                        prim_base_id = sys_id;
+                        break;
+                    }
+                    // Look up this type's base
+                    if (type_index_map.get(current_name.?)) |base_sorted_idx| {
+                        current_name = builder.types.items[type_indices[base_sorted_idx]].prim_base_name;
+                    } else {
+                        break;
+                    }
+                }
             }
         }
         try type_entries.append(allocator, .{

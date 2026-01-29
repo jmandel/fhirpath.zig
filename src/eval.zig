@@ -38,13 +38,28 @@ pub const Env = struct {
 
 const EvalError = error{ InvalidFunction, InvalidPredicate, SingletonRequired, InvalidOperand } || error{OutOfMemory, InvalidJson, TrailingData};
 
+/// Adapter-independent evaluation result.
+/// After eval, node_refs are resolved to std.json.Value entries so the
+/// result can be read without any adapter reference. The arena is
+/// transferred from the adapter/parser — no copies, just ownership transfer.
 pub const EvalResult = struct {
     items: ItemList,
-    doc: jsondoc.JsonDoc,
+    /// Resolved std.json.Value for each node_ref item.
+    /// item.node.? is an index into this array when data_kind == .node_ref.
+    node_values: std.ArrayListUnmanaged(std.json.Value),
+    /// Owns all allocated memory (parsed input, eval items, resolved values).
+    arena: std.heap.ArenaAllocator,
 
     pub fn deinit(self: *EvalResult) void {
-        self.items.deinit(self.doc.arena.allocator());
-        self.doc.deinit();
+        self.arena.deinit();
+    }
+
+    /// Get the resolved std.json.Value for a node_ref item.
+    pub fn nodeValue(self: *const EvalResult, it: item.Item) ?std.json.Value {
+        if (it.data_kind != .node_ref or it.node == null) return null;
+        const idx = it.node.?;
+        if (idx >= self.node_values.items.len) return null;
+        return self.node_values.items[idx];
     }
 };
 
@@ -57,6 +72,7 @@ pub fn evalWithJson(
     schema_ptr: ?*schema.Schema,
 ) !EvalResult {
     var doc = try jsondoc.JsonDoc.init(allocator, json_text);
+    // Don't defer doc.deinit() — we transfer doc.arena to the result.
     var adapter = JsonDocAdapter.init(&doc);
     var ctx = EvalContext(JsonDocAdapter){
         .allocator = doc.arena.allocator(),
@@ -66,7 +82,69 @@ pub fn evalWithJson(
         .timestamp = std.time.timestamp(),
     };
     const items = try evalExpression(&ctx, expr, adapter.root(), env);
-    return .{ .items = items, .doc = doc };
+    return resolveResult(JsonDocAdapter, &adapter, items, doc.arena);
+}
+
+/// Resolve adapter-specific node_ref items to adapter-independent std.json.Value entries,
+/// then take ownership of the arena. All data (parsed input, eval items, resolved values)
+/// already lives in this arena — no copies, just ownership transfer.
+///
+/// After this returns, the adapter struct can go out of scope (its heap data is in the arena).
+pub fn resolveResult(
+    comptime A: type,
+    adapter: *A,
+    items: ItemList,
+    arena_in: std.heap.ArenaAllocator,
+) !EvalResult {
+    const convert = @import("convert.zig");
+    var arena = arena_in;
+    const arena_alloc = arena.allocator();
+    var node_values = std.ArrayListUnmanaged(std.json.Value){};
+
+    for (items.items) |*it| {
+        if (it.data_kind == .node_ref and it.node != null) {
+            const ref = convert.adapterNodeRefFromRaw(A, it.node.?);
+            const jv = try convert.adapterNodeToJsonValue(A, arena_alloc, adapter, ref);
+            const idx = node_values.items.len;
+            try node_values.append(arena_alloc, jv);
+            it.node = idx;
+            // Promote primitive node_refs to value items
+            switch (jv) {
+                .bool => |b| {
+                    it.data_kind = .value;
+                    it.value_kind = .boolean;
+                    it.value = .{ .boolean = b };
+                },
+                .integer => |i| {
+                    it.data_kind = .value;
+                    it.value_kind = .integer;
+                    it.value = .{ .integer = i };
+                },
+                .string => |s| {
+                    it.data_kind = .value;
+                    it.value_kind = .string;
+                    it.value = .{ .string = s };
+                },
+                .number_string => |s| {
+                    it.data_kind = .value;
+                    it.value_kind = .decimal;
+                    it.value = .{ .decimal = s };
+                },
+                .float => |f| {
+                    it.data_kind = .value;
+                    it.value_kind = .decimal;
+                    const text = try std.fmt.allocPrint(arena_alloc, "{d}", .{f});
+                    it.value = .{ .decimal = text };
+                },
+                else => {}, // objects/arrays stay as node_ref
+            }
+        }
+    }
+    return .{
+        .items = items,
+        .node_values = node_values,
+        .arena = arena,
+    };
 }
 
 pub fn evalExpression(
@@ -313,7 +391,24 @@ fn applySegment(
                 try applySegment(ctx, child, name, out);
             }
         },
-        else => {},
+        .string, .number, .bool, .null => {
+            // FHIR merged primitives may support objectGet even though kind is
+            // primitive. For non-FHIR adapters, objectGet returns null for
+            // non-object nodes, so this is safe.
+            if (A.objectGet(ctx.adapter, ref, name)) |child_ref| {
+                if (A.kind(ctx.adapter, child_ref) == .array) {
+                    const len = A.arrayLen(ctx.adapter, child_ref);
+                    for (0..len) |i| {
+                        const child_item_ref = A.arrayAt(ctx.adapter, child_ref, i);
+                        const child = try itemFromNodeWithType(ctx, child_item_ref, child_type_id);
+                        try out.append(ctx.allocator, child);
+                    }
+                } else {
+                    const child = try itemFromNodeWithType(ctx, child_ref, child_type_id);
+                    try out.append(ctx.allocator, child);
+                }
+            }
+        },
     }
 }
 
@@ -3067,13 +3162,13 @@ fn itemIsTypeImpl(ctx: anytype, it: item.Item, type_name: []const u8, allow_impl
                 // Check inheritance chain, but NOT for FHIR primitive targets.
                 // Per spec: "All primitives are considered to be independent types
                 // (so markdown is not a subclass of string)."
-                if (s.fhirToSystemTypeId(tid) == 0) {
+                if (s.implicitSystemTypeId(tid) == 0) {
                     if (s.isSubtype(it.type_id, tid)) return true;
                 }
             }
             // Check implicit FHIR→System conversion (only for ofType, not is/as)
             if (allow_implicit) {
-                const implicit_sys_id = s.fhirToSystemTypeId(it.type_id);
+                const implicit_sys_id = s.implicitSystemTypeId(it.type_id);
                 if (implicit_sys_id != 0) {
                     // Resolve the target type name as a System type
                     const target_sys_id = resolveSystemTypeByName(type_name);
@@ -4139,7 +4234,8 @@ fn evalFunction(
                         try out.append(ctx.allocator, child_item);
                     }
                 },
-                // Primitives have no children
+                // Primitives have no children (extension/id/value are navigable
+                // via property access but not included in children())
                 .string, .number, .bool, .null => {},
             }
         }
@@ -6381,7 +6477,7 @@ fn makeNodeItem(ctx: anytype, node_ref: @TypeOf(ctx.adapter.*).NodeRef, type_id_
     };
     var source_pos: u32 = 0;
     var source_end: u32 = 0;
-    if (node.hasSpanSupport(A)) {
+    if (comptime node.hasSpanSupport(A)) {
         const span = A.span(ctx.adapter, node_ref);
         source_pos = span.pos;
         source_end = span.end;

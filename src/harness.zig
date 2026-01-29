@@ -4,6 +4,7 @@ const eval = @import("eval.zig");
 const ast = @import("ast.zig");
 const jsondoc = @import("jsondoc.zig");
 const JsonDocAdapter = @import("backends/jsondoc.zig").JsonDocAdapter;
+const FhirJsonAdapter = @import("backends/fhirjson.zig").FhirJsonAdapter;
 const item = @import("item.zig");
 const convert = @import("convert.zig");
 const schema = @import("schema.zig");
@@ -16,6 +17,7 @@ const Options = struct {
     verbose: bool = false,
     model_path: ?[]const u8 = null,
     input_dir: ?[]const u8 = null,
+    fhir_json: bool = false,
 };
 
 const FileResult = struct {
@@ -84,6 +86,8 @@ pub fn main() !void {
         } else if (std.mem.eql(u8, arg, "--input-dir") or std.mem.eql(u8, arg, "-i")) {
             i += 1;
             if (i < args.len) opts.input_dir = args[i];
+        } else if (std.mem.eql(u8, arg, "--fhir-json")) {
+            opts.fhir_json = true;
         } else if (!std.mem.startsWith(u8, arg, "-")) {
             try files.append(allocator, arg);
         }
@@ -202,6 +206,7 @@ fn printUsage() void {
         \\  -q, --no-failures          Don't show failure details
         \\  -v, --verbose              Show passing tests too
         \\  -m, --model PATH           Load FHIR model for type resolution
+        \\  --fhir-json                Use FHIR JSON adapter (merges _field primitives)
         \\  -i, --input-dir DIR        Directory for inputfile references
         \\  -h, --help                 Show this help
         \\
@@ -295,7 +300,21 @@ fn runTestFile(
     defer parsed.deinit();
 
     const root = parsed.value;
-    
+
+    // Auto-detect --fhir-json from meta.requires_fhir_json in test file
+    var use_fhir_json = opts.fhir_json;
+    if (!use_fhir_json) {
+        if (root.object.get("meta")) |meta_val| {
+            if (meta_val == .object) {
+                if (meta_val.object.get("requires_fhir_json")) |rfj| {
+                    if (rfj == .bool and rfj.bool) {
+                        use_fhir_json = true;
+                    }
+                }
+            }
+        }
+    }
+
     // Detect format: "cases" = artisinal, "tests" = r5 official
     const cases_key = if (root.object.get("cases") != null) "cases" else "tests";
     const cases_val = root.object.get(cases_key) orelse return result;
@@ -422,134 +441,226 @@ fn runTestFile(
         };
         defer ast.deinitExpr(allocator, expr);
 
-        // Get env and build combined JSON if needed
-        const env_val = obj.get("env");
-        var combined_json: ?[]const u8 = null;
-        defer if (combined_json) |cj| allocator.free(cj);
-
-        const doc_json = if (env_val) |ev| blk: {
-            const env_str = std.json.Stringify.valueAlloc(allocator, ev, .{}) catch "{}";
-            defer allocator.free(env_str);
-            combined_json = std.fmt.allocPrint(allocator, "{{\"__input\":{s},\"__env\":{s}}}", .{ input_str, env_str }) catch {
-                result.failed += 1;
-                result.parse_errors += 1;
-                try addFailure(allocator, failures, result.name, name_str, expr_str, "env json error", null, null);
+        if (use_fhir_json) {
+            // === FHIR JSON adapter path ===
+            var std_parsed = std.json.parseFromSlice(std.json.Value, allocator, input_str, .{ .parse_numbers = false }) catch {
+                if (expect_error) {
+                    result.passed += 1;
+                    if (opts.verbose) {
+                        std.debug.print("[PASS] {s}:{s} (expected json error)\n", .{ result.name, name_str });
+                    }
+                } else {
+                    result.failed += 1;
+                    result.parse_errors += 1;
+                    try addFailure(allocator, failures, result.name, name_str, expr_str, "json parse error", null, null);
+                }
                 continue;
             };
-            break :blk combined_json.?;
-        } else input_str;
+            defer std_parsed.deinit();
 
-        var doc = jsondoc.JsonDoc.init(allocator, doc_json) catch {
-            if (expect_error) {
-                result.passed += 1;
-                if (opts.verbose) {
-                    std.debug.print("[PASS] {s}:{s} (expected json error)\n", .{ result.name, name_str });
-                }
-            } else {
-                result.failed += 1;
-                result.parse_errors += 1;
-                try addFailure(allocator, failures, result.name, name_str, expr_str, "json parse error", null, null);
-            }
-            continue;
-        };
-        defer doc.deinit();
+            var fhir_arena = std.heap.ArenaAllocator.init(allocator);
+            defer fhir_arena.deinit();
+            const arena_alloc = fhir_arena.allocator();
 
-        var adapter = JsonDocAdapter.init(&doc);
+            var fhir_adapter = FhirJsonAdapter.init(arena_alloc, &std_parsed.value);
+            defer fhir_adapter.deinit();
 
-        // Extract root and build env map if we have env values
-        const root_idx = if (env_val != null)
-            adapter.objectGet(adapter.root(), "__input") orelse adapter.root()
-        else
-            adapter.root();
-
-        var env_map = eval.Env.init(doc.arena.allocator());
-        var env_ptr: ?*eval.Env = null;
-
-        if (env_val != null) {
-            if (adapter.objectGet(adapter.root(), "__env")) |env_idx| {
-                if (adapter.kind(env_idx) == .object) {
-                    var iter = adapter.objectIter(env_idx);
-                    while (iter.next()) |entry| {
-                        // Create a single-item slice for this env value
-                        const env_item = makeEnvItem(&adapter, entry.value);
-                        const slice = try doc.arena.allocator().alloc(item.Item, 1);
-                        slice[0] = env_item;
-                        try env_map.put(entry.key, slice);
+            var fhir_ctx = eval.EvalContext(FhirJsonAdapter){
+                .allocator = arena_alloc,
+                .adapter = &fhir_adapter,
+                .types = &types,
+                .schema = schema_ptr,
+                .timestamp = std.time.timestamp(),
+            };
+            var fhir_eval_result = eval.evalExpression(&fhir_ctx, expr, fhir_adapter.root(), null) catch {
+                if (expect_error) {
+                    result.passed += 1;
+                    if (opts.verbose) {
+                        std.debug.print("[PASS] {s}:{s} (expected eval error)\n", .{ result.name, name_str });
                     }
-                    env_ptr = &env_map;
+                } else {
+                    result.failed += 1;
+                    result.eval_errors += 1;
+                    try addFailure(allocator, failures, result.name, name_str, expr_str, "eval error", null, null);
+                }
+                continue;
+            };
+
+            if (expect_error) {
+                result.failed += 1;
+                try addFailure(allocator, failures, result.name, name_str, expr_str, "expected error but succeeded", null, null);
+                fhir_eval_result.deinit(arena_alloc);
+                continue;
+            }
+            defer fhir_eval_result.deinit(arena_alloc);
+
+            const expect_val = obj.get(expect_key);
+            const empty_items: []const std.json.Value = &[_]std.json.Value{};
+            var expect_items = empty_items;
+            if (expect_val) |ev| {
+                if (ev == .array) {
+                    expect_items = ev.array.items;
                 }
             }
-        }
 
-        var ctx = eval.EvalContext(JsonDocAdapter){
-            .allocator = doc.arena.allocator(),
-            .adapter = &adapter,
-            .types = &types,
-            .schema = schema_ptr,
-            .timestamp = std.time.timestamp(),
-        };
-        var eval_result = eval.evalExpression(&ctx, expr, root_idx, env_ptr) catch {
-            if (expect_error) {
+            var actual_values = try fhirItemsToJsonArray(allocator, &fhir_adapter, fhir_eval_result.items, &types, schema_ptr);
+            defer actual_values.deinit(allocator);
+
+            const unordered = if (obj.get("unordered")) |uv| uv == .bool and uv.bool else false;
+            const matched = compareExpected(expect_items, actual_values.items, unordered);
+            if (!matched) {
+                result.failed += 1;
+                result.mismatch_errors += 1;
+
+                const expected_str = if (expect_val) |ev|
+                    jsonStringifyOwned(allocator, ev)
+                else
+                    dupOwned(allocator, "[]");
+                defer if (expected_str.owned) allocator.free(expected_str.buf);
+
+                const actual_array = std.json.Array{ .items = actual_values.items, .capacity = actual_values.capacity, .allocator = allocator };
+                const actual_str = jsonStringifyOwned(allocator, std.json.Value{ .array = actual_array });
+                defer if (actual_str.owned) allocator.free(actual_str.buf);
+
+                try addFailure(allocator, failures, result.name, name_str, expr_str, "mismatch", expected_str.buf, actual_str.buf);
+            } else {
                 result.passed += 1;
                 if (opts.verbose) {
-                    std.debug.print("[PASS] {s}:{s} (expected eval error)\n", .{ result.name, name_str });
+                    std.debug.print("[PASS] {s}:{s}\n", .{ result.name, name_str });
                 }
-            } else {
-                result.failed += 1;
-                result.eval_errors += 1;
-                try addFailure(allocator, failures, result.name, name_str, expr_str, "eval error", null, null);
             }
-            continue;
-        };
 
-        // If we expected an error but evaluation succeeded, that's a failure
-        if (expect_error) {
-            result.failed += 1;
-            try addFailure(allocator, failures, result.name, name_str, expr_str, "expected error but succeeded", null, null);
-            eval_result.deinit(doc.arena.allocator());
-            continue;
-        }
-        defer eval_result.deinit(doc.arena.allocator());
-
-        const expect_val = obj.get(expect_key);
-        const empty_items: []const std.json.Value = &[_]std.json.Value{};
-        var expect_items = empty_items;
-        if (expect_val) |ev| {
-            if (ev == .array) {
-                expect_items = ev.array.items;
+            for (actual_values.items) |val| {
+                deinitValue(allocator, val);
             }
-        }
-
-        var actual_values = try itemsToJsonArray(allocator, &doc, eval_result.items, &types, schema_ptr);
-        defer actual_values.deinit(allocator);
-
-        // Check for unordered flag
-        const unordered = if (obj.get("unordered")) |uv| uv == .bool and uv.bool else false;
-        const matched = compareExpected(expect_items, actual_values.items, unordered);
-        if (!matched) {
-            result.failed += 1;
-            result.mismatch_errors += 1;
-
-            const expected_str = if (expect_val) |ev|
-                jsonStringifyOwned(allocator, ev)
-            else
-                dupOwned(allocator, "[]");
-            defer if (expected_str.owned) allocator.free(expected_str.buf);
-
-            const actual_array = std.json.Array{ .items = actual_values.items, .capacity = actual_values.capacity, .allocator = allocator };
-            const actual_str = jsonStringifyOwned(allocator, std.json.Value{ .array = actual_array });
-            defer if (actual_str.owned) allocator.free(actual_str.buf);
-
-            try addFailure(allocator, failures, result.name, name_str, expr_str, "mismatch", expected_str.buf, actual_str.buf);
         } else {
-            result.passed += 1;
-            if (opts.verbose) {
-                std.debug.print("[PASS] {s}:{s}\n", .{ result.name, name_str });
-            }
-        }
+            // === Standard JsonDoc adapter path ===
+            // Get env and build combined JSON if needed
+            const env_val = obj.get("env");
+            var combined_json: ?[]const u8 = null;
+            defer if (combined_json) |cj| allocator.free(cj);
 
-        for (actual_values.items) |val| {
-            deinitValue(allocator, val);
+            const doc_json = if (env_val) |ev| blk: {
+                const env_str = std.json.Stringify.valueAlloc(allocator, ev, .{}) catch "{}";
+                defer allocator.free(env_str);
+                combined_json = std.fmt.allocPrint(allocator, "{{\"__input\":{s},\"__env\":{s}}}", .{ input_str, env_str }) catch {
+                    result.failed += 1;
+                    result.parse_errors += 1;
+                    try addFailure(allocator, failures, result.name, name_str, expr_str, "env json error", null, null);
+                    continue;
+                };
+                break :blk combined_json.?;
+            } else input_str;
+
+            var doc = jsondoc.JsonDoc.init(allocator, doc_json) catch {
+                if (expect_error) {
+                    result.passed += 1;
+                    if (opts.verbose) {
+                        std.debug.print("[PASS] {s}:{s} (expected json error)\n", .{ result.name, name_str });
+                    }
+                } else {
+                    result.failed += 1;
+                    result.parse_errors += 1;
+                    try addFailure(allocator, failures, result.name, name_str, expr_str, "json parse error", null, null);
+                }
+                continue;
+            };
+            defer doc.deinit();
+
+            var adapter = JsonDocAdapter.init(&doc);
+
+            // Extract root and build env map if we have env values
+            const root_idx = if (env_val != null)
+                adapter.objectGet(adapter.root(), "__input") orelse adapter.root()
+            else
+                adapter.root();
+
+            var env_map = eval.Env.init(doc.arena.allocator());
+            var env_ptr: ?*eval.Env = null;
+
+            if (env_val != null) {
+                if (adapter.objectGet(adapter.root(), "__env")) |env_idx| {
+                    if (adapter.kind(env_idx) == .object) {
+                        var iter = adapter.objectIter(env_idx);
+                        while (iter.next()) |entry| {
+                            const env_item = makeEnvItem(&adapter, entry.value);
+                            const slice = try doc.arena.allocator().alloc(item.Item, 1);
+                            slice[0] = env_item;
+                            try env_map.put(entry.key, slice);
+                        }
+                        env_ptr = &env_map;
+                    }
+                }
+            }
+
+            var ctx = eval.EvalContext(JsonDocAdapter){
+                .allocator = doc.arena.allocator(),
+                .adapter = &adapter,
+                .types = &types,
+                .schema = schema_ptr,
+                .timestamp = std.time.timestamp(),
+            };
+            var eval_result = eval.evalExpression(&ctx, expr, root_idx, env_ptr) catch {
+                if (expect_error) {
+                    result.passed += 1;
+                    if (opts.verbose) {
+                        std.debug.print("[PASS] {s}:{s} (expected eval error)\n", .{ result.name, name_str });
+                    }
+                } else {
+                    result.failed += 1;
+                    result.eval_errors += 1;
+                    try addFailure(allocator, failures, result.name, name_str, expr_str, "eval error", null, null);
+                }
+                continue;
+            };
+
+            if (expect_error) {
+                result.failed += 1;
+                try addFailure(allocator, failures, result.name, name_str, expr_str, "expected error but succeeded", null, null);
+                eval_result.deinit(doc.arena.allocator());
+                continue;
+            }
+            defer eval_result.deinit(doc.arena.allocator());
+
+            const expect_val = obj.get(expect_key);
+            const empty_items: []const std.json.Value = &[_]std.json.Value{};
+            var expect_items = empty_items;
+            if (expect_val) |ev| {
+                if (ev == .array) {
+                    expect_items = ev.array.items;
+                }
+            }
+
+            var actual_values = try itemsToJsonArray(allocator, &doc, eval_result.items, &types, schema_ptr);
+            defer actual_values.deinit(allocator);
+
+            const unordered = if (obj.get("unordered")) |uv| uv == .bool and uv.bool else false;
+            const matched = compareExpected(expect_items, actual_values.items, unordered);
+            if (!matched) {
+                result.failed += 1;
+                result.mismatch_errors += 1;
+
+                const expected_str = if (expect_val) |ev|
+                    jsonStringifyOwned(allocator, ev)
+                else
+                    dupOwned(allocator, "[]");
+                defer if (expected_str.owned) allocator.free(expected_str.buf);
+
+                const actual_array = std.json.Array{ .items = actual_values.items, .capacity = actual_values.capacity, .allocator = allocator };
+                const actual_str = jsonStringifyOwned(allocator, std.json.Value{ .array = actual_array });
+                defer if (actual_str.owned) allocator.free(actual_str.buf);
+
+                try addFailure(allocator, failures, result.name, name_str, expr_str, "mismatch", expected_str.buf, actual_str.buf);
+            } else {
+                result.passed += 1;
+                if (opts.verbose) {
+                    std.debug.print("[PASS] {s}:{s}\n", .{ result.name, name_str });
+                }
+            }
+
+            for (actual_values.items) |val| {
+                deinitValue(allocator, val);
+            }
         }
     }
 
@@ -610,6 +721,27 @@ fn itemsToJsonArray(
             type_name = types.name(it.type_id);
         }
         const val = try convert.itemToTypedJsonValue(allocator, doc, it, type_name);
+        try out.append(allocator, val);
+    }
+    return out;
+}
+
+fn fhirItemsToJsonArray(
+    allocator: std.mem.Allocator,
+    adapter: *FhirJsonAdapter,
+    items: []const item.Item,
+    types: *item.TypeTable,
+    schema_ptr: ?*schema.Schema,
+) !std.ArrayList(std.json.Value) {
+    var out = std.ArrayList(std.json.Value).empty;
+    for (items) |it| {
+        var type_name: []const u8 = "";
+        if (schema_ptr) |s| {
+            type_name = s.outputTypeName(it.type_id);
+        } else if (!schema.isModelType(it.type_id)) {
+            type_name = types.name(it.type_id);
+        }
+        const val = try convert.adapterItemToTypedJsonValue(FhirJsonAdapter, allocator, adapter, it, type_name);
         try out.append(allocator, val);
     }
     return out;

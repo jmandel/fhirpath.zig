@@ -1,0 +1,193 @@
+{
+  "_spec_summary": [
+    "Tests for FHIR primitive extension navigation via the FhirJsonAdapter.",
+    "The FHIR JSON format splits primitives into 'field' (value) and '_field' (metadata).",
+    "The FhirJsonAdapter merges these into logical nodes where .extension, .id, and .value",
+    "are navigable properties, but NOT children() or descendants().",
+    "",
+    "Output types use System type names (FHIR primitives are downcast at output time).",
+    "Internally, items retain FHIR types for correct is()/ofType() behavior."
+  ],
+  "meta": {
+    "status": "drafted",
+    "feature": "fhir-primitive-extensions",
+    "requires_model": true,
+    "requires_fhir_json": true,
+    "source": "spec/fhirpath-in-fhir.html"
+  },
+  "cases": [
+    {
+      "_section": "=== Basic primitive value access (implicit conversion still works) ==="
+    },
+    {
+      "name": "Patient.gender returns value",
+      "comment": "gender is a code; value 'male' is accessible as usual. Output type is System.String.",
+      "expr": "Patient.gender",
+      "input": {
+        "resourceType": "Patient",
+        "gender": "male",
+        "_gender": {
+          "extension": [{"url": "http://example.org/ext", "valueString": "context"}]
+        }
+      },
+      "expect": [{"type": "System.String", "value": "male"}]
+    },
+    {
+      "name": "Patient.birthDate returns value",
+      "comment": "birthDate is a date; output type is System.DateTime.",
+      "expr": "Patient.birthDate",
+      "input": {
+        "resourceType": "Patient",
+        "birthDate": "1990-01-15",
+        "_birthDate": {
+          "id": "bd1",
+          "extension": [{"url": "http://example.org/ext2", "valueCode": "approx"}]
+        }
+      },
+      "expect": [{"type": "System.DateTime", "value": "1990-01-15"}]
+    },
+    {
+      "name": "Patient.active returns boolean value",
+      "comment": "active is a boolean with no _active metadata. Output type is System.Boolean.",
+      "expr": "Patient.active",
+      "input": {
+        "resourceType": "Patient",
+        "active": true
+      },
+      "expect": [{"type": "System.Boolean", "value": true}]
+    },
+    {
+      "_section": "=== Extension navigation on primitives ==="
+    },
+    {
+      "name": "Patient.gender.extension.count()",
+      "comment": "gender has one extension in _gender",
+      "expr": "Patient.gender.extension.count()",
+      "input": {
+        "resourceType": "Patient",
+        "gender": "male",
+        "_gender": {
+          "extension": [{"url": "http://example.org/ext", "valueString": "context"}]
+        }
+      },
+      "expect": [{"type": "System.Integer", "value": 1}]
+    },
+    {
+      "name": "Patient.gender.extension.first().url",
+      "comment": "Navigate into the extension object",
+      "expr": "Patient.gender.extension.first().url",
+      "input": {
+        "resourceType": "Patient",
+        "gender": "male",
+        "_gender": {
+          "extension": [{"url": "http://example.org/ext", "valueString": "context"}]
+        }
+      },
+      "expect": [{"type": "System.String", "value": "http://example.org/ext"}]
+    },
+    {
+      "name": "Patient.birthDate.id",
+      "comment": "birthDate has an id in _birthDate",
+      "expr": "Patient.birthDate.id",
+      "input": {
+        "resourceType": "Patient",
+        "birthDate": "1990-01-15",
+        "_birthDate": {
+          "id": "bd1",
+          "extension": [{"url": "http://example.org/ext2", "valueCode": "approx"}]
+        }
+      },
+      "expect": [{"type": "System.String", "value": "bd1"}]
+    },
+    {
+      "name": "Patient.birthDate.extension.count()",
+      "comment": "birthDate has one extension in _birthDate",
+      "expr": "Patient.birthDate.extension.count()",
+      "input": {
+        "resourceType": "Patient",
+        "birthDate": "1990-01-15",
+        "_birthDate": {
+          "id": "bd1",
+          "extension": [{"url": "http://example.org/ext2", "valueCode": "approx"}]
+        }
+      },
+      "expect": [{"type": "System.Integer", "value": 1}]
+    },
+    {
+      "name": "Patient.birthDate.value",
+      "comment": ".value on a primitive returns the value itself",
+      "expr": "Patient.birthDate.value",
+      "input": {
+        "resourceType": "Patient",
+        "birthDate": "1990-01-15",
+        "_birthDate": {
+          "id": "bd1"
+        }
+      },
+      "expect": [{"type": "System.DateTime", "value": "1990-01-15"}]
+    },
+    {
+      "name": "Patient.active.extension.count() is 0",
+      "comment": "active has no _active metadata, so no extensions",
+      "expr": "Patient.active.extension.count()",
+      "input": {
+        "resourceType": "Patient",
+        "active": true
+      },
+      "expect": [{"type": "System.Integer", "value": 0}]
+    },
+    {
+      "_section": "=== Array primitives with parallel _field ==="
+    },
+    {
+      "name": "Patient.name.given.count() includes all elements",
+      "comment": "given has 2 elements: 'Alice' and null (extension-only). Both are included.",
+      "expr": "Patient.name.given.count()",
+      "input": {
+        "resourceType": "Patient",
+        "name": [{
+          "family": "Smith",
+          "given": ["Alice", null],
+          "_given": [null, {"extension": [{"url": "http://example.org/ext3", "valueString": "nickname"}]}]
+        }]
+      },
+      "expect": [{"type": "System.Integer", "value": 2}]
+    },
+    {
+      "name": "Patient.name.given[1].extension.count()",
+      "comment": "The second given element is null but has an extension via _given[1]",
+      "expr": "Patient.name.given[1].extension.count()",
+      "input": {
+        "resourceType": "Patient",
+        "name": [{
+          "family": "Smith",
+          "given": ["Alice", null],
+          "_given": [null, {"extension": [{"url": "http://example.org/ext3", "valueString": "nickname"}]}]
+        }]
+      },
+      "expect": [{"type": "System.Integer", "value": 1}]
+    },
+    {
+      "_section": "=== children() and descendants() exclude primitive metadata ==="
+    },
+    {
+      "name": "children() does not include _gender or _birthDate or resourceType",
+      "comment": "children() should return: id, gender, birthDate, active = 4 items. _gender, _birthDate, and resourceType are hidden.",
+      "expr": "children().count()",
+      "input": {
+        "resourceType": "Patient",
+        "id": "example",
+        "gender": "male",
+        "_gender": {
+          "extension": [{"url": "http://example.org/ext", "valueString": "context"}]
+        },
+        "birthDate": "1990-01-15",
+        "_birthDate": {
+          "id": "bd1"
+        },
+        "active": true
+      },
+      "expect": [{"type": "System.Integer", "value": 4}]
+    }
+  ]
+}

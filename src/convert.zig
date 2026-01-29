@@ -1,5 +1,6 @@
 const std = @import("std");
 const jsondoc = @import("jsondoc.zig");
+const node_mod = @import("node.zig");
 const item = @import("item.zig");
 
 pub fn itemToJsonValue(
@@ -93,13 +94,90 @@ pub fn itemToTypedJsonValue(
     type_name: []const u8,
 ) !std.json.Value {
     var obj = std.json.ObjectMap.init(allocator);
-    
+
     // Add type
     try obj.put("type", .{ .string = type_name });
-    
+
     // Add value
     const val = try itemToJsonValue(allocator, doc, it);
     try obj.put("value", val);
-    
+
     return .{ .object = obj };
+}
+
+/// Generic adapter-based item to JSON conversion.
+/// Works with any adapter type (FhirJsonAdapter, StdJsonAdapter, etc.)
+pub fn adapterItemToJsonValue(
+    comptime A: type,
+    allocator: std.mem.Allocator,
+    adapter: *A,
+    it: item.Item,
+) !std.json.Value {
+    if (it.data_kind == .value and it.value != null) {
+        return valueToJson(allocator, it.value.?);
+    }
+    if (it.data_kind == .node_ref and it.node != null) {
+        const ref = adapterNodeRefFromRaw(A, it.node.?);
+        return adapterNodeToJsonValue(A, allocator, adapter, ref);
+    }
+    return std.json.Value{ .null = {} };
+}
+
+/// Generic adapter-based typed item to JSON conversion.
+pub fn adapterItemToTypedJsonValue(
+    comptime A: type,
+    allocator: std.mem.Allocator,
+    adapter: *A,
+    it: item.Item,
+    type_name: []const u8,
+) !std.json.Value {
+    var obj = std.json.ObjectMap.init(allocator);
+    try obj.put("type", .{ .string = type_name });
+    const val = try adapterItemToJsonValue(A, allocator, adapter, it);
+    try obj.put("value", val);
+    return .{ .object = obj };
+}
+
+/// Reconstruct adapter NodeRef from stored usize (mirrors eval.nodeRefFromRaw)
+pub fn adapterNodeRefFromRaw(comptime A: type, raw: usize) A.NodeRef {
+    return switch (@typeInfo(A.NodeRef)) {
+        .pointer => @ptrFromInt(raw),
+        .int, .comptime_int => @intCast(raw),
+        else => @compileError("NodeRef must be pointer or integer"),
+    };
+}
+
+/// Convert an adapter node to std.json.Value by traversing via adapter methods
+pub fn adapterNodeToJsonValue(
+    comptime A: type,
+    allocator: std.mem.Allocator,
+    adapter: *A,
+    ref: A.NodeRef,
+) !std.json.Value {
+    switch (A.kind(adapter, ref)) {
+        .null => return .{ .null = {} },
+        .bool => return .{ .bool = A.boolean(adapter, ref) },
+        .number => return parseNumber(A.numberText(adapter, ref)),
+        .string => return .{ .string = A.string(adapter, ref) },
+        .array => {
+            var arr = std.ArrayListUnmanaged(std.json.Value){};
+            const len = A.arrayLen(adapter, ref);
+            for (0..len) |i| {
+                const child_ref = A.arrayAt(adapter, ref, i);
+                const val = try adapterNodeToJsonValue(A, allocator, adapter, child_ref);
+                try arr.append(allocator, val);
+            }
+            const owned = try arr.toOwnedSlice(allocator);
+            return .{ .array = .{ .items = owned, .capacity = owned.len, .allocator = allocator } };
+        },
+        .object => {
+            var obj = std.json.ObjectMap.init(allocator);
+            var iter = A.objectIter(adapter, ref);
+            while (iter.next()) |entry| {
+                const val = try adapterNodeToJsonValue(A, allocator, adapter, entry.value);
+                try obj.put(entry.key, val);
+            }
+            return .{ .object = obj };
+        },
+    }
 }

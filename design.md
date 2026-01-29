@@ -777,6 +777,15 @@ Only `item_data_ptr/len` (or JS `node.data`) triggers JSON materialization.
 - Useful when JSON is already parsed elsewhere
 - No span support (std.json doesn't preserve source positions)
 
+**FhirJsonAdapter** (`src/backends/fhirjson.zig`):
+- Wraps `std.json.Value` with FHIR-aware merging of split primitives
+- Merges `field` + `_field` into logical FHIR nodes
+- Hides `resourceType` from iteration (accessible via objectGet)
+- Hides `_*` keys from both iteration and direct access
+- Arena-based virtual nodes for merged primitives and merged arrays
+- Optional `*Schema` for type assignment (via evaluator's `childTypeForField`)
+- No span support
+
 ### Performance and tradeoffs (high-level)
 
 We keep the adapter abstraction so we can choose the backend based on tradeoffs:
@@ -816,3 +825,60 @@ pub fn evalWithStdJson(expr: []const u8, value: *std.json.Value, ...) !Result;
 Use JsonDoc by default when you want span preservation or zero-copy outputs.
 Use StdJsonAdapter when the input is already a `std.json.Value` or when host
 compatibility is more important than span support.
+Use FhirJsonAdapter when evaluating FHIR JSON and you need spec-correct
+handling of primitive extensions (`_field` merging) and output type conversion.
+
+### Adapter Architecture
+
+Adapters are compiled-in (Zig comptime generics) but selected at runtime.
+Schemas are orthogonal and runtime-loaded.
+
+| Adapter | Schema? | Format-aware? | Use case |
+|---|---|---|---|
+| `StdJsonAdapter` | No | No | Generic JSON querying, no FHIR awareness |
+| `JsonDocAdapter` | No | No | Generic JSON with span preservation |
+| `FhirJsonAdapter` | Optional | Yes (FHIR JSON) | FHIR JSON logical model |
+
+The same `FhirJsonAdapter` works for any FHIR version; the schema binary
+(R4, R5, etc.) is what differs. Adapter + schema are independent choices.
+
+### FHIR Primitive Split Representation
+
+FHIR JSON uses a split representation for primitives:
+- `"gender": "male"` — the value
+- `"_gender": {"id": "abc", "extension": [...]}` — metadata
+
+The `FhirJsonAdapter` merges these into a single logical node. Per the
+FHIRPath spec: "specific xml or json features are not visible to the
+FHIRPath language (such as comments and the split representation of
+primitives)."
+
+The merged primitive node:
+- Reports `kind()` as the value's primitive kind (`.string`, `.number`, etc.)
+  for backward compat with implicit value extraction
+- Responds to `objectGet("extension")`, `objectGet("id")`,
+  `objectGet("value")` to expose the FHIR Element children
+- Is hidden from `objectIter` output for `_*` keys and `resourceType`
+- Does NOT appear as children in `children()` or `descendants()` — the
+  extension/id/value sub-fields are only navigable via explicit property access
+
+### Output Type Conversion
+
+During evaluation, items keep their FHIR types (FHIR.code, FHIR.date, etc.)
+so that `.extension`, `.id`, `.value` navigation works on primitives, and
+`is()`/`as()` operate on exact FHIR types per the spec.
+
+When returning results to callers (harness with `--fhir-json`, WASM, JS),
+FHIR primitive types are downcast to their System equivalents via
+`schema.implicitSystemTypeId()`. The mapping is data-driven: the model blob's
+`prim_base_id` field stores the System type ID for each FHIR primitive type,
+computed at build time by `build_model.zig`. This applies only to FHIR
+primitives that have an implicit System type mapping (the table from
+fhirpath-in-fhir.html). Complex types (Patient, HumanName, etc.) keep their
+FHIR type names.
+
+This affects:
+- `harness.zig:fhirItemsToJsonArray()` — type_name resolution for FHIR adapter output
+- `wasm.zig:typeNameSlice()` — type name for `fhirpath_type_name_ptr/len`
+- `wasm.zig:fhirpath_item_type_id()` — the type_id itself
+- JS wrapper `meta.typeName` — reflects the converted type

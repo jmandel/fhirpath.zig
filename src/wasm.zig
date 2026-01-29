@@ -114,32 +114,34 @@ fn itemFromHandle(ctx: *Context, handle: u32) ?item.Item {
     return ctx.result.?.items.items[idx];
 }
 
-fn nodeTextSlice(ctx: *Context, it: item.Item) ?[]const u8 {
-    if (it.data_kind != .node_ref or it.node == null) return null;
-    if (ctx.result == null) return null;
-    const idx: jsondoc.NodeIndex = @intCast(it.node.?);
-    const node = ctx.result.?.doc.node(idx).*;
-    return ctx.result.?.doc.text[node.start..node.end];
+/// Get the resolved std.json.Value for a node_ref item.
+fn nodeJsonValue(ctx: *Context, it: item.Item) ?std.json.Value {
+    const res = ctx.result orelse return null;
+    return res.nodeValue(it);
 }
 
+/// Get the JSON text for a node_ref item (serialized on demand into result arena).
+fn nodeTextSlice(ctx: *Context, it: item.Item) ?[]const u8 {
+    const jv = nodeJsonValue(ctx, it) orelse return null;
+    const res = &(ctx.result.?);
+    const arena_alloc = res.arena.allocator();
+    return std.json.Stringify.valueAlloc(arena_alloc, jv, .{}) catch return null;
+}
+
+/// Get the string or number text from a node_ref item.
 fn nodeStringSlice(ctx: *Context, it: item.Item) ?[]const u8 {
-    if (it.data_kind != .node_ref or it.node == null) return null;
-    if (ctx.result == null) return null;
-    const idx: jsondoc.NodeIndex = @intCast(it.node.?);
-    const node = ctx.result.?.doc.node(idx).*;
-    return switch (node.kind) {
-        .string => node.data.string,
-        .number => node.data.number,
+    const jv = nodeJsonValue(ctx, it) orelse return null;
+    return switch (jv) {
+        .string => |s| s,
+        .number_string => |s| s,
         else => null,
     };
 }
 
 fn typeNameSlice(ctx: *Context, type_id: u32) []const u8 {
     if (type_id == 0) return "";
-    if (schema.isModelType(type_id)) {
-        if (ctx.last_schema) |s| return s.typeName(type_id);
-        return "";
-    }
+    if (ctx.last_schema) |s| return s.outputTypeName(type_id);
+    if (schema.isModelType(type_id)) return "";
     return schema.systemTypeName(type_id);
 }
 
@@ -328,8 +330,6 @@ pub export fn fhirpath_eval(
         } else {
             return .model_error;
         }
-    } else {
-        return .model_error;
     }
 
     const expr = lib.parseExpression(ctx.allocator, expr_text) catch |err| {
@@ -337,22 +337,59 @@ pub export fn fhirpath_eval(
     };
     defer ast.deinitExpr(ctx.allocator, expr);
 
-    var doc = jsondoc.JsonDoc.init(ctx.allocator, json_text) catch |err| {
-        return statusFromError(err);
-    };
-    var adapter = @import("backends/jsondoc.zig").JsonDocAdapter.init(&doc);
-    var eval_ctx = eval.EvalContext(@TypeOf(adapter)){
-        .allocator = doc.arena.allocator(),
-        .adapter = &adapter,
-        .types = &ctx.types,
-        .schema = schema_ptr,
-        .timestamp = ctx.now_epoch_seconds,
-    };
-    const items = eval.evalExpression(&eval_ctx, expr, adapter.root(), null) catch |err| {
-        doc.deinit();
-        return statusFromError(err);
-    };
-    ctx.result = .{ .items = items, .doc = doc };
+    if (schema_ptr != null) {
+        // FHIR-aware path: use FhirJsonAdapter (parses into std.json.Value)
+        const FhirJsonAdapter = @import("backends/fhirjson.zig").FhirJsonAdapter;
+        var arena = std.heap.ArenaAllocator.init(ctx.allocator);
+        const arena_alloc = arena.allocator();
+        const root_val = arena_alloc.create(std.json.Value) catch {
+            arena.deinit();
+            return .arena_oom;
+        };
+        root_val.* = std.json.parseFromSliceLeaky(std.json.Value, arena_alloc, json_text, .{}) catch |err| {
+            arena.deinit();
+            return statusFromError(err);
+        };
+        var fhir_adapter = FhirJsonAdapter.init(arena_alloc, root_val);
+        var fhir_ctx = eval.EvalContext(FhirJsonAdapter){
+            .allocator = arena_alloc,
+            .adapter = &fhir_adapter,
+            .types = &ctx.types,
+            .schema = schema_ptr,
+            .timestamp = ctx.now_epoch_seconds,
+        };
+        const items = eval.evalExpression(&fhir_ctx, expr, fhir_adapter.root(), null) catch |err| {
+            arena.deinit();
+            return statusFromError(err);
+        };
+        ctx.result = eval.resolveResult(FhirJsonAdapter, &fhir_adapter, items, arena) catch |err| {
+            arena.deinit();
+            return statusFromError(err);
+        };
+    } else {
+        // Generic JSON path: use JsonDocAdapter (span-preserving)
+        const JsonDocAdapter = @import("backends/jsondoc.zig").JsonDocAdapter;
+        var doc = jsondoc.JsonDoc.init(ctx.allocator, json_text) catch |err| {
+            return statusFromError(err);
+        };
+        var adapter = JsonDocAdapter.init(&doc);
+        var eval_ctx = eval.EvalContext(JsonDocAdapter){
+            .allocator = doc.arena.allocator(),
+            .adapter = &adapter,
+            .types = &ctx.types,
+            .schema = schema_ptr,
+            .timestamp = ctx.now_epoch_seconds,
+        };
+        const items = eval.evalExpression(&eval_ctx, expr, adapter.root(), null) catch |err| {
+            doc.deinit();
+            return statusFromError(err);
+        };
+        // Transfer doc's arena to the result — don't call doc.deinit()
+        ctx.result = eval.resolveResult(JsonDocAdapter, &adapter, items, doc.arena) catch |err| {
+            doc.deinit();
+            return statusFromError(err);
+        };
+    }
     ctx.last_schema = schema_ptr;
     return .ok;
 }
@@ -396,6 +433,7 @@ pub export fn fhirpath_item_value_kind(ctx_handle: u32, item_handle: u32) u32 {
 pub export fn fhirpath_item_type_id(ctx_handle: u32, item_handle: u32) u32 {
     const ctx = ctxFromHandle(ctx_handle) orelse return 0;
     const it = itemFromHandle(ctx, item_handle) orelse return 0;
+    if (ctx.last_schema) |s| return s.outputTypeId(it.type_id);
     return it.type_id;
 }
 
@@ -444,10 +482,8 @@ pub export fn fhirpath_item_bool(ctx_handle: u32, item_handle: u32) u32 {
     if (it.data_kind == .value and it.value != null and it.value.? == .boolean) {
         return if (it.value.?.boolean) 1 else 0;
     }
-    if (it.data_kind == .node_ref and it.node != null) {
-        const idx: jsondoc.NodeIndex = @intCast(it.node.?);
-        const node = ctx.result.?.doc.node(idx).*;
-        if (node.kind == .bool) return if (node.data.bool) 1 else 0;
+    if (nodeJsonValue(ctx, it)) |jv| {
+        if (jv == .bool) return if (jv.bool) 1 else 0;
     }
     return 0;
 }
@@ -458,11 +494,11 @@ pub export fn fhirpath_item_i64(ctx_handle: u32, item_handle: u32) i64 {
     if (it.data_kind == .value and it.value != null and it.value.? == .integer) {
         return it.value.?.integer;
     }
-    if (it.data_kind == .node_ref and it.node != null) {
-        const idx: jsondoc.NodeIndex = @intCast(it.node.?);
-        const node = ctx.result.?.doc.node(idx).*;
-        if (node.kind == .number) {
-            return std.fmt.parseInt(i64, node.data.number, 10) catch 0;
+    if (nodeJsonValue(ctx, it)) |jv| {
+        switch (jv) {
+            .integer => |i| return i,
+            .number_string => |s| return std.fmt.parseInt(i64, s, 10) catch 0,
+            else => {},
         }
     }
     return 0;

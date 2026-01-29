@@ -15,6 +15,7 @@ pub fn EvalContext(comptime A: type) type {
         types: *item.TypeTable,
         schema: ?*schema.Schema,
         root_item: item.Item = undefined,
+        current_index: ?usize = null,
         timestamp: i64,
     };
 }
@@ -3464,6 +3465,12 @@ fn evalFunction(
         // Return true if ANY element matches the criteria
         if (call.args.len != 1) return error.InvalidFunction;
         for (input, 0..) |it, idx| {
+            const saved_root = ctx.root_item;
+            const saved_index = ctx.current_index;
+            ctx.root_item = it;
+            ctx.current_index = idx;
+            defer ctx.root_item = saved_root;
+            defer ctx.current_index = saved_index;
             var criteria = try evalExpressionCtx(ctx, call.args[0], it, env, idx);
             defer criteria.deinit(ctx.allocator);
             if (criteria.items.len == 0) continue;
@@ -4038,6 +4045,12 @@ fn evalFunction(
         var out = ItemList.empty;
         errdefer out.deinit(ctx.allocator);
         for (input, 0..) |it, idx| {
+            const saved_root = ctx.root_item;
+            const saved_index = ctx.current_index;
+            ctx.root_item = it;
+            ctx.current_index = idx;
+            defer ctx.root_item = saved_root;
+            defer ctx.current_index = saved_index;
             var projection = try evalExpressionCtx(ctx, call.args[0], it, env, idx);
             defer projection.deinit(ctx.allocator);
             if (projection.items.len == 0) continue;
@@ -4050,6 +4063,12 @@ fn evalFunction(
         var out = ItemList.empty;
         errdefer out.deinit(ctx.allocator);
         for (input, 0..) |it, idx| {
+            const saved_root = ctx.root_item;
+            const saved_index = ctx.current_index;
+            ctx.root_item = it;
+            ctx.current_index = idx;
+            defer ctx.root_item = saved_root;
+            defer ctx.current_index = saved_index;
             var criteria = try evalExpressionCtx(ctx, call.args[0], it, env, idx);
             defer criteria.deinit(ctx.allocator);
             if (criteria.items.len == 0) continue;
@@ -4072,6 +4091,12 @@ fn evalFunction(
         }
         // Evaluate criteria for each element; all must return true
         for (input, 0..) |it, idx| {
+            const saved_root = ctx.root_item;
+            const saved_index = ctx.current_index;
+            ctx.root_item = it;
+            ctx.current_index = idx;
+            defer ctx.root_item = saved_root;
+            defer ctx.current_index = saved_index;
             var criteria = try evalExpressionCtx(ctx, call.args[0], it, env, idx);
             defer criteria.deinit(ctx.allocator);
             // If criteria returns empty, that's not true, so all() returns false
@@ -4143,6 +4168,12 @@ fn evalFunction(
             var next = ItemList.empty;
             errdefer next.deinit(ctx.allocator);
             for (current.items, 0..) |it, idx| {
+                const saved_root = ctx.root_item;
+                const saved_index = ctx.current_index;
+                ctx.root_item = it;
+                ctx.current_index = idx;
+                defer ctx.root_item = saved_root;
+                defer ctx.current_index = saved_index;
                 var projection = try evalExpressionCtx(ctx, call.args[0], it, env, idx);
                 defer projection.deinit(ctx.allocator);
                 if (projection.items.len == 0) continue;
@@ -5126,12 +5157,12 @@ fn evalFunction(
         };
         
         // Evaluate criterion
-        var criterion_result = try evalExpressionCtx(ctx, call.args[0], context_item, env, null);
+        var criterion_result = try evalExpressionCtx(ctx, call.args[0], context_item, env, ctx.current_index);
         defer criterion_result.deinit(ctx.allocator);
-        
+
         // Criterion must be empty, singleton boolean, or error
         if (criterion_result.items.len > 1) return error.SingletonRequired;
-        
+
         var criterion_is_true = false;
         if (criterion_result.items.len == 1) {
             const crit_item = criterion_result.items[0];
@@ -5143,11 +5174,11 @@ fn evalFunction(
         // Short-circuit evaluation: only evaluate the appropriate branch
         if (criterion_is_true) {
             // Evaluate and return true-result
-            return evalExpressionCtx(ctx, call.args[1], context_item, env, null);
+            return evalExpressionCtx(ctx, call.args[1], context_item, env, ctx.current_index);
         } else {
             // Evaluate and return otherwise-result (or empty if not provided)
             if (call.args.len == 3) {
-                return evalExpressionCtx(ctx, call.args[2], context_item, env, null);
+                return evalExpressionCtx(ctx, call.args[2], context_item, env, ctx.current_index);
             } else {
                 return ItemList.empty;
             }
@@ -5945,7 +5976,7 @@ fn evalStringArg(ctx: anytype, expr: ast.Expr, env: ?*Env) EvalError!?[]const u8
         else => {},
     }
     // Evaluate the expression and get string value
-    var result = try evalExpressionCtx(ctx, expr, makeEmptyItem(ctx), env, null);
+    var result = try evalExpressionCtx(ctx, expr, ctx.root_item, env, null);
     defer result.deinit(ctx.allocator);
     if (result.items.len == 0) return null;
     // Multi-item is an error per spec: singleton evaluation of collections
@@ -5957,7 +5988,7 @@ fn evalIntegerArg(ctx: anytype, expr: ast.Expr, env: ?*Env) EvalError!?i64 {
     // For integer literal, return directly
     if (integerLiteral(expr)) |i| return i;
     // Evaluate the expression and get integer value
-    var result = try evalExpressionCtx(ctx, expr, makeEmptyItem(ctx), env, null);
+    var result = try evalExpressionCtx(ctx, expr, ctx.root_item, env, null);
     defer result.deinit(ctx.allocator);
     if (result.items.len == 0) return null;
     // Multi-item is an error per spec: singleton evaluation of collections
@@ -5989,7 +6020,7 @@ fn evalDecimalArg(ctx: anytype, expr: ast.Expr, env: ?*Env) EvalError!?f64 {
         else => {},
     }
     // Evaluate the expression and get numeric value
-    var result = try evalExpressionCtx(ctx, expr, makeEmptyItem(ctx), env, null);
+    var result = try evalExpressionCtx(ctx, expr, ctx.root_item, env, null);
     defer result.deinit(ctx.allocator);
     if (result.items.len == 0) return null;
     // Multi-item is an error per spec: singleton evaluation of collections

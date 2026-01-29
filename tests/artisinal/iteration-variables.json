@@ -38,12 +38,14 @@
     "Spec refs: \u00a74.3 ($this), \u00a75.1.4 (function parameters), \u00a75.4.6 (aggregate $total)"
   ],
   "_todo": [
-    "[ ] Improve passing rate (16/23 passing)",
-    "[ ] Fix $this resolution in function argument expressions (6 eval errors)",
-    "[x] Verify $index available in all iteration contexts (not just aggregate) - confirmed by spec line 528 and R5 testIndex"
+    "[x] Improve passing rate (23/23 passing)",
+    "[x] Fix $this resolution in function argument expressions - fixed by propagating ctx.root_item in per-item loops",
+    "[x] Fix $index resolution in nested expressions like iif() - fixed by adding ctx.current_index",
+    "[x] Verify $index available in all iteration contexts (not just aggregate) - confirmed by spec line 528 and R5 testIndex",
+    "[x] Fix contains test input data (a3b/ab4c instead of a9b/ab3c)"
   ],
   "meta": {
-    "status": "reviewed"
+    "status": "implemented"
   },
   "cases": [
     {
@@ -240,8 +242,8 @@
       "expr": "items.select(contains($this.length().toString()))",
       "input": {
         "items": [
-          "a9b",
-          "ab3c"
+          "a3b",
+          "ab4c"
         ]
       },
       "expect": [
@@ -254,7 +256,7 @@
           "value": true
         }
       ],
-      "comment": "R5 test pattern: testContainsString10"
+      "comment": "R5 test pattern: testContainsString10. a3b has length 3 and contains '3'; ab4c has length 4 and contains '4'."
     },
     {
       "_section": "=== $this IN ARITHMETIC ==="
@@ -357,7 +359,7 @@
           "value": 2
         }
       ],
-      "comment": "R5 test: testIndex - $index should be available in nested expressions but currently fails due to context propagation bug"
+      "comment": "R5 test: testIndex - $index available in nested expressions via ctx.current_index"
     },
     {
       "name": "$index: collect all indices",

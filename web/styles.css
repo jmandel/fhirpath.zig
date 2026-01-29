@@ -211,6 +211,34 @@ h1 {
   font-size: 0.85rem;
 }
 
+.format-toggle {
+  display: flex;
+  background: var(--panel-2);
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.12);
+  overflow: hidden;
+}
+
+.toggle-btn {
+  padding: 6px 12px;
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  background: transparent;
+  color: var(--muted);
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.toggle-btn.active {
+  background: rgba(255,255,255,0.1);
+  color: var(--accent-2);
+}
+
+.toggle-btn:hover:not(.active) {
+  color: var(--text);
+}
+
 .meta-inline {
   margin: 6px 0 0;
   color: var(--muted);

@@ -7,8 +7,12 @@ const loadBtn = document.querySelector("#load-example");
 const resultsEl = document.querySelector("#results");
 const statusEl = document.querySelector("#status");
 const inputMetaEl = document.querySelector("#input-meta");
+const inputLabel = document.querySelector("#input-label");
 const chipRow = document.querySelector("#chip-row");
 const schemaSelect = document.querySelector("#schema-select");
+const formatToggle = document.querySelector("#format-toggle");
+
+let currentFormat = "json";
 
 const examples = [
   {
@@ -22,6 +26,18 @@ const examples = [
         { family: "Adams", given: ["Clare"] },
       ],
     },
+    xml: `<Patient>
+  <id value="example"/>
+  <name>
+    <family value="Smith"/>
+    <given value="Alice"/>
+    <given value="Bob"/>
+  </name>
+  <name>
+    <family value="Adams"/>
+    <given value="Clare"/>
+  </name>
+</Patient>`,
   },
   {
     label: "Identifier filtering",
@@ -33,6 +49,16 @@ const examples = [
         { system: "http://acme.org/ssn", value: "999-12-1001" },
       ],
     },
+    xml: `<Patient>
+  <identifier>
+    <system value="http://acme.org/mrn"/>
+    <value value="A-01492"/>
+  </identifier>
+  <identifier>
+    <system value="http://acme.org/ssn"/>
+    <value value="999-12-1001"/>
+  </identifier>
+</Patient>`,
   },
   {
     label: "Observation quantity",
@@ -47,6 +73,15 @@ const examples = [
         code: "mmol/L",
       },
     },
+    xml: `<Observation>
+  <status value="final"/>
+  <valueQuantity>
+    <value value="5.4"/>
+    <unit value="mmol/L"/>
+    <system value="http://unitsofmeasure.org"/>
+    <code value="mmol/L"/>
+  </valueQuantity>
+</Observation>`,
   },
   {
     label: "Telecom lookup",
@@ -58,6 +93,31 @@ const examples = [
         { system: "email", value: "hello@example.org" },
       ],
     },
+    xml: `<Patient>
+  <telecom>
+    <system value="phone"/>
+    <value value="+1-202-555-0114"/>
+  </telecom>
+  <telecom>
+    <system value="email"/>
+    <value value="hello@example.org"/>
+  </telecom>
+</Patient>`,
+  },
+  {
+    label: "Type reflection",
+    expr: "birthDate.type() | active.type() | gender.type()",
+    json: {
+      resourceType: "Patient",
+      active: true,
+      birthDate: "1974-12-25",
+      gender: "male",
+    },
+    xml: `<Patient>
+  <active value="true"/>
+  <birthDate value="1974-12-25"/>
+  <gender value="male"/>
+</Patient>`,
   },
 ];
 
@@ -78,10 +138,17 @@ function renderChips() {
   chipRow.firstChild?.classList.add("active");
 }
 
+let currentExampleIdx = 0;
+
 function loadExample(idx = 0) {
+  currentExampleIdx = idx;
   const example = examples[idx];
   exprInput.value = example.expr;
-  jsonInput.value = JSON.stringify(example.json, null, 2);
+  if (currentFormat === "xml") {
+    jsonInput.value = example.xml;
+  } else {
+    jsonInput.value = JSON.stringify(example.json, null, 2);
+  }
   updateInputMeta();
 }
 
@@ -173,44 +240,60 @@ async function runExpression() {
   clearResults();
   statusEl.textContent = "Running…";
 
-  let jsonText = jsonInput.value;
-  try {
-    const parsed = JSON.parse(jsonText);
-    jsonText = JSON.stringify(parsed);
-  } catch (err) {
-    statusEl.textContent = "Invalid JSON";
-    addResultCard({ title: "JSON parse error", body: err?.message ?? String(err) });
-    return;
-  }
-
+  const inputText = jsonInput.value;
   const expr = exprInput.value.trim();
   if (!expr) {
     statusEl.textContent = "Expression required";
     return;
   }
 
-  try {
-    const selectedSchema = schemaSelect.value || "r5";
-    const results = engine.eval({ expr, json: jsonText, schema: selectedSchema, now: new Date() });
-    let count = 0;
-    for (const node of results) {
-      count += 1;
-      const meta = `${node.meta.typeName || "(unknown)"}`;
-      const value = node.data ?? "<unavailable>";
-      addResultCard({
-        title: `Result ${count}`,
-        body: normalizeDisplay(value),
-        meta,
-      });
+  if (currentFormat === "json") {
+    let jsonText = inputText;
+    try {
+      const parsed = JSON.parse(jsonText);
+      jsonText = JSON.stringify(parsed);
+    } catch (err) {
+      statusEl.textContent = "Invalid JSON";
+      addResultCard({ title: "JSON parse error", body: err?.message ?? String(err) });
+      return;
     }
-    if (count === 0) {
-      addResultCard({ title: "No results", body: "Collection is empty." });
+
+    try {
+      const selectedSchema = schemaSelect.value || "r5";
+      const results = engine.eval({ expr, json: jsonText, schema: selectedSchema, now: new Date() });
+      renderResults(results);
+    } catch (err) {
+      statusEl.textContent = "Evaluation error";
+      addResultCard({ title: "Eval error", body: err?.message ?? String(err) });
     }
-    statusEl.textContent = `Done · ${count} result${count === 1 ? "" : "s"}`;
-  } catch (err) {
-    statusEl.textContent = "Evaluation error";
-    addResultCard({ title: "Eval error", body: err?.message ?? String(err) });
+  } else {
+    try {
+      const selectedSchema = schemaSelect.value || "r5";
+      const results = engine.evalXml({ expr, xml: inputText, schema: selectedSchema, now: new Date() });
+      renderResults(results);
+    } catch (err) {
+      statusEl.textContent = "Evaluation error";
+      addResultCard({ title: "Eval error", body: err?.message ?? String(err) });
+    }
   }
+}
+
+function renderResults(results) {
+  let count = 0;
+  for (const node of results) {
+    count += 1;
+    const meta = `${node.meta.typeName || "(unknown)"}`;
+    const value = node.data ?? "<unavailable>";
+    addResultCard({
+      title: `Result ${count}`,
+      body: normalizeDisplay(value),
+      meta,
+    });
+  }
+  if (count === 0) {
+    addResultCard({ title: "No results", body: "Collection is empty." });
+  }
+  statusEl.textContent = `Done · ${count} result${count === 1 ? "" : "s"}`;
 }
 
 renderChips();
@@ -241,3 +324,16 @@ jsonInput.addEventListener("input", () => {
   scheduleRun();
 });
 schemaSelect.addEventListener("change", runExpression);
+formatToggle.addEventListener("click", (e) => {
+  const btn = e.target.closest(".toggle-btn");
+  if (!btn) return;
+  const fmt = btn.dataset.format;
+  if (fmt === currentFormat) return;
+  currentFormat = fmt;
+  for (const el of formatToggle.querySelectorAll(".toggle-btn")) {
+    el.classList.toggle("active", el.dataset.format === fmt);
+  }
+  inputLabel.textContent = fmt === "xml" ? "Input XML" : "Input JSON";
+  loadExample(currentExampleIdx);
+  runExpression();
+});

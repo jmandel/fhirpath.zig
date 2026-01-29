@@ -241,7 +241,7 @@ bugs:
     updated: 2026-01-29
     tags: [schema, eval, fhir]
   - slug: not-singleton-error
-    status: open
+    status: resolved
     severity: low
     title: not() should error on non-singleton input
     description: not() returns empty for multi-item input instead of erroring. (1|2).not() should throw SingletonRequired. Currently returns empty collection. ~1 R5 failure (testNotInvalid). Spec §5.5.2.

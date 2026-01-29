@@ -43,9 +43,9 @@
     "Spec refs: \u00a74.1.4 (Time), \u00a75.5.2 (not), Singleton Evaluation of Collections (\u00a73.1)"
   ],
   "_todo": [
-    "[ ] Improve passing rate (12/24 passing)",
+    "[ ] Improve passing rate (17/24 passing)",
     "[ ] Implement Time literal timezone validation in parser (7 tests)",
-    "[ ] Implement not() singleton check for multi-item collections (5 tests)",
+    "[x] Implement not() singleton check for multi-item collections (5 tests)",
     "[x] Verify test expectations against spec - all expectations confirmed correct"
   ],
   "meta": {

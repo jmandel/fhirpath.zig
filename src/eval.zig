@@ -3692,9 +3692,11 @@ fn evalFunction(
     }
     if (tag == .not) {
         // not() returns the boolean negation of the input
-        // Per FHIRPath spec: non-boolean singleton is truthy, so not() returns false
+        // Per FHIRPath spec §5.5.2: input is singleton Boolean
+        // Empty input returns empty; multi-item input is a singleton error
         var out = ItemList.empty;
-        if (input.len != 1) return out;
+        if (input.len == 0) return out;
+        if (input.len != 1) return error.SingletonRequired;
         if (!itemIsBool(ctx, input[0])) {
             // Non-boolean singleton is truthy, so not() = false
             try out.append(ctx.allocator, makeBoolItem(ctx, false));

@@ -199,6 +199,65 @@
       "expr": "true.descendants()",
       "input": {},
       "expect": []
+    },
+    {
+      "_section": "=== FHIR SCHEMA-AWARE TYPE RESOLUTION ==="
+    },
+    {
+      "name": "descendants on Patient returns typed HumanName nodes",
+      "comment": "descendants() should use schema to resolve child types, so name elements get type HumanName not System.Any",
+      "expr": "descendants().ofType(HumanName).count()",
+      "input": {
+        "resourceType": "Patient",
+        "id": "example",
+        "name": [
+          {"family": "Smith", "given": ["Alice"]},
+          {"family": "Adams", "given": ["Clare"]}
+        ]
+      },
+      "expect": [{"type": "integer", "value": 2}]
+    },
+    {
+      "name": "descendants on Patient returns typed string fields",
+      "comment": "String fields should be typed as FHIR.string, not System.String via heuristic. Note: id field is FHIR.id, not FHIR.string.",
+      "expr": "descendants().ofType(string).count()",
+      "input": {
+        "resourceType": "Patient",
+        "id": "example",
+        "name": [{"family": "Smith", "given": ["Alice", "Bob"]}]
+      },
+      "expect": [{"type": "integer", "value": 3}]
+    },
+    {
+      "name": "children on Patient returns typed children",
+      "comment": "children() should use schema to type child nodes",
+      "expr": "children().ofType(HumanName).family",
+      "input": {
+        "resourceType": "Patient",
+        "name": [{"family": "Smith"}, {"family": "Adams"}]
+      },
+      "unordered": true,
+      "expect": [
+        {"type": "string", "value": "Smith"},
+        {"type": "string", "value": "Adams"}
+      ]
+    },
+    {
+      "name": "descendants ofType filters Observation components",
+      "comment": "Schema-aware descendants should allow ofType filtering on FHIR backbone elements",
+      "expr": "descendants().ofType(HumanName).family",
+      "input": {
+        "resourceType": "Patient",
+        "name": [
+          {"family": "Smith", "given": ["Alice", "Bob"]},
+          {"family": "Adams", "given": ["Clare"]}
+        ]
+      },
+      "unordered": true,
+      "expect": [
+        {"type": "string", "value": "Smith"},
+        {"type": "string", "value": "Adams"}
+      ]
     }
   ]
 }

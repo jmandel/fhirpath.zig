@@ -4069,16 +4069,33 @@ fn evalFunction(
                     // Object children are the values of all fields
                     var iter = A.objectIter(ctx.adapter, ref);
                     while (iter.next()) |entry| {
-                        const child_item = try itemFromNode(ctx, entry.value);
-                        try out.append(ctx.allocator, child_item);
+                        // Schema-aware type lookup (mirrors applySegment)
+                        var child_type_id: u32 = 0;
+                        if (ctx.schema) |s| {
+                            if (schema.isModelType(it.type_id)) {
+                                if (s.childTypeForField(it.type_id, entry.key)) |tid| child_type_id = tid;
+                            }
+                        }
+                        const child_ref = entry.value;
+                        if (A.kind(ctx.adapter, child_ref) == .array) {
+                            const len = A.arrayLen(ctx.adapter, child_ref);
+                            for (0..len) |i| {
+                                const elem_ref = A.arrayAt(ctx.adapter, child_ref, i);
+                                const child_item = try itemFromNodeWithType(ctx, elem_ref, child_type_id);
+                                try out.append(ctx.allocator, child_item);
+                            }
+                        } else {
+                            const child_item = try itemFromNodeWithType(ctx, child_ref, child_type_id);
+                            try out.append(ctx.allocator, child_item);
+                        }
                     }
                 },
                 .array => {
-                    // Array children are the array elements
+                    // Array children are the array elements (inherit parent type)
                     const len = A.arrayLen(ctx.adapter, ref);
                     for (0..len) |i| {
                         const elem_ref = A.arrayAt(ctx.adapter, ref, i);
-                        const child_item = try itemFromNode(ctx, elem_ref);
+                        const child_item = try itemFromNodeWithType(ctx, elem_ref, it.type_id);
                         try out.append(ctx.allocator, child_item);
                     }
                 },
@@ -4117,6 +4134,13 @@ fn evalFunction(
                 .object => {
                     var iter = A.objectIter(ctx.adapter, ref);
                     while (iter.next()) |entry| {
+                        // Schema-aware type lookup (mirrors applySegment)
+                        var child_type_id: u32 = 0;
+                        if (ctx.schema) |s| {
+                            if (schema.isModelType(it.type_id)) {
+                                if (s.childTypeForField(it.type_id, entry.key)) |tid| child_type_id = tid;
+                            }
+                        }
                         const child_ref = entry.value;
                         const child_kind = A.kind(ctx.adapter, child_ref);
                         if (child_kind == .array) {
@@ -4124,12 +4148,12 @@ fn evalFunction(
                             const arr_len = A.arrayLen(ctx.adapter, child_ref);
                             for (0..arr_len) |i| {
                                 const elem_ref = A.arrayAt(ctx.adapter, child_ref, i);
-                                const elem_item = try itemFromNode(ctx, elem_ref);
+                                const elem_item = try itemFromNodeWithType(ctx, elem_ref, child_type_id);
                                 try out.append(ctx.allocator, elem_item);
                                 try queue.append(ctx.allocator, elem_item);
                             }
                         } else {
-                            const child_item = try itemFromNode(ctx, child_ref);
+                            const child_item = try itemFromNodeWithType(ctx, child_ref, child_type_id);
                             try out.append(ctx.allocator, child_item);
                             try queue.append(ctx.allocator, child_item);
                         }
@@ -4140,7 +4164,7 @@ fn evalFunction(
                     const len = A.arrayLen(ctx.adapter, ref);
                     for (0..len) |i| {
                         const elem_ref = A.arrayAt(ctx.adapter, ref, i);
-                        const child_item = try itemFromNode(ctx, elem_ref);
+                        const child_item = try itemFromNodeWithType(ctx, elem_ref, it.type_id);
                         try out.append(ctx.allocator, child_item);
                         try queue.append(ctx.allocator, child_item);
                     }

@@ -338,10 +338,6 @@ h1 {
     margin-bottom: 12px;
   }
 
-  .code-inline {
-    display: none;
-  }
-
   .toolbar {
     flex-wrap: wrap;
   }

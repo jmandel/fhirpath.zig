@@ -153,26 +153,6 @@ const examples = [
   </valueQuantity>
 </Observation>`,
   },
-  {
-    label: "Resolve",
-    expr: "// Navigate contained references\nsubject.resolve().name.family",
-    json: {
-      resourceType: "Observation",
-      contained: [
-        { resourceType: "Patient", id: "p1", name: [{ family: "Doe" }] },
-      ],
-      subject: { reference: "#p1" },
-    },
-    xml: `<Observation>
-  <contained>
-    <Patient>
-      <id value="p1"/>
-      <name><family value="Doe"/></name>
-    </Patient>
-  </contained>
-  <subject><reference value="#p1"/></subject>
-</Observation>`,
-  },
 ];
 
 function renderChips() {
@@ -194,10 +174,16 @@ function renderChips() {
 
 let currentExampleIdx = 0;
 
+function autoResizeExpr() {
+  exprInput.style.height = "auto";
+  exprInput.style.height = exprInput.scrollHeight + "px";
+}
+
 function loadExample(idx = 0) {
   currentExampleIdx = idx;
   const example = examples[idx];
   exprInput.value = example.expr;
+  autoResizeExpr();
   if (currentFormat === "xml") {
     jsonInput.value = example.xml;
   } else {
@@ -371,7 +357,7 @@ function scheduleRun() {
   }, 30);
 }
 
-exprInput.addEventListener("input", scheduleRun);
+exprInput.addEventListener("input", () => { autoResizeExpr(); scheduleRun(); });
 jsonInput.addEventListener("input", () => {
   updateInputMeta();
   scheduleRun();

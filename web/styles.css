@@ -127,6 +127,22 @@ h1 {
   font-size: 0.9rem;
 }
 
+.code-block {
+  margin: 0;
+  padding: 14px;
+  background: rgba(0,0,0,0.3);
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.06);
+  overflow-x: auto;
+}
+
+.code-block code {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+
 .panel-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -225,7 +241,7 @@ h1 {
 .expr-input {
   resize: vertical;
   line-height: 1.5;
-  min-height: 72px;
+  overflow: hidden;
 }
 
 .json-input {

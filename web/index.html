@@ -29,16 +29,20 @@
       </div>
       <div class="hero-card">
         <h3>Quick start</h3>
-        <ol>
-          <li>Download the <span class="mono">dist</span> artifact from Actions.</li>
-          <li>Serve the folder locally: <span class="mono">python -m http.server</span></li>
-          <li>Open <span class="mono">http://localhost:8000</span>.</li>
-        </ol>
-        <p class="note">
-          The demo expects <span class="mono">fhirpath.wasm</span>,
-          <span class="mono">model-r5.bin</span>, <span class="mono">model-r4.bin</span>,
-          and <span class="mono">fhirpath.js</span> in the same folder as this page.
-        </p>
+<pre class="code-block"><code>import { FhirPathEngine } from "./fhirpath.js";
+
+const engine = await FhirPathEngine.instantiate({
+  wasmUrl: "./fhirpath.wasm",
+  schemas: [{ name: "r5", url: "./model-r5.bin", isDefault: true }],
+});
+
+for (const node of engine.eval({
+  expr: "name.given",
+  json: patientJson,
+  schema: "r5",
+})) {
+  console.log(node.data);
+}</code></pre>
         <p class="note">
           <a href="./tests.json">Browse the test suite</a> &mdash;
           artisanal FHIRPath tests with spec notes, tags, and expected results.

@@ -1,5 +1,3 @@
-const std = @import("std");
-
 pub const DataKind = enum(u32) {
     none = 0,
     // Node-backed item. Spans are optional and depend on adapter support.
@@ -59,7 +57,7 @@ pub const Item = struct {
     value: ?Value,
 };
 
-/// Well-known System type IDs. These match the deterministic init order in TypeTable.init().
+/// Well-known System type IDs (comptime constants matching schema.SystemTypeNames order).
 pub const SystemTypeIds = struct {
     pub const any = 1;
     pub const boolean = 2;
@@ -74,51 +72,3 @@ pub const SystemTypeIds = struct {
     pub const typeInfo = 11;
 };
 
-pub const TypeTable = struct {
-    allocator: std.mem.Allocator,
-    map: std.StringHashMap(u32),
-    names: std.ArrayListUnmanaged([]const u8) = .{},
-
-    pub fn init(allocator: std.mem.Allocator) !TypeTable {
-        var table = TypeTable{
-            .allocator = allocator,
-            .map = std.StringHashMap(u32).init(allocator),
-        };
-        _ = try table.getOrAdd("System.Any");
-        _ = try table.getOrAdd("System.Boolean");
-        _ = try table.getOrAdd("System.Integer");
-        _ = try table.getOrAdd("System.Long");
-        _ = try table.getOrAdd("System.Decimal");
-        _ = try table.getOrAdd("System.String");
-        _ = try table.getOrAdd("System.Date");
-        _ = try table.getOrAdd("System.DateTime");
-        _ = try table.getOrAdd("System.Time");
-        _ = try table.getOrAdd("System.Quantity");
-        _ = try table.getOrAdd("System.TypeInfo");
-        return table;
-    }
-
-    pub fn deinit(self: *TypeTable) void {
-        for (self.names.items) |type_name| {
-            self.allocator.free(type_name);
-        }
-        self.map.deinit();
-        self.names.deinit(self.allocator);
-    }
-
-    pub fn getOrAdd(self: *TypeTable, type_name: []const u8) !u32 {
-        if (self.map.get(type_name)) |id| return id;
-        const owned = try self.allocator.dupe(u8, type_name);
-        const id: u32 = @intCast(self.names.items.len + 1);
-        try self.names.append(self.allocator, owned);
-        try self.map.put(owned, id);
-        return id;
-    }
-
-    pub fn name(self: *TypeTable, id: u32) []const u8 {
-        if (id == 0) return "";
-        const idx: usize = @intCast(id - 1);
-        if (idx >= self.names.items.len) return "";
-        return self.names.items[idx];
-    }
-};

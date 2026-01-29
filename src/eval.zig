@@ -14,7 +14,6 @@ pub fn EvalContext(comptime A: type) type {
     return struct {
         allocator: std.mem.Allocator,
         adapter: *A,
-        types: *item.TypeTable,
         schema: ?*schema.Schema,
         root_item: item.Item = undefined,
         current_index: ?usize = null,
@@ -69,7 +68,6 @@ pub fn evalWithJson(
     expr: ast.Expr,
     json_text: []const u8,
     env: ?*Env,
-    types: *item.TypeTable,
     schema_ptr: ?*schema.Schema,
 ) !EvalResult {
     var arena = std.heap.ArenaAllocator.init(allocator);
@@ -82,7 +80,6 @@ pub fn evalWithJson(
     var ctx = EvalContext(JsonAdapter){
         .allocator = arena_alloc,
         .adapter = &adapter,
-        .types = types,
         .schema = schema_ptr,
         .timestamp = std.time.timestamp(),
     };
@@ -95,7 +92,6 @@ pub fn evalWithXml(
     expr: ast.Expr,
     xml_text: []const u8,
     env: ?*Env,
-    types: *item.TypeTable,
     schema_ptr: ?*schema.Schema,
 ) !EvalResult {
     var arena = std.heap.ArenaAllocator.init(allocator);
@@ -106,7 +102,6 @@ pub fn evalWithXml(
     var ctx = EvalContext(XmlAdapter){
         .allocator = arena_alloc,
         .adapter = &adapter,
-        .types = types,
         .schema = schema_ptr,
         .timestamp = std.time.timestamp(),
     };
@@ -3222,7 +3217,7 @@ fn itemMatchesType(ctx: anytype, it: item.Item, type_name: []const u8) bool {
         const item_type_name: []const u8 = if (schema.isModelType(it.type_id))
             s.typeName(it.type_id)
         else
-            ctx.types.name(it.type_id);
+            schema.systemTypeName(it.type_id);
 
         if (item_type_name.len > 0) {
             // Compare local names (e.g., "Patient" matches "FHIR.Patient")
@@ -6336,7 +6331,7 @@ fn makeNodeItem(ctx: anytype, node_ref: @TypeOf(ctx.adapter.*).NodeRef, type_id_
             }
             break :blk type_id_override;
         }
-        break :blk try typeIdForNode(ctx, node_ref);
+        break :blk typeIdForNode(ctx, node_ref);
     };
     var source_pos: u32 = 0;
     var source_end: u32 = 0;
@@ -6377,8 +6372,8 @@ fn makeEmptyItem(ctx: anytype) item.Item {
     };
 }
 
-fn makeBoolItem(ctx: anytype, v: bool) item.Item {
-    const type_id = ctx.types.getOrAdd("System.Boolean") catch 0;
+fn makeBoolItem(_: anytype, v: bool) item.Item {
+    const type_id = item.SystemTypeIds.boolean;
     return .{
         .data_kind = .value,
         .value_kind = .boolean,
@@ -6390,8 +6385,8 @@ fn makeBoolItem(ctx: anytype, v: bool) item.Item {
     };
 }
 
-fn makeIntegerItem(ctx: anytype, v: i64) item.Item {
-    const type_id = ctx.types.getOrAdd("System.Integer") catch 0;
+fn makeIntegerItem(_: anytype, v: i64) item.Item {
+    const type_id = item.SystemTypeIds.integer;
     return .{
         .data_kind = .value,
         .value_kind = .integer,
@@ -6403,13 +6398,13 @@ fn makeIntegerItem(ctx: anytype, v: i64) item.Item {
     };
 }
 
-fn makeLongItem(ctx: anytype, raw: []const u8) item.Item {
+fn makeLongItem(_: anytype, raw: []const u8) item.Item {
     const parsed = std.fmt.parseInt(i64, raw, 10) catch 0;
-    return makeLongItemFromValue(ctx, parsed);
+    return makeLongItemFromValue(.{}, parsed);
 }
 
-fn makeLongItemFromValue(ctx: anytype, v: i64) item.Item {
-    const type_id = ctx.types.getOrAdd("System.Long") catch 0;
+fn makeLongItemFromValue(_: anytype, v: i64) item.Item {
+    const type_id = item.SystemTypeIds.long;
     return .{
         .data_kind = .value,
         .value_kind = .long,
@@ -6421,12 +6416,12 @@ fn makeLongItemFromValue(ctx: anytype, v: i64) item.Item {
     };
 }
 
-fn makeNumberItem(ctx: anytype, raw: []const u8) item.Item {
+fn makeNumberItem(_: anytype, raw: []const u8) item.Item {
     if (isInteger(raw)) {
         const parsed = std.fmt.parseInt(i64, raw, 10) catch 0;
-        return makeIntegerItem(ctx, parsed);
+        return makeIntegerItem(.{}, parsed);
     }
-    const type_id = ctx.types.getOrAdd("System.Decimal") catch 0;
+    const type_id = item.SystemTypeIds.decimal;
     return .{
         .data_kind = .value,
         .value_kind = .decimal,
@@ -6438,8 +6433,8 @@ fn makeNumberItem(ctx: anytype, raw: []const u8) item.Item {
     };
 }
 
-fn makeStringItem(ctx: anytype, s: []const u8) item.Item {
-    const type_id = ctx.types.getOrAdd("System.String") catch 0;
+fn makeStringItem(_: anytype, s: []const u8) item.Item {
+    const type_id = item.SystemTypeIds.string;
     return .{
         .data_kind = .value,
         .value_kind = .string,
@@ -6451,8 +6446,8 @@ fn makeStringItem(ctx: anytype, s: []const u8) item.Item {
     };
 }
 
-fn makeDateItem(ctx: anytype, s: []const u8) item.Item {
-    const type_id = ctx.types.getOrAdd("System.Date") catch 0;
+fn makeDateItem(_: anytype, s: []const u8) item.Item {
+    const type_id = item.SystemTypeIds.date;
     return .{
         .data_kind = .value,
         .value_kind = .date,
@@ -6464,8 +6459,8 @@ fn makeDateItem(ctx: anytype, s: []const u8) item.Item {
     };
 }
 
-fn makeDateTimeItem(ctx: anytype, s: []const u8) item.Item {
-    const type_id = ctx.types.getOrAdd("System.DateTime") catch 0;
+fn makeDateTimeItem(_: anytype, s: []const u8) item.Item {
+    const type_id = item.SystemTypeIds.dateTime;
     return .{
         .data_kind = .value,
         .value_kind = .dateTime,
@@ -6477,8 +6472,8 @@ fn makeDateTimeItem(ctx: anytype, s: []const u8) item.Item {
     };
 }
 
-fn makeTimeItem(ctx: anytype, s: []const u8) item.Item {
-    const type_id = ctx.types.getOrAdd("System.Time") catch 0;
+fn makeTimeItem(_: anytype, s: []const u8) item.Item {
+    const type_id = item.SystemTypeIds.time;
     return .{
         .data_kind = .value,
         .value_kind = .time,
@@ -6490,8 +6485,8 @@ fn makeTimeItem(ctx: anytype, s: []const u8) item.Item {
     };
 }
 
-fn makeQuantityItem(ctx: anytype, value: []const u8, unit: []const u8) item.Item {
-    const type_id = ctx.types.getOrAdd("System.Quantity") catch 0;
+fn makeQuantityItem(_: anytype, value: []const u8, unit: []const u8) item.Item {
+    const type_id = item.SystemTypeIds.quantity;
     return .{
         .data_kind = .value,
         .value_kind = .quantity,
@@ -6525,7 +6520,7 @@ fn getTypeInfoForItem(ctx: anytype, it: item.Item) struct { namespace: []const u
         const type_name: []const u8 = if (schema.isModelType(it.type_id))
             if (ctx.schema) |s| s.typeName(it.type_id) else ""
         else
-            ctx.types.name(it.type_id);
+            schema.systemTypeName(it.type_id);
 
         if (type_name.len > 0) {
             // Parse "Namespace.Name" format
@@ -6618,7 +6613,7 @@ fn convertToInteger(ctx: anytype, it: item.Item) ?i64 {
         .boolean => |v| return if (v) 1 else 0,
         .string => |s| return parseIntegerString(s),
         .decimal => |s| {
-            const integer_type_id = ctx.types.getOrAdd("System.Integer") catch 0;
+            const integer_type_id = item.SystemTypeIds.integer;
             if (it.type_id != integer_type_id) return null;
             return std.fmt.parseInt(i64, s, 10) catch null;
         },
@@ -6645,7 +6640,7 @@ fn convertToLong(ctx: anytype, it: item.Item) ?i64 {
 
 fn convertToBoolean(ctx: anytype, it: item.Item) ?bool {
     const val = itemToValue(ctx, it);
-    const integer_type_id = ctx.types.getOrAdd("System.Integer") catch 0;
+    const integer_type_id = item.SystemTypeIds.integer;
     switch (val) {
         .boolean => |v| return v,
         .integer => |v| return if (v == 1) true else if (v == 0) false else null,
@@ -7184,18 +7179,18 @@ fn canConvertToQuantity(ctx: anytype, it: item.Item) bool {
     };
 }
 
-fn typeIdForNode(ctx: anytype, node_ref: @TypeOf(ctx.adapter.*).NodeRef) !u32 {
+fn typeIdForNode(ctx: anytype, node_ref: @TypeOf(ctx.adapter.*).NodeRef) u32 {
     const A = @TypeOf(ctx.adapter.*);
     return switch (A.kind(ctx.adapter, node_ref)) {
-        .null => ctx.types.getOrAdd("System.Any"),
-        .bool => ctx.types.getOrAdd("System.Boolean"),
-        .number => if (isInteger(A.numberText(ctx.adapter, node_ref))) ctx.types.getOrAdd("System.Integer") else ctx.types.getOrAdd("System.Decimal"),
+        .null => item.SystemTypeIds.any,
+        .bool => item.SystemTypeIds.boolean,
+        .number => if (isInteger(A.numberText(ctx.adapter, node_ref))) item.SystemTypeIds.integer else item.SystemTypeIds.decimal,
         .string => {
             const s = A.string(ctx.adapter, node_ref);
-            if (isDateTime(s)) return ctx.types.getOrAdd("System.DateTime");
-            if (isDate(s)) return ctx.types.getOrAdd("System.Date");
-            if (isTime(s)) return ctx.types.getOrAdd("System.Time");
-            return ctx.types.getOrAdd("System.String");
+            if (isDateTime(s)) return item.SystemTypeIds.dateTime;
+            if (isDate(s)) return item.SystemTypeIds.date;
+            if (isTime(s)) return item.SystemTypeIds.time;
+            return item.SystemTypeIds.string;
         },
         .object => {
             if (resourceTypeName(ctx, node_ref)) |rt| {
@@ -7203,9 +7198,9 @@ fn typeIdForNode(ctx: anytype, node_ref: @TypeOf(ctx.adapter.*).NodeRef) !u32 {
                     if (s.typeIdByLocalName(rt)) |tid| return tid;
                 }
             }
-            return ctx.types.getOrAdd("System.Any");
+            return item.SystemTypeIds.any;
         },
-        .array => ctx.types.getOrAdd("System.Any"),
+        .array => item.SystemTypeIds.any,
     };
 }
 
@@ -7505,8 +7500,8 @@ fn boundaryFromScaled(
     return try formatScaledDecimal(allocator, adjusted, precision);
 }
 
-fn makeDecimalItemText(ctx: anytype, text: []const u8) item.Item {
-    const type_id = ctx.types.getOrAdd("System.Decimal") catch 0;
+fn makeDecimalItemText(_: anytype, text: []const u8) item.Item {
+    const type_id = item.SystemTypeIds.decimal;
     return .{
         .data_kind = .value,
         .value_kind = .decimal,
@@ -7545,7 +7540,7 @@ fn makeDecimalItem(ctx: anytype, v: f64) EvalError!item.Item {
     var buf: [64]u8 = undefined;
     const str = formatDecimal(&buf, v);
     const owned = try ctx.allocator.dupe(u8, str);
-    const type_id = ctx.types.getOrAdd("System.Decimal") catch 0;
+    const type_id = item.SystemTypeIds.decimal;
     return .{
         .data_kind = .value,
         .value_kind = .decimal,

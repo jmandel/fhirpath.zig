@@ -4,7 +4,6 @@ const std = @import("std");
 const lib = @import("lib.zig");
 const eval = @import("eval.zig");
 const ast = @import("ast.zig");
-const item = @import("item.zig");
 const JsonAdapter = @import("backends/json_adapter.zig").JsonAdapter;
 
 var sink: usize = 0;
@@ -103,12 +102,9 @@ fn runScenario(allocator: std.mem.Allocator, scenario: Scenario, iterations: usi
         var ctx = eval.EvalContext(JsonAdapter){
             .allocator = aa,
             .adapter = &adapter,
-            .types = undefined, // Will init below
             .schema = null,
             .timestamp = 1706500000,
         };
-        var types = try item.TypeTable.init(aa);
-        ctx.types = &types;
         if (eval.evalExpression(&ctx, expr, adapter.root(), null)) |result| {
             sink +%= result.items.len;
         } else |_| {}
@@ -124,11 +120,9 @@ fn runScenario(allocator: std.mem.Allocator, scenario: Scenario, iterations: usi
         const root_val = try aa.create(std.json.Value);
         root_val.* = parsed;
         var adapter = JsonAdapter.init(aa, root_val, .generic_json);
-        var types = try item.TypeTable.init(aa);
         var ctx = eval.EvalContext(JsonAdapter){
             .allocator = aa,
             .adapter = &adapter,
-            .types = &types,
             .schema = null,
             .timestamp = 1706500000,
         };
@@ -248,11 +242,9 @@ pub fn main() !void {
             defer arena.deinit();
             const aa = arena.allocator();
             var adapter = JsonAdapter.init(aa, &pre_parsed.value, .generic_json);
-            var types = try item.TypeTable.init(aa);
             var ctx = eval.EvalContext(JsonAdapter){
                 .allocator = aa,
                 .adapter = &adapter,
-                .types = &types,
                 .schema = null,
                 .timestamp = 1706500000,
             };
@@ -266,38 +258,6 @@ pub fn main() !void {
         std.debug.print("  JSON parse only:    {d:>8.1}μs\n", .{parse_us});
         std.debug.print("  Eval only:          {d:>8.1}μs\n", .{eval_us});
         std.debug.print("  Combined (above):   {d:>8.1}μs\n", .{parse_us + eval_us});
-    }
-
-    // --- Eval-only with shared TypeTable ---
-    std.debug.print("\n--- Eval-only with reusable TypeTable (Patient JSON, name.given) ---\n", .{});
-    {
-        var pre_parsed2 = try std.json.parseFromSlice(std.json.Value, allocator, PATIENT_JSON, .{ .parse_numbers = false });
-        defer pre_parsed2.deinit();
-        const expr2 = try lib.parseExpression(allocator, "name.given");
-        defer ast.deinitExpr(allocator, expr2);
-        var shared_types = try item.TypeTable.init(allocator);
-        defer shared_types.deinit();
-
-        const eval_start2 = std.time.nanoTimestamp();
-        for (0..iterations) |_| {
-            var arena = std.heap.ArenaAllocator.init(allocator);
-            defer arena.deinit();
-            const aa = arena.allocator();
-            var adapter = JsonAdapter.init(aa, &pre_parsed2.value, .generic_json);
-            var ctx = eval.EvalContext(JsonAdapter){
-                .allocator = aa,
-                .adapter = &adapter,
-                .types = &shared_types,
-                .schema = null,
-                .timestamp = 1706500000,
-            };
-            if (eval.evalExpression(&ctx, expr2, adapter.root(), null)) |result| {
-                sink +%= result.items.len;
-            } else |_| {}
-        }
-        const eval_elapsed2 = @as(i64, @intCast(std.time.nanoTimestamp())) - @as(i64, @intCast(eval_start2));
-        const eval_us2 = @as(f64, @floatFromInt(eval_elapsed2)) / @as(f64, @floatFromInt(iterations)) / 1000.0;
-        std.debug.print("  Eval with shared TypeTable: {d:>8.1}μs\n", .{eval_us2});
     }
 
     std.debug.print("\nSink: {d}\n", .{sink});

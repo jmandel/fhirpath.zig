@@ -19,10 +19,9 @@ pub fn evalWithJson(
     expr: ast.Expr,
     json_text: []const u8,
     env: ?*eval.Env,
-    types: *item.TypeTable,
     schema_ptr: ?*schema.Schema,
 ) !eval.EvalResult {
-    return eval.evalWithJson(allocator, expr, json_text, env, types, schema_ptr);
+    return eval.evalWithJson(allocator, expr, json_text, env, schema_ptr);
 }
 
 pub fn evalWithXml(
@@ -30,10 +29,9 @@ pub fn evalWithXml(
     expr: ast.Expr,
     xml_text: []const u8,
     env: ?*eval.Env,
-    types: *item.TypeTable,
     schema_ptr: ?*schema.Schema,
 ) !eval.EvalResult {
-    return eval.evalWithXml(allocator, expr, xml_text, env, types, schema_ptr);
+    return eval.evalWithXml(allocator, expr, xml_text, env, schema_ptr);
 }
 
 const testing = std.testing;

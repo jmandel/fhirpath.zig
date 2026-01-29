@@ -3,7 +3,6 @@ const lib = @import("lib.zig");
 const eval = @import("eval.zig");
 const ast = @import("ast.zig");
 const JsonAdapter = @import("backends/json_adapter.zig").JsonAdapter;
-const item = @import("item.zig");
 const convert = @import("convert.zig");
 const schema = @import("schema.zig");
 
@@ -49,9 +48,6 @@ pub fn main() !void {
     };
     defer ast.deinitExpr(allocator, expr);
 
-    var types = try item.TypeTable.init(allocator);
-    defer types.deinit();
-
     var eval_arena = std.heap.ArenaAllocator.init(allocator);
     defer eval_arena.deinit();
     const arena_alloc = eval_arena.allocator();
@@ -91,7 +87,6 @@ pub fn main() !void {
     var ctx = eval.EvalContext(JsonAdapter){
         .allocator = arena_alloc,
         .adapter = &adapter,
-        .types = &types,
         .schema = schema_p,
         .timestamp = std.time.timestamp(),
     };
@@ -111,7 +106,7 @@ pub fn main() !void {
                     type_name = s.typeName(it.type_id);
                 }
             } else {
-                type_name = types.name(it.type_id);
+                type_name = schema.systemTypeName(it.type_id);
             }
             const val = try convert.adapterItemToTypedJsonValue(JsonAdapter, arena_alloc, &adapter, it, type_name);
             try out_arr.append(arena_alloc, val);

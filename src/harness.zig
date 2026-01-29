@@ -373,9 +373,6 @@ fn runTestFile(
         }
     }
 
-    var types = try item.TypeTable.init(allocator);
-    defer types.deinit();
-
     for (cases_val.array.items) |case_val| {
         if (case_val != .object) continue;
         const obj = case_val.object;
@@ -517,7 +514,7 @@ fn runTestFile(
             var xml_ctx = eval.EvalContext(XmlAdapter){
                 .allocator = arena_alloc,
                 .adapter = &xml_adapter,
-                .types = &types,
+
                 .schema = schema_ptr,
                 .timestamp = std.time.timestamp(),
             };
@@ -552,7 +549,7 @@ fn runTestFile(
                 }
             }
 
-            var actual_values = try xmlItemsToJsonArray(allocator, &xml_adapter, xml_eval_result.items, &types, schema_ptr);
+            var actual_values = try xmlItemsToJsonArray(allocator, &xml_adapter, xml_eval_result.items, schema_ptr);
             defer actual_values.deinit(allocator);
 
             const unordered = if (obj.get("unordered")) |uv| uv == .bool and uv.bool else false;
@@ -609,7 +606,7 @@ fn runTestFile(
             var fhir_ctx = eval.EvalContext(JsonAdapter){
                 .allocator = arena_alloc,
                 .adapter = &fhir_adapter,
-                .types = &types,
+
                 .schema = schema_ptr,
                 .timestamp = std.time.timestamp(),
             };
@@ -644,7 +641,7 @@ fn runTestFile(
                 }
             }
 
-            var actual_values = try itemsToJsonArray(allocator, &fhir_adapter, fhir_eval_result.items, &types, schema_ptr);
+            var actual_values = try itemsToJsonArray(allocator, &fhir_adapter, fhir_eval_result.items, schema_ptr);
             defer actual_values.deinit(allocator);
 
             const unordered = if (obj.get("unordered")) |uv| uv == .bool and uv.bool else false;
@@ -741,7 +738,7 @@ fn runTestFile(
             var ctx = eval.EvalContext(JsonAdapter){
                 .allocator = arena_alloc,
                 .adapter = &adapter,
-                .types = &types,
+
                 .schema = schema_ptr,
                 .timestamp = std.time.timestamp(),
             };
@@ -776,7 +773,7 @@ fn runTestFile(
                 }
             }
 
-            var actual_values = try itemsToJsonArray(allocator, &adapter, eval_result.items, &types, schema_ptr);
+            var actual_values = try itemsToJsonArray(allocator, &adapter, eval_result.items, schema_ptr);
             defer actual_values.deinit(allocator);
 
             const unordered = if (obj.get("unordered")) |uv| uv == .bool and uv.bool else false;
@@ -852,7 +849,6 @@ fn itemsToJsonArray(
     allocator: std.mem.Allocator,
     adapter: *JsonAdapter,
     items: []const item.Item,
-    types: *item.TypeTable,
     schema_ptr: ?*schema.Schema,
 ) !std.ArrayList(std.json.Value) {
     var out = std.ArrayList(std.json.Value).empty;
@@ -862,7 +858,7 @@ fn itemsToJsonArray(
             if (schema_ptr) |s| {
                 type_name = s.outputTypeName(it.type_id);
             } else if (!schema.isModelType(it.type_id)) {
-                type_name = types.name(it.type_id);
+                type_name = schema.systemTypeName(it.type_id);
             }
         } else {
             if (schema.isModelType(it.type_id)) {
@@ -870,7 +866,7 @@ fn itemsToJsonArray(
                     type_name = s.typeName(it.type_id);
                 }
             } else {
-                type_name = types.name(it.type_id);
+                type_name = schema.systemTypeName(it.type_id);
             }
         }
         const val = try convert.adapterItemToTypedJsonValue(JsonAdapter, allocator, adapter, it, type_name);
@@ -1019,7 +1015,6 @@ fn xmlItemsToJsonArray(
     allocator: std.mem.Allocator,
     adapter: *XmlAdapter,
     items: []const item.Item,
-    types: *item.TypeTable,
     schema_ptr: ?*schema.Schema,
 ) !std.ArrayList(std.json.Value) {
     var out = std.ArrayList(std.json.Value).empty;
@@ -1028,7 +1023,7 @@ fn xmlItemsToJsonArray(
         if (schema_ptr) |s| {
             type_name = s.outputTypeName(it.type_id);
         } else if (!schema.isModelType(it.type_id)) {
-            type_name = types.name(it.type_id);
+            type_name = schema.systemTypeName(it.type_id);
         }
         const val = try convert.adapterItemToTypedJsonValue(XmlAdapter, allocator, adapter, it, type_name);
         try out.append(allocator, val);

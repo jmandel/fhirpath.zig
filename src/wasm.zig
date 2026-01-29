@@ -45,7 +45,6 @@ const SchemaEntry = struct {
 
 const Context = struct {
     allocator: std.mem.Allocator,
-    types: item.TypeTable,
     schemas: std.StringHashMap(SchemaEntry),
     default_schema: ?[]const u8,
     last_schema: ?*schema.Schema,
@@ -57,7 +56,6 @@ const Context = struct {
         const ctx = try allocator.create(Context);
         ctx.* = .{
             .allocator = allocator,
-            .types = try item.TypeTable.init(allocator),
             .schemas = std.StringHashMap(SchemaEntry).init(allocator),
             .default_schema = null,
             .last_schema = null,
@@ -84,7 +82,6 @@ const Context = struct {
             self.allocator.free(entry.value_ptr.bytes);
         }
         self.schemas.deinit();
-        self.types.deinit();
         self.iters.deinit(self.allocator);
         self.allocator.destroy(self);
     }
@@ -356,7 +353,7 @@ pub export fn fhirpath_eval(
         var eval_ctx = eval.EvalContext(JsonAdapter){
             .allocator = arena_alloc,
             .adapter = &adapter,
-            .types = &ctx.types,
+
             .schema = schema_ptr,
             .timestamp = ctx.now_epoch_seconds,
         };
@@ -425,7 +422,7 @@ pub export fn fhirpath_eval_xml(
         var eval_ctx = eval.EvalContext(XmlAdapter){
             .allocator = arena_alloc,
             .adapter = &adapter,
-            .types = &ctx.types,
+
             .schema = schema_ptr,
             .timestamp = ctx.now_epoch_seconds,
         };

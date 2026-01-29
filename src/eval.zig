@@ -78,7 +78,6 @@ pub fn evalWithJson(
     root_val.* = try std.json.parseFromSliceLeaky(std.json.Value, arena_alloc, json_text, .{ .parse_numbers = false });
     const flavor: JsonAdapter.Flavor = if (schema_ptr != null) .fhir_json else .generic_json;
     var adapter = JsonAdapter.init(arena_alloc, root_val, flavor);
-    adapter.schema = schema_ptr;
     var ctx = EvalContext(JsonAdapter){
         .allocator = arena_alloc,
         .adapter = &adapter,
@@ -87,7 +86,7 @@ pub fn evalWithJson(
         .timestamp = std.time.timestamp(),
     };
     const items = try evalExpression(&ctx, expr, adapter.root(), env);
-    return resolveResult(JsonAdapter, &adapter, items, &arena);
+    return resolveResult(JsonAdapter, &adapter, items, &arena, schema_ptr);
 }
 
 /// Resolve adapter-specific node_ref items to adapter-independent std.json.Value entries,
@@ -100,8 +99,10 @@ pub fn resolveResult(
     adapter: *A,
     items: ItemList,
     arena: *std.heap.ArenaAllocator,
+    schema_ptr: ?*schema.Schema,
 ) !EvalResult {
     const convert = @import("convert.zig");
+    const value_resolver = @import("value_resolver.zig");
     const arena_alloc = arena.allocator();
     var node_values = std.ArrayListUnmanaged(std.json.Value){};
 
@@ -111,8 +112,8 @@ pub fn resolveResult(
             const jv = try convert.adapterNodeToJsonValue(A, arena_alloc, adapter, ref);
             const idx = node_values.items.len;
             try node_values.append(arena_alloc, jv);
-            // Promote primitive node_refs to value items using adapter's toValue
-            const val = A.toValue(adapter, ref, it.type_id);
+            // Promote primitive node_refs to value items using centralized resolver
+            const val = value_resolver.nodeToValue(A, adapter, ref, it.type_id, schema_ptr);
             if (val != .empty) {
                 it.data_kind = .value;
                 it.value_kind = std.meta.activeTag(val);
@@ -1160,7 +1161,7 @@ fn itemsEquivalent(ctx: anytype, a: item.Item, b: item.Item) bool {
             if (kind_a != kind_b) return false;
             return nodeEqual(ctx, a_ref, b_ref);
         }
-        // For scalar nodes, use toValue to get proper type tags
+        // For scalar nodes, resolve to values for proper type tags
         return valueEquivalent(itemToValue(ctx, a), itemToValue(ctx, b));
     }
 
@@ -6563,9 +6564,10 @@ fn itemBoolValue(ctx: anytype, it: item.Item) bool {
 fn itemToValue(ctx: anytype, it: item.Item) item.Value {
     if (it.data_kind == .value and it.value != null) return it.value.?;
     if (it.data_kind == .node_ref and it.node != null) {
+        const value_resolver = @import("value_resolver.zig");
         const A = @TypeOf(ctx.adapter.*);
         const ref = it.node.?;
-        return A.toValue(ctx.adapter, ref, it.type_id);
+        return value_resolver.nodeToValue(A, ctx.adapter, ref, it.type_id, ctx.schema);
     }
     return .{ .empty = {} };
 }

@@ -87,7 +87,6 @@ pub fn main() !void {
     };
     root_val.* = parsed;
     var adapter = JsonAdapter.init(arena_alloc, root_val, flavor);
-    adapter.schema = schema_p;
     defer adapter.deinit();
     var ctx = eval.EvalContext(JsonAdapter){
         .allocator = arena_alloc,

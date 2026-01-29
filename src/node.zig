@@ -69,10 +69,8 @@ pub fn requireAdapter(comptime A: type) void {
             @compileError("NodeAdapter must have objectIter() method");
         }
 
-        // Type-aware value conversion
-        if (!@hasDecl(A, "toValue")) {
-            @compileError("NodeAdapter must have toValue() method");
-        }
+        // Note: toValue() has been centralized in value_resolver.zig
+        // and is no longer part of the adapter contract.
     }
 }
 

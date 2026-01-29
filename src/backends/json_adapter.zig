@@ -15,7 +15,6 @@ const std = @import("std");
 const node = @import("../node.zig");
 const nh = @import("../node_handle.zig");
 const item = @import("../item.zig");
-const schema_mod = @import("../schema.zig");
 
 pub const VirtualNode = union(enum) {
     /// Merged FHIR primitive: value (from "field") + metadata (from "_field")
@@ -28,6 +27,14 @@ pub const VirtualNode = union(enum) {
         values: nh.NodeHandle, // the value array
         metas: ?nh.NodeHandle, // the _field array (or null)
     },
+
+    // Synthetic output nodes — represent computed values as nodes
+    /// Scalar value (boolean, integer, decimal, string, date, time, dateTime, empty)
+    value_scalar: item.Value,
+    /// Quantity with value + unit
+    value_quantity: item.Quantity,
+    /// TypeInfo with namespace + name
+    value_typeinfo: item.TypeInfo,
 };
 
 pub const JsonAdapter = struct {
@@ -40,7 +47,6 @@ pub const JsonAdapter = struct {
     flavor: Flavor,
     root_handle: nh.NodeHandle,
     virtual_nodes: std.ArrayListUnmanaged(VirtualNode),
-    schema: ?*schema_mod.Schema = null,
 
     pub const NodeRef = nh.NodeHandle;
 
@@ -59,6 +65,33 @@ pub const JsonAdapter = struct {
 
     pub fn root(self: *JsonAdapter) NodeRef {
         return self.root_handle;
+    }
+
+    // ====================================================================
+    // Synthetic output nodes — represent computed values as nodes
+    // ====================================================================
+
+    /// Create a synthetic node from a computed Value.
+    /// Returns a NodeHandle that can be used with kind(), string(), etc.
+    pub fn nodeFromValue(self: *JsonAdapter, val: item.Value) NodeRef {
+        return switch (val) {
+            .quantity => |q| self.addVirtualNode(.{ .value_quantity = q }),
+            .typeInfo => |ti| self.addVirtualNode(.{ .value_typeinfo = ti }),
+            else => self.addVirtualNode(.{ .value_scalar = val }),
+        };
+    }
+
+    /// Get a node handle for any item — whether node-backed or value-backed.
+    /// Value-backed items become synthetic nodes in the adapter's virtual table.
+    pub fn itemNode(self: *JsonAdapter, it: item.Item) NodeRef {
+        if (it.data_kind == .node_ref) {
+            if (it.node) |n| return n;
+        }
+        if (it.data_kind == .value) {
+            if (it.value) |v| return self.nodeFromValue(v);
+        }
+        // Fallback: empty synthetic node
+        return self.addVirtualNode(.{ .value_scalar = .{ .empty = {} } });
     }
 
     // -- Internal helpers --
@@ -104,12 +137,21 @@ pub const JsonAdapter = struct {
             .merged_primitive => |mp| {
                 if (mp.value) |v| {
                     if (!nh.isIndex(v)) return stdJsonKind(jsonPtr(v));
-                    // Shouldn't normally happen—merged primitive values are ptr-backed
                     return .null;
                 }
                 return .null;
             },
             .merged_array => .array,
+            .value_scalar => |val| switch (val) {
+                .empty => .null,
+                .boolean => .bool,
+                .integer, .long, .decimal => .number,
+                .string, .date, .time, .dateTime => .string,
+                .quantity => .object,
+                .typeInfo => .object,
+            },
+            .value_quantity => .object,
+            .value_typeinfo => .object,
         };
     }
 
@@ -130,6 +172,25 @@ pub const JsonAdapter = struct {
         return switch (vn) {
             .merged_primitive => |mp| self.mergedPrimitiveGet(mp, key),
             .merged_array => null,
+            .value_quantity => |q| {
+                if (std.mem.eql(u8, key, "value")) {
+                    return self.addVirtualNode(.{ .value_scalar = .{ .decimal = q.value } });
+                }
+                if (std.mem.eql(u8, key, "unit") or std.mem.eql(u8, key, "code")) {
+                    return self.addVirtualNode(.{ .value_scalar = .{ .string = q.unit } });
+                }
+                return null;
+            },
+            .value_typeinfo => |ti| {
+                if (std.mem.eql(u8, key, "namespace")) {
+                    return self.addVirtualNode(.{ .value_scalar = .{ .string = ti.namespace } });
+                }
+                if (std.mem.eql(u8, key, "name")) {
+                    return self.addVirtualNode(.{ .value_scalar = .{ .string = ti.name } });
+                }
+                return null;
+            },
+            .value_scalar => null,
         };
     }
 
@@ -240,6 +301,9 @@ pub const JsonAdapter = struct {
         return switch (vn) {
             .merged_primitive => |mp| self.mergedPrimitiveCount(mp),
             .merged_array => 0,
+            .value_quantity => 2, // value + unit
+            .value_typeinfo => 2, // namespace + name
+            .value_scalar => 0,
         };
     }
 
@@ -311,6 +375,9 @@ pub const JsonAdapter = struct {
         return switch (vn) {
             .merged_primitive => |mp| self.mergedPrimitiveIter(mp),
             .merged_array => .{ .entries = &.{}, .idx = 0 },
+            .value_quantity => |q| self.syntheticQuantityIter(q),
+            .value_typeinfo => |ti| self.syntheticTypeInfoIter(ti),
+            .value_scalar => .{ .entries = &.{}, .idx = 0 },
         };
     }
 
@@ -414,6 +481,22 @@ pub const JsonAdapter = struct {
         return .{ .entries = entries[0..idx], .idx = 0 };
     }
 
+    fn syntheticQuantityIter(self: *JsonAdapter, q: item.Quantity) ObjectIter {
+        const entries = self.allocator.alloc(node.ObjectEntry(NodeRef), 2) catch
+            return .{ .entries = &.{}, .idx = 0 };
+        entries[0] = .{ .key = "value", .value = self.addVirtualNode(.{ .value_scalar = .{ .decimal = q.value } }) };
+        entries[1] = .{ .key = "unit", .value = self.addVirtualNode(.{ .value_scalar = .{ .string = q.unit } }) };
+        return .{ .entries = entries, .idx = 0 };
+    }
+
+    fn syntheticTypeInfoIter(self: *JsonAdapter, ti: item.TypeInfo) ObjectIter {
+        const entries = self.allocator.alloc(node.ObjectEntry(NodeRef), 2) catch
+            return .{ .entries = &.{}, .idx = 0 };
+        entries[0] = .{ .key = "namespace", .value = self.addVirtualNode(.{ .value_scalar = .{ .string = ti.namespace } }) };
+        entries[1] = .{ .key = "name", .value = self.addVirtualNode(.{ .value_scalar = .{ .string = ti.name } }) };
+        return .{ .entries = entries, .idx = 0 };
+    }
+
     // ====================================================================
     // Adapter contract: arrayLen, arrayAt
     // ====================================================================
@@ -431,7 +514,7 @@ pub const JsonAdapter = struct {
                 if (values.* == .array) return values.array.items.len;
                 return 0;
             },
-            .merged_primitive => 0,
+            .merged_primitive, .value_scalar, .value_quantity, .value_typeinfo => 0,
         };
     }
 
@@ -460,7 +543,7 @@ pub const JsonAdapter = struct {
                     },
                 }
             },
-            .merged_primitive => unreachable,
+            .merged_primitive, .value_scalar, .value_quantity, .value_typeinfo => unreachable,
         }
     }
 
@@ -499,10 +582,30 @@ pub const JsonAdapter = struct {
                 return "";
             },
             .merged_array => "",
+            .value_scalar => |val| switch (val) {
+                .string, .date, .time, .dateTime => |s| s,
+                .decimal => |s| s,
+                else => "",
+            },
+            .value_quantity => "",
+            .value_typeinfo => "",
         };
     }
 
     pub fn numberText(self: *JsonAdapter, ref: NodeRef) []const u8 {
+        if (nh.isIndex(ref)) {
+            const vn = self.virtualNode(ref);
+            switch (vn) {
+                .value_scalar => |val| switch (val) {
+                    .integer => |i| return std.fmt.allocPrint(self.allocator, "{d}", .{i}) catch "0",
+                    .long => |l| return std.fmt.allocPrint(self.allocator, "{d}", .{l}) catch "0",
+                    .decimal => |s| return s,
+                    else => return "0",
+                },
+                .value_quantity => |q| return q.value,
+                else => {},
+            }
+        }
         const v = self.resolveToJsonValue(ref) orelse return "0";
         return switch (v.*) {
             .number_string => |s| s,
@@ -529,6 +632,11 @@ pub const JsonAdapter = struct {
                 return false;
             },
             .merged_array => false,
+            .value_scalar => |val| switch (val) {
+                .boolean => |b| b,
+                else => false,
+            },
+            .value_quantity, .value_typeinfo => false,
         };
     }
 
@@ -544,98 +652,8 @@ pub const JsonAdapter = struct {
                 }
                 return null;
             },
-            .merged_array => null,
+            .merged_array, .value_scalar, .value_quantity, .value_typeinfo => null,
         };
-    }
-
-    // ====================================================================
-    // toValue — type-aware value conversion
-    // ====================================================================
-
-    pub fn toValue(self: *JsonAdapter, ref: NodeRef, type_id: u32) item.Value {
-        // Schema-aware path (FHIR flavor with schema)
-        if (self.schema) |s| {
-            if (schema_mod.isModelType(type_id)) {
-                const sys_id = s.implicitSystemTypeId(type_id);
-                if (sys_id != 0) {
-                    const sys_name = schema_mod.systemTypeName(sys_id);
-                    return self.toValueForSystemType(ref, sys_name);
-                }
-            }
-        }
-        // Well-known System type IDs
-        if (type_id == item.SystemTypeIds.date) {
-            if (self.kind(ref) == .string) return .{ .date = self.string(ref) };
-        } else if (type_id == item.SystemTypeIds.dateTime) {
-            if (self.kind(ref) == .string) return .{ .dateTime = self.string(ref) };
-        } else if (type_id == item.SystemTypeIds.time) {
-            if (self.kind(ref) == .string) return .{ .time = self.string(ref) };
-        }
-        // JSON-kind-based fallback
-        return self.toValueFromJsonKind(ref);
-    }
-
-    fn toValueForSystemType(self: *JsonAdapter, ref: NodeRef, sys_name: []const u8) item.Value {
-        if (std.mem.eql(u8, sys_name, "System.Date")) {
-            if (self.kind(ref) == .string) return .{ .date = self.string(ref) };
-            return self.toValueFromJsonKind(ref);
-        }
-        if (std.mem.eql(u8, sys_name, "System.DateTime")) {
-            if (self.kind(ref) == .string) return .{ .dateTime = self.string(ref) };
-            return self.toValueFromJsonKind(ref);
-        }
-        if (std.mem.eql(u8, sys_name, "System.Time")) {
-            if (self.kind(ref) == .string) return .{ .time = self.string(ref) };
-            return self.toValueFromJsonKind(ref);
-        }
-        if (std.mem.eql(u8, sys_name, "System.Quantity")) {
-            return self.extractQuantity(ref);
-        }
-        // Boolean, Integer, Decimal, String — use JSON-kind conversion
-        return self.toValueFromJsonKind(ref);
-    }
-
-    fn extractQuantity(self: *JsonAdapter, ref: NodeRef) item.Value {
-        if (self.kind(ref) != .object) return self.toValueFromJsonKind(ref);
-
-        const value_ref = self.objectGet(ref, "value") orelse return .{ .empty = {} };
-        if (self.kind(value_ref) != .number) return .{ .empty = {} };
-        const value_text = self.numberText(value_ref);
-
-        var unit_text: []const u8 = "1";
-        if (self.objectGet(ref, "code")) |code_ref| {
-            if (self.kind(code_ref) == .string) {
-                unit_text = self.string(code_ref);
-            }
-        } else if (self.objectGet(ref, "unit")) |unit_ref| {
-            if (self.kind(unit_ref) == .string) {
-                unit_text = self.string(unit_ref);
-            }
-        }
-
-        return .{ .quantity = .{ .value = value_text, .unit = unit_text } };
-    }
-
-    fn toValueFromJsonKind(self: *JsonAdapter, ref: NodeRef) item.Value {
-        return switch (self.kind(ref)) {
-            .null => .{ .empty = {} },
-            .bool => .{ .boolean = self.boolean(ref) },
-            .number => {
-                const text = self.numberText(ref);
-                if (isIntegerText(text)) {
-                    const parsed = std.fmt.parseInt(i64, text, 10) catch return .{ .decimal = text };
-                    return .{ .integer = parsed };
-                }
-                return .{ .decimal = text };
-            },
-            .string => .{ .string = self.string(ref) },
-            else => .{ .empty = {} },
-        };
-    }
-
-    fn isIntegerText(text: []const u8) bool {
-        return std.mem.indexOfScalar(u8, text, '.') == null and
-            std.mem.indexOfAny(u8, text, "eE") == null;
     }
 
     // ====================================================================
@@ -665,6 +683,19 @@ pub const JsonAdapter = struct {
                     return cloneJsonValue(allocator, jsonPtr(ma.values));
                 }
                 return .{ .null = {} };
+            },
+            .value_scalar => |val| return syntheticValueToJson(allocator, val),
+            .value_quantity => |q| {
+                var obj = std.json.ObjectMap.init(allocator);
+                try obj.put("value", .{ .number_string = q.value });
+                try obj.put("unit", .{ .string = q.unit });
+                return .{ .object = obj };
+            },
+            .value_typeinfo => |ti| {
+                var obj = std.json.ObjectMap.init(allocator);
+                try obj.put("namespace", .{ .string = ti.namespace });
+                try obj.put("name", .{ .string = ti.name });
+                return .{ .object = obj };
             },
         }
     }
@@ -696,6 +727,19 @@ fn cloneJsonValue(allocator: std.mem.Allocator, v: *const std.json.Value) !std.j
             }
             break :blk .{ .object = new_obj };
         },
+    };
+}
+
+fn syntheticValueToJson(allocator: std.mem.Allocator, val: item.Value) !std.json.Value {
+    _ = allocator;
+    return switch (val) {
+        .empty => .{ .null = {} },
+        .boolean => |b| .{ .bool = b },
+        .integer, .long => |i| .{ .integer = i },
+        .decimal => |s| .{ .number_string = s },
+        .string, .date, .time, .dateTime => |s| .{ .string = s },
+        .quantity => .{ .null = {} }, // should not reach here (handled by value_quantity)
+        .typeInfo => .{ .null = {} }, // should not reach here (handled by value_typeinfo)
     };
 }
 

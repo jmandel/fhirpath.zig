@@ -485,7 +485,6 @@ fn runTestFile(
             const arena_alloc = fhir_arena.allocator();
 
             var fhir_adapter = JsonAdapter.init(arena_alloc, &std_parsed.value, .fhir_json);
-            fhir_adapter.schema = schema_ptr;
             defer fhir_adapter.deinit();
 
             var fhir_ctx = eval.EvalContext(JsonAdapter){
@@ -594,7 +593,6 @@ fn runTestFile(
             };
 
             var adapter = JsonAdapter.init(arena_alloc, &std_parsed, .generic_json);
-            adapter.schema = schema_ptr;
             defer adapter.deinit();
 
             // Extract root and build env map if we have env values

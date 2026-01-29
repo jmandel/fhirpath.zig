@@ -351,7 +351,6 @@ pub export fn fhirpath_eval(
             return statusFromError(err);
         };
         var adapter = JsonAdapter.init(arena_alloc, root_val, flavor);
-        adapter.schema = schema_ptr;
         var eval_ctx = eval.EvalContext(JsonAdapter){
             .allocator = arena_alloc,
             .adapter = &adapter,
@@ -363,7 +362,7 @@ pub export fn fhirpath_eval(
             arena.deinit();
             return statusFromError(err);
         };
-        ctx.result = eval.resolveResult(JsonAdapter, &adapter, items, &arena) catch |err| {
+        ctx.result = eval.resolveResult(JsonAdapter, &adapter, items, &arena, schema_ptr) catch |err| {
             arena.deinit();
             return statusFromError(err);
         };

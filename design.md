@@ -531,6 +531,12 @@ Implications:
 - Provide rich error context (token spans, AST dumps, eval traces) in Zig.
 - Mirror those tests in wasm only after behavior is stable.
 
+The test harness (`src/harness.zig`) uses `StdJsonAdapter` by default and
+`FhirJsonAdapter` when `--fhir-json` is specified. It auto-detects the FHIR
+model for test files under `tests/r5/` or `tests/r4/`, loading
+`models/<version>/model.bin` automatically (falling back silently if not
+found). An explicit `-m` / `--model` flag overrides auto-detection.
+
 ### Zig 0.15 notes (for contributors)
 - `std.ArrayList(T)` is unmanaged; use `.empty` and pass an allocator to
   `append`, `appendSlice`, `deinit`, `clearAndFree`, and `toOwnedSlice`.
@@ -703,12 +709,68 @@ Field `flags` includes:
 
 ---
 
-## Part 2: Engine Principles (Placeholder)
+## Part 2: Engine Internals
 
-We will iterate on these with you. Proposed topics:
+### Well-Known System Type IDs (`item.SystemTypeIds`)
+
+The `TypeTable` initializes System types in a deterministic order, producing
+well-known type IDs that adapters and the evaluator can reference without
+hash lookups:
+
+```zig
+pub const SystemTypeIds = struct {
+    pub const any = 1;
+    pub const boolean = 2;
+    pub const integer = 3;
+    pub const long = 4;
+    pub const decimal = 5;
+    pub const string = 6;
+    pub const date = 7;
+    pub const dateTime = 8;
+    pub const time = 9;
+    pub const quantity = 10;
+};
+```
+
+These constants are used by adapter `toValue()` implementations to decide
+whether a JSON string node should be tagged as `.date`, `.time`, or
+`.dateTime` rather than `.string`, avoiding runtime type-name lookups.
+
+### Comptime Enum Function Dispatch
+
+The evaluator resolves FHIRPath function names via a comptime `FnTag` enum
+and `std.meta.stringToEnum`. This replaces ~107 sequential `std.mem.eql`
+comparisons with a perfect-hash O(1) lookup:
+
+```zig
+const FnTag = enum {
+    now, today, timeOfDay, count, empty, exists,
+    where, select, first, last, tail, skip, take,
+    // ... ~60 more function names
+};
+
+fn evalFunction(ctx, call, input, env) !ItemList {
+    const tag = std.meta.stringToEnum(FnTag, call.name) orelse return error.InvalidFunction;
+    switch (tag) { ... }
+}
+```
+
+The enum values match FHIRPath function names exactly (using `@"is"`,
+`@"as"`, `@"union"`, `@"type"` for Zig keywords). Unknown function names
+fail immediately with `InvalidFunction`.
+
+### Benchmarks
+
+Two benchmark suites exist:
+- `src/bench.zig` — adapter-level navigation benchmarks (parse, traverse, field lookup)
+- `src/bench_eval.zig` — end-to-end evaluation benchmarks (JSON parse + TypeTable init + expression eval)
+
+The eval benchmarks cover property access, function calls, filtering,
+literal expressions, and bundle traversal at various scales.
+
+### Remaining topics (to be expanded):
 - Memory/arena model and lifetime.
 - AST, value, and collection representations.
-- Parser and eval architecture.
 - Schema/model access and type inference.
 - Custom function invocation strategy.
 - Error handling and tracing.
@@ -720,10 +782,11 @@ We will iterate on these with you. Proposed topics:
 The engine uses a compile-time generic NodeAdapter pattern to abstract JSON
 document traversal. This enables:
 
-1. **Multiple backends**: JsonDoc (custom, fast) or std.json.Value (standard library)
+1. **Multiple backends**: StdJson (default) or FhirJson (FHIR-aware)
 2. **Zero-cost abstraction**: Zig monomorphizes all adapter calls at compile time
-3. **Optional capabilities**: Span preservation, zero-copy stringify
-4. **Future extensibility**: WASM host adapter for direct JS object navigation
+3. **Type-aware value conversion**: Each adapter implements `toValue()` for schema-driven type resolution
+4. **Optional capabilities**: Span preservation, zero-copy stringify
+5. **Future extensibility**: WASM host adapter for direct JS object navigation
 
 ### Interface (`src/node.zig`)
 
@@ -741,7 +804,19 @@ pub fn arrayAt(self: *Adapter, ref: NodeRef, idx: usize) NodeRef;
 pub fn string(self: *Adapter, ref: NodeRef) []const u8;
 pub fn numberText(self: *Adapter, ref: NodeRef) []const u8;
 pub fn boolean(self: *Adapter, ref: NodeRef) bool;
+
+// Type-aware value conversion (required)
+pub fn toValue(self: *Adapter, ref: NodeRef, type_id: u32) item.Value;
 ```
+
+The `toValue()` method converts a node reference into a typed `item.Value`,
+using the node's `type_id` to select the correct System type. For example,
+a JSON string node with `type_id` matching `System.Date` returns a
+`.date` value rather than a `.string`. This eliminates type_id-based
+workarounds in the evaluator — adapters own the mapping from node + type
+to value. The `FhirJsonAdapter` additionally consults its schema to resolve
+FHIR model types (e.g., `FHIR.date` → `System.Date`) and can extract
+`System.Quantity` from FHIR Quantity objects.
 
 Optional capabilities (detected via `@hasDecl`):
 ```zig
@@ -765,16 +840,11 @@ Only `item_data_ptr/len` (or JS `node.data`) triggers JSON materialization.
 
 ### Implementations
 
-**JsonDocAdapter** (`src/backends/jsondoc.zig`):
-- Wraps our custom `jsondoc.JsonDoc` DOM
-- Linear field scan (fast for small objects typical in FHIR)
-- Supports `span()` and `stringify()` for zero-copy operations
-- Tuned for FHIR-shaped JSON and span preservation
-
 **StdJsonAdapter** (`src/backends/stdjson.zig`):
 - Wraps `std.json.Value` from the standard library
 - Hash-based object lookup
-- Useful when JSON is already parsed elsewhere
+- Default adapter for `evalWithJson()` and the test harness
+- `toValue()` uses `type_id` to tag strings as date/time/dateTime when appropriate
 - No span support (std.json doesn't preserve source positions)
 
 **FhirJsonAdapter** (`src/backends/fhirjson.zig`):
@@ -783,18 +853,21 @@ Only `item_data_ptr/len` (or JS `node.data`) triggers JSON materialization.
 - Hides `resourceType` from iteration (accessible via objectGet)
 - Hides `_*` keys from both iteration and direct access
 - Arena-based virtual nodes for merged primitives and merged arrays
-- Optional `*Schema` for type assignment (via evaluator's `childTypeForField`)
+- Optional `*Schema` field for type assignment and `toValue()` resolution
+- `toValue()` consults the schema to map FHIR model types to System types
+  and can extract `System.Quantity` from FHIR Quantity objects
 - No span support
 
 ### Performance and tradeoffs (high-level)
 
 We keep the adapter abstraction so we can choose the backend based on tradeoffs:
-- JsonDoc preserves spans for zero-copy output and is tuned for FHIR-shaped JSON.
-- StdJson is convenient when JSON is already parsed or when std.json compatibility matters.
+- StdJson is the default for generic JSON evaluation and the test harness.
+- FhirJson adds FHIR-specific merging and schema-driven type conversion.
 
-The benchmark harness in `src/bench.zig` compares backends under both
-parse-once (navigation-only) and parse-each (parse+eval) modes. We avoid
-hardcoding specific numbers here because they vary by machine and inputs.
+The benchmark harness in `src/bench.zig` covers adapter-level navigation
+benchmarks. End-to-end evaluation benchmarks (JSON parse + eval) live in
+`src/bench_eval.zig` and measure the full pipeline including TypeTable
+init and expression evaluation.
 
 ### Usage
 
@@ -815,18 +888,15 @@ pub fn EvalContext(comptime A: type) type {
 }
 
 // Entry points
-pub fn evalWithJson(expr: []const u8, json: []const u8, ...) !Result; // uses JsonDoc adapter
-// Optional convenience entry point:
-pub fn evalWithStdJson(expr: []const u8, value: *std.json.Value, ...) !Result;
+pub fn evalWithJson(expr: []const u8, json: []const u8, ...) !Result; // uses StdJson adapter
 ```
 
 ### Recommendation
 
-Use JsonDoc by default when you want span preservation or zero-copy outputs.
-Use StdJsonAdapter when the input is already a `std.json.Value` or when host
-compatibility is more important than span support.
+Use StdJsonAdapter by default for generic JSON evaluation.
 Use FhirJsonAdapter when evaluating FHIR JSON and you need spec-correct
-handling of primitive extensions (`_field` merging) and output type conversion.
+handling of primitive extensions (`_field` merging) and schema-driven
+output type conversion.
 
 ### Adapter Architecture
 
@@ -835,12 +905,49 @@ Schemas are orthogonal and runtime-loaded.
 
 | Adapter | Schema? | Format-aware? | Use case |
 |---|---|---|---|
-| `StdJsonAdapter` | No | No | Generic JSON querying, no FHIR awareness |
-| `JsonDocAdapter` | No | No | Generic JSON with span preservation |
-| `FhirJsonAdapter` | Optional | Yes (FHIR JSON) | FHIR JSON logical model |
+| `StdJsonAdapter` | No | No | Default adapter for generic JSON querying |
+| `FhirJsonAdapter` | Optional | Yes (FHIR JSON) | FHIR JSON logical model with `_field` merging |
 
 The same `FhirJsonAdapter` works for any FHIR version; the schema binary
 (R4, R5, etc.) is what differs. Adapter + schema are independent choices.
+
+### Schema-Driven Type Flow
+
+When a FHIR schema is loaded, type information flows through three stages:
+
+**1. Property access (eval.zig `applySegment`):**
+The evaluator checks `ctx.schema` at each property access. If a schema is
+present and the parent item has a model type_id, it calls
+`schema.childTypeForField(parent_type_id, field_name)` to get the child's
+FHIR type_id (e.g., navigating `Patient.birthDate` yields `FHIR.date`).
+This walks the type's inheritance chain (Patient → DomainResource → Resource)
+to find fields defined at any level. Without a schema, child type_id is 0.
+
+**2. Item creation:**
+The child type_id is stored on the resulting `item.Item`. During evaluation,
+items carry their FHIR model type (e.g., `FHIR.date`, `FHIR.code`) so that
+`is()`, `as()`, and property access on FHIR primitives work correctly.
+
+**3. Value conversion (`adapter.toValue`):**
+When the evaluator needs a typed Value (for equivalence, output, etc.), it
+calls `adapter.toValue(ref, type_id)`. The adapter uses the type_id to
+produce the correct Value variant:
+
+- **With schema** (`FhirJsonAdapter`): checks `schema.implicitSystemTypeId(type_id)`
+  to map FHIR model types to System types. A JSON string with type_id
+  `FHIR.date` becomes `.{ .date = "1990-01-01" }`. A FHIR Quantity object
+  becomes `.{ .quantity = .{ .value = "120", .unit = "mmHg" } }`.
+- **Without schema**: falls back to JSON-kind-based conversion. The same
+  string becomes `.{ .string = "1990-01-01" }` — correct structurally but
+  loses date semantics for equivalence and comparison operations.
+
+The schema is set in two places that serve different roles:
+- `EvalContext.schema` — used by the evaluator for `childTypeForField()` lookups
+  during property navigation and for `is()`/`as()`/`ofType()` type checks.
+- `FhirJsonAdapter.schema` — used by `toValue()` to resolve FHIR model types
+  to System types when converting node references to typed Values.
+
+Both must point to the same schema for consistent behavior.
 
 ### FHIR Primitive Split Representation
 
@@ -868,6 +975,22 @@ During evaluation, items keep their FHIR types (FHIR.code, FHIR.date, etc.)
 so that `.extension`, `.id`, `.value` navigation works on primitives, and
 `is()`/`as()` operate on exact FHIR types per the spec.
 
+Type-aware value conversion is handled by each adapter's `toValue()` method.
+When the evaluator needs a typed `item.Value` from a node reference — for
+equivalence checks, `resolveResult()`, or other operations — it calls
+`adapter.toValue(ref, type_id)`. The adapter uses the type_id (and optionally
+its schema) to produce the correct Value variant:
+
+- `StdJsonAdapter.toValue()` checks well-known `SystemTypeIds` to tag strings
+  as `.date`, `.time`, or `.dateTime`.
+- `FhirJsonAdapter.toValue()` additionally consults `schema.implicitSystemTypeId()`
+  to map FHIR model types (e.g., `FHIR.date` → `System.Date`) and can extract
+  `System.Quantity` from FHIR Quantity objects with value/code/unit fields.
+
+The equivalence functions (`valueEquivalent`, `itemsEquivalent`) no longer
+need type_id parameters — they operate purely on the Value tags produced
+by `toValue()`.
+
 When returning results to callers (harness with `--fhir-json`, WASM, JS),
 FHIR primitive types are downcast to their System equivalents via
 `schema.implicitSystemTypeId()`. The mapping is data-driven: the model blob's
@@ -878,7 +1001,7 @@ fhirpath-in-fhir.html). Complex types (Patient, HumanName, etc.) keep their
 FHIR type names.
 
 This affects:
-- `harness.zig:fhirItemsToJsonArray()` — type_name resolution for FHIR adapter output
+- `harness.zig:fhirItemsToJsonArray()` / `stdItemsToJsonArray()` — type_name resolution
 - `wasm.zig:typeNameSlice()` — type name for `fhirpath_type_name_ptr/len`
 - `wasm.zig:fhirpath_item_type_id()` — the type_id itself
 - JS wrapper `meta.typeName` — reflects the converted type

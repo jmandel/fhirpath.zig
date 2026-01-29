@@ -20,6 +20,12 @@ This project is spec‑driven. Official tests are treated as pointers to require
 Notes:
 - Do not edit files under `wiggum/` unless explicitly asked; use scripts there instead.
 - Skim relevant spec sections in `spec/` and existing artisinal tests before changing behavior.
+- For tests that involve FHIR-specific features (schemas, `%resource`, `resolve()`,
+  type checking with FHIR types, primitive extensions, etc.), consult
+  `spec/fhirpath-in-fhir.md` — it defines FHIR's use of FHIRPath including
+  built-in environment variables (`%sct`, `%ucum`, `%resource`, etc.),
+  type mapping between FHIR and System types, and FHIR-specific functions
+  (`extension()`, `resolve()`, `hasValue()`, `conformsTo()`).
 
 ## Official tests and source data
 - Converted official tests live at:

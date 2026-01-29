@@ -176,3 +176,123 @@ bugs:
     created: 2026-01-28
     updated: 2026-01-28
     tags: [types, eval]
+  - slug: fhir-environment-variables
+    status: open
+    severity: medium
+    title: Initialize FHIR built-in environment variables (%sct, %loinc, %ucum, %vs-*)
+    description: "FHIRPath defines built-in env vars: %sct='http://snomed.info/sct', %loinc='http://loinc.org', %ucum='http://unitsofmeasure.org', %vs-*='http://hl7.org/fhir/ValueSet/*'. These are not initialized. ~4 R5 failures (testVariables1-4). See spec/fhirpath-in-fhir.md §3.2."
+    created: 2026-01-29
+    updated: 2026-01-29
+    tags: [fhir, environment]
+  - slug: fhir-primitive-type-output
+    status: open
+    severity: medium
+    title: FHIR primitive types not preserved in output (code/id/date show as System.String)
+    description: When evaluating with FhirJsonAdapter+schema, primitive FHIR types like code, id, date are output as System.String instead of their FHIR type names. Tests expect type=code/id/date but get System.String. ~6 R5 failures (testExtractBirthDate, testPatientTelecomTypes, testContainedId, testFHIRPathAsFunction12/17/22). See spec/fhirpath-in-fhir.md for type mapping table.
+    created: 2026-01-29
+    updated: 2026-01-29
+    tags: [fhir, types, output]
+  - slug: ucum-quantity-conversion
+    status: open
+    severity: high
+    title: Implement UCUM quantity unit conversion for comparison and arithmetic
+    description: "Quantity comparisons/arithmetic only work with identical units. Need UCUM conversion: 4g=4000mg, 2cm*2m=0.04m2, 1m/1m=1'1'. ~12 R5 failures (testQuantity1/2/4/9/11, testEquality28, testEquivalent22, testLessThan22, testLessOrEqual22, testGreatorOrEqual22, testGreaterThan22, testAbs3). Largest single failure cluster."
+    created: 2026-01-29
+    updated: 2026-01-29
+    tags: [functions, quantity, ucum]
+  - slug: resolve-function
+    status: open
+    severity: medium
+    title: Implement resolve() function for FHIR References
+    description: resolve() function not implemented. Should follow Reference.reference to find the target resource within %resource or contained resources. ~1 R5 failure (testMultipleResolve). FHIR-specific function, see spec/fhirpath-in-fhir.md.
+    created: 2026-01-29
+    updated: 2026-01-29
+    tags: [functions, fhir]
+  - slug: arithmetic-type-validation
+    status: open
+    severity: medium
+    title: Reject invalid arithmetic type combinations (date+int, string-string, date-non-duration)
+    description: "Arithmetic operators accept invalid type combos: date+integer should error (only quantity duration allowed), string-string should error (only + is concat), date-non-duration-quantity should error. ~3 R5 failures (testPlus6, testMinus4, testMinus6). Spec §6.3."
+    created: 2026-01-29
+    updated: 2026-01-29
+    tags: [operators, types]
+  - slug: time-literal-timezone
+    status: open
+    severity: low
+    title: "Reject time literals with timezone (e.g., @T14:34:28Z)"
+    description: "FHIRPath spec says Time values cannot have timezone. Parser accepts @T14:34:28Z and @T14:34:28+10:00 when it should reject them. ~2 R5 failures (testLiteralTimeUTC, testLiteralTimeTimezoneOffset). Spec §2.2."
+    created: 2026-01-29
+    updated: 2026-01-29
+    tags: [parser, datetime]
+  - slug: unknown-type-name-errors
+    status: open
+    severity: low
+    title: as()/ofType() with unknown type names should error
+    description: as(string1) and ofType(string1) succeed silently when string1 is not a known type. Should return error for unresolvable type names. ~2 R5 failures (testFHIRPathAsFunction23/24).
+    created: 2026-01-29
+    updated: 2026-01-29
+    tags: [types, functions]
+  - slug: schema-property-validation
+    status: open
+    severity: medium
+    title: Invalid property names should error when schema available
+    description: name.given1 succeeds (returns empty) instead of erroring. With a schema, accessing a property that doesn't exist on the type should produce an error. Also Encounter.name.given on a Patient should error (wrong resource type). ~2 R5 failures (testSimpleFail, testSimpleWithWrongContext). See spec/fhirpath-in-fhir.md for FHIR model rules.
+    created: 2026-01-29
+    updated: 2026-01-29
+    tags: [schema, eval, fhir]
+  - slug: not-singleton-error
+    status: open
+    severity: low
+    title: not() should error on non-singleton input
+    description: not() returns empty for multi-item input instead of erroring. (1|2).not() should throw SingletonRequired. Currently returns empty collection. ~1 R5 failure (testNotInvalid). Spec §5.5.2.
+    created: 2026-01-29
+    updated: 2026-01-29
+    tags: [functions, errors]
+  - slug: string-function-invocation-in-select
+    status: open
+    severity: medium
+    title: String function calls on implicit $this in select/where context cause eval errors
+    description: Expressions like where(substring($this.length()-3)='out') and select(startsWith(length().toString())) fail with eval errors. Affects chained method calls on $this within select/where predicates. Also affects union() inside select(). ~9 R5 failures (testDollarThis1/2, testSubstring10, testStartsWith12, testEndsWith10, testContainsString10, testUnion10/11, testIndex).
+    created: 2026-01-29
+    updated: 2026-01-29
+    tags: [eval, functions, context]
+  - slug: boundary-precision-argument
+    status: open
+    severity: medium
+    title: lowBoundary/highBoundary with precision argument return wrong results
+    description: "lowBoundary(6) and highBoundary(6) on dates and highBoundary(17) on dateTimes produce incorrect values. @2014.lowBoundary(6) should return 2014-01 but doesn't. @2014-01-01T08.highBoundary(17) should return 2014-01-01T08:00:59.999-12:00. ~4 R5 failures (LowBoundaryDateMonth, HighBoundaryDateMonth, HighBoundaryDateTimeMillisecond1/3). Spec §5.6.5."
+    created: 2026-01-29
+    updated: 2026-01-29
+    tags: [functions, datetime]
+  - slug: decimal-arithmetic-precision
+    status: open
+    severity: medium
+    title: Decimal arithmetic loses precision (1.8-1.2 \!= 0.6)
+    description: "Decimal subtraction and mod produce imprecise results: 1.8-1.2 should equal 0.6 but doesn't; 2.2 mod 1.8 should equal 0.4 but doesn't. Likely floating-point representation issue in decimal implementation. ~2 R5 failures (testMinus3, testMod4)."
+    created: 2026-01-29
+    updated: 2026-01-29
+    tags: [operators, decimal]
+  - slug: ordered-collection-tracking
+    status: open
+    severity: low
+    title: Track ordered vs unordered collections (children().skip() should error)
+    description: children() returns an unordered collection per FHIR spec. Operations like skip() that require ordering should error on unordered input. Currently Patient.children().skip(1) succeeds. ~1 R5 failure (testDollarOrderNotAllowed). See spec/fhirpath-in-fhir.md.
+    created: 2026-01-29
+    updated: 2026-01-29
+    tags: [eval, fhir, collections]
+  - slug: type-inheritance-is-check
+    status: open
+    severity: medium
+    title: is(string) should return true for FHIR code type (type inheritance)
+    description: Patient.gender.is(string) returns false but should return true because FHIR code inherits from FHIR string which maps to System.String. The is() function needs to walk the type inheritance chain via schema base_type_id. ~1 R5 failure (testFHIRPathIsFunction2). See spec/fhirpath-in-fhir.md type hierarchy.
+    created: 2026-01-29
+    updated: 2026-01-29
+    tags: [types, functions, fhir]
+  - slug: terminologies-host-function
+    status: open
+    severity: low
+    title: Implement %terminologies host functions (expand, validateVS, translate)
+    description: The %terminologies environment variable and its methods (expand, validateVS, translate) are not supported. These are FHIR-specific host functions that require a terminology service. ~3 R5 failures (txTest01-03). Low priority as these require external service integration. See spec/fhirpath-in-fhir.md §3.3.
+    created: 2026-01-29
+    updated: 2026-01-29
+    tags: [fhir, functions, host]

@@ -2,8 +2,6 @@ import { FhirPathEngine } from "./fhirpath.js";
 
 const exprInput = document.querySelector("#expr");
 const jsonInput = document.querySelector("#json");
-const runBtn = document.querySelector("#run");
-const loadBtn = document.querySelector("#load-example");
 const resultsEl = document.querySelector("#results");
 const statusEl = document.querySelector("#status");
 const inputMetaEl = document.querySelector("#input-meta");
@@ -313,11 +311,6 @@ function scheduleRun() {
   }, 30);
 }
 
-runBtn.addEventListener("click", runExpression);
-loadBtn.addEventListener("click", () => {
-  loadExample(0);
-  runExpression();
-});
 exprInput.addEventListener("input", scheduleRun);
 jsonInput.addEventListener("input", () => {
   updateInputMeta();

@@ -69,7 +69,7 @@ body {
   position: relative;
   z-index: 1;
   padding: 48px clamp(24px, 6vw, 80px) 80px;
-  max-width: 1200px;
+  max-width: 95vw;
   margin: 0 auto;
   min-height: 100vh;
 }
@@ -100,38 +100,6 @@ h1 {
   font-size: 1.1rem;
   line-height: 1.6;
   margin-bottom: 24px;
-}
-
-.hero-actions {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.btn {
-  font-family: var(--sans);
-  border-radius: 999px;
-  padding: 12px 22px;
-  font-weight: 600;
-  border: 1px solid transparent;
-  cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.2s ease;
-}
-
-.btn.primary {
-  background: var(--accent);
-  color: #1c140a;
-  box-shadow: 0 12px 30px rgba(255, 138, 61, 0.25);
-}
-
-.btn.primary:hover {
-  transform: translateY(-1px);
-}
-
-.btn.ghost {
-  background: transparent;
-  color: var(--text);
-  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .hero-card {

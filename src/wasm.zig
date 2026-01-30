@@ -7,6 +7,7 @@ const schema = @import("schema.zig");
 const JsonAdapter = @import("backends/json_adapter.zig").JsonAdapter;
 const XmlAdapter = @import("backends/xml_adapter.zig").XmlAdapter;
 const xml_parser = @import("backends/xml_parser.zig");
+const JsAdapter = @import("backends/js_adapter.zig").JsAdapter;
 
 pub const Status = enum(u32) {
     ok = 0,
@@ -303,6 +304,7 @@ pub export fn fhirpath_eval(
     json_len: u32,
     schema_name_ptr: u32,
     schema_name_len: u32,
+    fhir_mode: u32,
     opts_ptr: u32,
     opts_len: u32,
 ) Status {
@@ -337,7 +339,7 @@ pub export fn fhirpath_eval(
     defer ast.deinitExpr(ctx.allocator, expr);
 
     {
-        const flavor: JsonAdapter.Flavor = if (schema_ptr != null) .fhir_json else .generic_json;
+        const flavor: JsonAdapter.Flavor = if (fhir_mode != 0) .fhir_json else .generic_json;
         var arena = std.heap.ArenaAllocator.init(ctx.allocator);
         const arena_alloc = arena.allocator();
         const root_val = arena_alloc.create(std.json.Value) catch {
@@ -431,6 +433,71 @@ pub export fn fhirpath_eval_xml(
             return statusFromError(err);
         };
         ctx.result = eval.resolveResult(XmlAdapter, &adapter, items, &arena, schema_ptr) catch |err| {
+            arena.deinit();
+            return statusFromError(err);
+        };
+    }
+    ctx.last_schema = schema_ptr;
+    return .ok;
+}
+
+pub export fn fhirpath_eval_js(
+    ctx_handle: u32,
+    expr_ptr: u32,
+    expr_len: u32,
+    root_js_id: u32,
+    schema_name_ptr: u32,
+    schema_name_len: u32,
+    fhir_mode: u32,
+    opts_ptr: u32,
+    opts_len: u32,
+) Status {
+    _ = opts_ptr;
+    if (opts_len != 0) return .invalid_options;
+
+    const ctx = ctxFromHandle(ctx_handle) orelse return .invalid_options;
+    ctx.resetResult();
+
+    const expr_text = memSlice(expr_ptr, expr_len);
+
+    var schema_ptr: ?*schema.Schema = null;
+    if (schema_name_len > 0) {
+        const schema_name = memSlice(schema_name_ptr, schema_name_len);
+        if (ctx.schemas.getPtr(schema_name)) |entry| {
+            schema_ptr = &entry.schema;
+        } else {
+            return .model_error;
+        }
+    } else if (ctx.default_schema) |def| {
+        if (ctx.schemas.getPtr(def)) |entry| {
+            schema_ptr = &entry.schema;
+        } else {
+            return .model_error;
+        }
+    }
+
+    const expr = lib.parseExpression(ctx.allocator, expr_text) catch |err| {
+        return statusFromError(err);
+    };
+    defer ast.deinitExpr(ctx.allocator, expr);
+
+    {
+        var arena = std.heap.ArenaAllocator.init(ctx.allocator);
+        const arena_alloc = arena.allocator();
+        const flavor: JsAdapter.Flavor = if (fhir_mode != 0) .fhir_json else .generic_json;
+        var adapter = JsAdapter.init(arena_alloc, root_js_id, flavor);
+        var eval_ctx = eval.EvalContext(JsAdapter){
+            .allocator = arena_alloc,
+            .adapter = &adapter,
+
+            .schema = schema_ptr,
+            .timestamp = ctx.now_epoch_seconds,
+        };
+        const items = eval.evalExpression(&eval_ctx, expr, adapter.root(), null) catch |err| {
+            arena.deinit();
+            return statusFromError(err);
+        };
+        ctx.result = eval.resolveResult(JsAdapter, &adapter, items, &arena, schema_ptr) catch |err| {
             arena.deinit();
             return statusFromError(err);
         };

@@ -86,14 +86,140 @@ function decimalToString(dec) {
   return s;
 }
 
+// ── JS Node Map for cross-WASM JS object navigation ──
+
+class JsNodeMap {
+  constructor() {
+    this.map = new Map();
+    this.nextId = 1; // 0 is reserved for "not found"
+    this.memory = null;
+  }
+
+  setRoot(value) {
+    this.map.clear();
+    this.nextId = 1;
+    return this.intern(value);
+  }
+
+  intern(value) {
+    const id = this.nextId++;
+    this.map.set(id, value);
+    return id;
+  }
+
+  get(id) {
+    return this.map.get(id);
+  }
+
+  readString(ptr, len) {
+    if (!len) return "";
+    const bytes = new Uint8Array(this.memory.buffer, ptr, len);
+    return decoder.decode(bytes);
+  }
+
+  writeString(str, ptr, maxLen) {
+    const encoded = encoder.encode(str);
+    const len = Math.min(encoded.length, maxLen);
+    const target = new Uint8Array(this.memory.buffer, ptr, len);
+    target.set(encoded.subarray(0, len));
+    return len;
+  }
+}
+
+function createJsAdapterImports(nodeMap) {
+  return {
+    env: {
+      js_node_kind(ref) {
+        const val = nodeMap.get(ref);
+        if (val === null || val === undefined) return 5; // null
+        if (Array.isArray(val)) return 1; // array
+        const t = typeof val;
+        if (t === "object") return 0; // object
+        if (t === "string") return 2; // string
+        if (t === "number") return 3; // number
+        if (t === "boolean") return 4; // boolean
+        return 5; // null
+      },
+
+      js_object_get(ref, keyPtr, keyLen) {
+        const obj = nodeMap.get(ref);
+        if (obj === null || obj === undefined || typeof obj !== "object" || Array.isArray(obj)) return 0;
+        const key = nodeMap.readString(keyPtr, keyLen);
+        if (!Object.prototype.hasOwnProperty.call(obj, key)) return 0;
+        const child = obj[key];
+        return nodeMap.intern(child);
+      },
+
+      js_object_count(ref) {
+        const obj = nodeMap.get(ref);
+        if (obj === null || obj === undefined || typeof obj !== "object" || Array.isArray(obj)) return 0;
+        return Object.keys(obj).length;
+      },
+
+      js_object_keys(ref, outPtr, maxPairs) {
+        const obj = nodeMap.get(ref);
+        if (obj === null || obj === undefined || typeof obj !== "object" || Array.isArray(obj)) return 0;
+        const keys = Object.keys(obj);
+        const count = Math.min(keys.length, maxPairs);
+        const out = new Uint32Array(nodeMap.memory.buffer, outPtr, count * 2);
+        for (let i = 0; i < count; i++) {
+          const key = keys[i];
+          out[i * 2] = nodeMap.intern(key); // key as a "string node"
+          out[i * 2 + 1] = nodeMap.intern(obj[key]); // value node
+        }
+        return count;
+      },
+
+      js_array_len(ref) {
+        const arr = nodeMap.get(ref);
+        if (!Array.isArray(arr)) return 0;
+        return arr.length;
+      },
+
+      js_array_at(ref, idx) {
+        const arr = nodeMap.get(ref);
+        if (!Array.isArray(arr) || idx >= arr.length) return 0;
+        return nodeMap.intern(arr[idx]);
+      },
+
+      js_string(ref, outPtr, maxLen) {
+        const val = nodeMap.get(ref);
+        if (typeof val !== "string") return 0;
+        return nodeMap.writeString(val, outPtr, maxLen);
+      },
+
+      js_number_text(ref, outPtr, maxLen) {
+        const val = nodeMap.get(ref);
+        if (typeof val !== "number") return 0;
+        const text = Object.is(val, -0) ? "-0" : String(val);
+        return nodeMap.writeString(text, outPtr, maxLen);
+      },
+
+      js_boolean(ref) {
+        const val = nodeMap.get(ref);
+        return val === true ? 1 : 0;
+      },
+    },
+  };
+}
+
 export class FhirPathEngine {
   static async instantiate(options = {}) {
     const wasmSource = options.wasmModule ?? options.wasmBytes ?? options.wasmUrl
       ?? new URL("./fhirpath.wasm", import.meta.url);
     const resolved = await resolveWasm(wasmSource);
-    const imports = options.imports ?? {};
-    const result = await WebAssembly.instantiate(resolved, imports);
+    const nodeMap = new JsNodeMap();
+    const jsImports = createJsAdapterImports(nodeMap);
+    const userImports = options.imports ?? {};
+    // Merge JS adapter imports with user-provided imports
+    const mergedImports = { ...jsImports };
+    for (const [ns, fns] of Object.entries(userImports)) {
+      mergedImports[ns] = { ...(mergedImports[ns] ?? {}), ...fns };
+    }
+    const result = await WebAssembly.instantiate(resolved, mergedImports);
     const engine = new FhirPathEngine(result.instance);
+    nodeMap.memory = engine.memory;
+    engine._nodeMap = nodeMap;
 
     if (options.schemas) {
       for (const schema of options.schemas) {
@@ -158,7 +284,29 @@ export class FhirPathEngine {
     }
   }
 
-  eval({ expr, json, schema = "", env = null, now = undefined } = {}) {
+  /**
+   * Evaluate a FHIRPath expression against input data.
+   *
+   * Input can be provided as:
+   * - `json` (string): JSON text, always parsed inside WASM (legacy parameter)
+   * - `input` (string | object): auto-detected — strings are parsed inside WASM,
+   *   objects are navigated via JS adapter callbacks
+   *
+   * The `adapter` option overrides auto-detection of where the parsed tree lives:
+   * - `"wasm"`: copy input into WASM linear memory and parse there (even if input is
+   *   an object — serializes it first)
+   * - `"js"`: keep the parsed tree on the JS side and navigate it via WASM import
+   *   callbacks (even if input is a string — calls JSON.parse first). This is faster
+   *   because it skips the WASM-side parse and only visits nodes the evaluator touches.
+   *
+   * The `fhir` option controls FHIR-aware traversal (field/_field primitive merging,
+   * underscore key hiding, resourceType suppression). Defaults to `true`. Set to `false`
+   * for plain JSON traversal without FHIR semantics.
+   *
+   * The `json` parameter is provided for backward compatibility and always uses the
+   * `"wasm"` adapter (unless `adapter: "js"` is explicitly set).
+   */
+  eval({ expr, json, input, schema = "", env = null, now = undefined, adapter, fhir = true } = {}) {
     if (env && Object.keys(env).length > 0) {
       throw new Error("env is not supported by the current wasm build");
     }
@@ -169,18 +317,46 @@ export class FhirPathEngine {
         this.setNowEpochSeconds(now);
       }
     }
-    if (json === undefined || json === null) {
-      json = "";
+    expr = expr ?? "";
+    schema = schema ?? "";
+
+    // Resolve the actual input and adapter
+    const rawInput = json !== undefined ? json : input;
+    let resolvedAdapter = adapter;
+    if (!resolvedAdapter) {
+      if (json !== undefined) {
+        // Legacy `json` param: default to wasm unless explicitly overridden
+        resolvedAdapter = "wasm";
+      } else if (typeof rawInput === "string") {
+        resolvedAdapter = "wasm";
+      } else {
+        resolvedAdapter = "js";
+      }
     }
-    if (expr === undefined || expr === null) {
-      expr = "";
+
+    const fhirFlag = fhir ? 1 : 0;
+
+    if (resolvedAdapter === "js") {
+      // JS adapter path: navigate pre-parsed JS object via WASM imports
+      let resource = rawInput;
+      if (typeof resource === "string") {
+        resource = JSON.parse(resource);
+      }
+      return this.#evalJs(expr, resource ?? null, schema, fhirFlag);
+    } else {
+      // WASM path: copy JSON text into WASM, parse with std.json
+      let jsonStr = rawInput;
+      if (typeof jsonStr !== "string") {
+        jsonStr = jsonStr != null ? JSON.stringify(jsonStr) : "";
+      }
+      return this.#evalWasm(expr, jsonStr ?? "", schema, fhirFlag);
     }
-    if (schema === undefined || schema === null) {
-      schema = "";
-    }
-    const exprBuf = this.#writeString(expr ?? "");
-    const jsonBuf = this.#writeString(json ?? "");
-    const schemaBuf = this.#writeString(schema ?? "");
+  }
+
+  #evalWasm(expr, json, schema, fhirFlag) {
+    const exprBuf = this.#writeString(expr);
+    const jsonBuf = this.#writeString(json);
+    const schemaBuf = this.#writeString(schema);
 
     const status = this.exports.fhirpath_eval(
       this.ctx,
@@ -190,6 +366,7 @@ export class FhirPathEngine {
       jsonBuf.len,
       schemaBuf.ptr,
       schemaBuf.len,
+      fhirFlag,
       0,
       0,
     );
@@ -206,6 +383,38 @@ export class FhirPathEngine {
       this.#free(this._lastJsonBuf);
     }
     this._lastJsonBuf = jsonBuf;
+
+    return new FhirPathResult(this);
+  }
+
+  #evalJs(expr, resource, schema, fhirFlag) {
+    const rootId = this._nodeMap.setRoot(resource);
+    const exprBuf = this.#writeString(expr);
+    const schemaBuf = this.#writeString(schema);
+
+    const status = this.exports.fhirpath_eval_js(
+      this.ctx,
+      exprBuf.ptr,
+      exprBuf.len,
+      rootId,
+      schemaBuf.ptr,
+      schemaBuf.len,
+      fhirFlag,
+      0,
+      0,
+    );
+
+    this.#free(exprBuf);
+    this.#free(schemaBuf);
+
+    if (this._lastJsonBuf) {
+      this.#free(this._lastJsonBuf);
+      this._lastJsonBuf = null;
+    }
+
+    if (status !== Status.ok) {
+      throw new Error(`eval_js failed: ${status}`);
+    }
 
     return new FhirPathResult(this);
   }
@@ -377,6 +586,7 @@ export class FhirPathEngine {
   }
 
   #writeBytes(bytes) {
+    if (bytes.length === 0) return { ptr: 0, len: 0 };
     const buf = this.#alloc(bytes.length);
     this.#mem().set(bytes, buf.ptr);
     return buf;

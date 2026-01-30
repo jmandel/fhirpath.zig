@@ -410,6 +410,43 @@ engine.setNowEpochSeconds(0);
 engine.eval({ expr: "now()", json, schema: "r5", now: new Date() });
 ```
 
+#### Unified `eval()` with adapter auto-detection
+
+The `eval()` method accepts either a pre-parsed JS object or a JSON string,
+and auto-selects the optimal adapter:
+
+```js
+// Auto-detect: object → JS adapter (fast), string → WASM adapter
+engine.eval({ expr: "name.given", input: resource, schema: "r5" })
+
+// Legacy: json param always uses WASM adapter
+engine.eval({ expr: "name.given", json: jsonString, schema: "r5" })
+
+// Force adapter explicitly
+engine.eval({ expr, input: resource, schema: "r5", adapter: "wasm" })  // serialize + WASM parse
+engine.eval({ expr, input: jsonString, schema: "r5", adapter: "js" })  // JSON.parse + JS adapter
+
+// Control FHIR traversal independently (defaults to true)
+engine.eval({ expr, input: resource, schema: "r5", fhir: false })  // plain JSON, no merging
+```
+
+**Adapter resolution:**
+1. If `adapter` is explicitly set, use it
+2. If `json` param is used (legacy), default to `"wasm"`
+3. If `input` is a string, default to `"wasm"`
+4. If `input` is an object, default to `"js"`
+
+**FHIR mode** (`fhir`, default `true`): controls FHIR-aware traversal
+(field/`_field` primitive merging, underscore key hiding, `resourceType`
+suppression). Independent of the adapter choice — both `"wasm"` and `"js"`
+adapters support both FHIR and generic modes.
+
+When `adapter: "js"` is used with a string input, the wrapper calls
+`JSON.parse()` before passing to the adapter. When `adapter: "wasm"` is used
+with an object input, the wrapper calls `JSON.stringify()`.
+
+The `evalXml()` method remains separate (XML uses a different adapter).
+
 Node wrapper (lazy getters):
 ```js
 class FhirPathNode {
@@ -923,7 +960,8 @@ item's stored node reference and the adapter's handle type.
 
 **Backend** = where data comes from:
 
-- JSON parsed to `std.json.Value` (pointer-backed)
+- JSON parsed to `std.json.Value` (pointer-backed) — `JsonAdapter`
+- JS-hosted object tree via WASM import callbacks (index-backed) — `JsAdapter`
 - Future: custom JSON DOM (index-backed, with spans)
 - Future: XML DOM (pointer-backed or index-backed)
 
@@ -1147,6 +1185,89 @@ This affects:
 - `wasm.zig:typeNameSlice()` — type name for `fhirpath_type_name_ptr/len`
 - `wasm.zig:fhirpath_item_type_id()` — the type_id itself
 - JS wrapper `meta.typeName` — reflects the converted type
+
+### Cross-WASM JS adapter (`src/backends/js_adapter.zig`)
+
+When the caller is JavaScript and already has a parsed JS object (from
+`JSON.parse()`, a FHIR server response, or an in-memory document), the
+`JsAdapter` avoids the expensive WASM-side JSON parse entirely. Instead, the
+parsed object stays on the JS side and Zig calls back into JS for each
+tree-navigation operation via WASM imports.
+
+```
+Before:  JS string ──copy──> WASM ──std.json.parse──> Zig tree ──eval──> results
+                                     (slow: ~1.7ms on 240KB)
+
+After:   JS object ──stays in JS──> WASM imports ──> Zig eval ──> results
+         (V8 JSON.parse: ~0.4ms)    (per-node callbacks)
+```
+
+**Performance**: 12x faster overall (590μs vs 7.3ms across 12 benchmark
+scenarios). On large resources the speedup is even greater — 153x for a 240KB
+StructureDefinition — because the adapter is lazy (only visits nodes the
+evaluator touches) and skips the full allocating parse.
+
+#### WASM import interface
+
+Nine `extern "env"` functions form the contract between Zig and JS:
+
+| Import | Signature | Purpose |
+|--------|-----------|---------|
+| `js_node_kind` | `(ref) → u32` | Kind enum: 0=object, 1=array, 2=string, 3=number, 4=boolean, 5=null |
+| `js_object_get` | `(ref, key_ptr, key_len) → u32` | Property lookup; returns child ID or 0 |
+| `js_object_count` | `(ref) → u32` | Number of own-properties |
+| `js_object_keys` | `(ref, out_ptr, max_pairs) → u32` | Bulk-write (key_id, val_id) pairs |
+| `js_array_len` | `(ref) → u32` | Array length |
+| `js_array_at` | `(ref, idx) → u32` | Array element at index |
+| `js_string` | `(ref, out_ptr, max_len) → u32` | Write UTF-8 string into scratch buffer |
+| `js_number_text` | `(ref, out_ptr, max_len) → u32` | Write number-as-text into scratch |
+| `js_boolean` | `(ref) → u32` | Boolean value (1=true, 0=false) |
+
+On the JS side, a `JsNodeMap` (`Map<number, any>`) assigns monotonic integer
+IDs to JS values. Each WASM import reads its arguments, navigates the JS
+object tree, interns any new child values, and returns the child's ID (or 0).
+
+#### Node handle encoding
+
+All `JsAdapter` nodes are index-backed (`nh.fromIndex`). The index space is
+split at `VIRTUAL_OFFSET` (1<<24):
+
+- `index < VIRTUAL_OFFSET` → JS-side node ID (looked up via WASM imports)
+- `index >= VIRTUAL_OFFSET` → Zig virtual node (merged primitives, quantities, etc.)
+
+This is the same virtual node overlay pattern as `JsonAdapter`, but with JS
+node IDs replacing `*const std.json.Value` pointers.
+
+#### Flavor support
+
+`JsAdapter` has the same `Flavor` enum as `JsonAdapter` (`generic_json` /
+`fhir_json`). When `fhir_json` is active:
+
+- `objectGet("birthDate")` checks both `"birthDate"` and `"_birthDate"` via
+  two WASM import calls, creating a `merged_primitive` virtual node that pairs
+  the value with its metadata.
+- Array access merges parallel value and metadata arrays element-by-element.
+- Object iteration hides `_`-prefixed keys, `resourceType`, and emits
+  extension-only fields (where `_key` exists but `key` doesn't).
+
+The `getMetaId()` helper constructs the `_key` name in the scratch buffer and
+does a single `js_object_get` call. This is safe because `getMetaId` is only
+called from `fhirObjectGet`, which doesn't hold a reference to scratch content
+across the call.
+
+#### String lifetime and scratch buffer
+
+A 64KB scratch buffer handles string transfer across the WASM boundary. Each
+`string()` or `numberText()` call writes UTF-8 into the scratch buffer via the
+WASM import, then `allocator.dupe()`s into the arena. Arena copies are required
+because the evaluator holds multiple string refs simultaneously.
+
+#### WASM export
+
+`src/wasm.zig` exports `fhirpath_eval_js` with the same structure as
+`fhirpath_eval` but taking a `root_js_id` instead of `json_ptr`/`json_len`.
+Flavor is set based on schema presence: `fhir_json` when a schema is provided,
+`generic_json` otherwise.
 
 ### How XML fits later
 
@@ -1416,12 +1537,18 @@ fail immediately with `InvalidFunction`.
 
 ### Benchmarks
 
-Two benchmark suites exist:
+Three benchmark suites exist:
 - `src/bench.zig` — adapter-level navigation benchmarks (parse, traverse, field lookup)
 - `src/bench_eval.zig` — end-to-end evaluation benchmarks (JSON parse + TypeTable init + expression eval)
+- `perf/js/bench-compare.mjs` — JS-side comparison of four paths: zig-wasm, zig-js, fhirpath.js, fhirpath.js+parse
 
 The eval benchmarks cover property access, function calls, filtering,
 literal expressions, and bundle traversal at various scales.
+
+The JS benchmark suite runs 12 scenarios across all four evaluation paths and
+verifies checksum equivalence. The zig-js path (JS adapter) is ~12x faster
+than zig-wasm overall, with the largest gains on big resources where
+WASM-side parsing dominates (up to 153x on a 240KB StructureDefinition).
 
 ### Remaining topics (to be expanded):
 - Memory/arena model and lifetime.

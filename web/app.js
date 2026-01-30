@@ -263,10 +263,9 @@ async function runExpression() {
   }
 
   if (currentFormat === "json") {
-    let jsonText = inputText;
+    let parsed;
     try {
-      const parsed = JSON.parse(jsonText);
-      jsonText = JSON.stringify(parsed);
+      parsed = JSON.parse(inputText);
     } catch (err) {
       statusEl.textContent = "Invalid JSON";
       addResultCard({ title: "JSON parse error", body: err?.message ?? String(err) });
@@ -276,7 +275,7 @@ async function runExpression() {
     try {
       const selectedSchema = schemaSelect.value || "r5";
       const t0 = performance.now();
-      const results = engine.eval({ expr, json: jsonText, schema: selectedSchema, now: new Date() });
+      const results = engine.eval({ expr, input: parsed, schema: selectedSchema, now: new Date() });
       renderResults(results, t0);
     } catch (err) {
       statusEl.textContent = "Evaluation error";

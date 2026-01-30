@@ -74,12 +74,19 @@ function decimalToString(dec) {
     (BigInt(dec.mag1) << 32n) |
     (BigInt(dec.mag2) << 64n) |
     (BigInt(dec.mag3) << 96n);
+  // Magnitude is stored trimmed (trailing zeros removed), matching normScale.
+  // To display with original scale (including trailing zeros), re-inflate magnitude.
+  const scale = dec.scale;
+  if (dec.normScale < scale) {
+    const pad = scale - dec.normScale;
+    for (let i = 0; i < pad; i++) mag *= 10n;
+  }
   let s = mag.toString();
-  if (dec.scale > 0) {
-    if (s.length <= dec.scale) {
-      s = "0".repeat(dec.scale - s.length + 1) + s;
+  if (scale > 0) {
+    if (s.length <= scale) {
+      s = "0".repeat(scale - s.length + 1) + s;
     }
-    const idx = s.length - dec.scale;
+    const idx = s.length - scale;
     s = s.slice(0, idx) + "." + s.slice(idx);
   }
   if (dec.sign < 0 && mag !== 0n) s = "-" + s;

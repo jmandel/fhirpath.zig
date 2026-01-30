@@ -1,7 +1,7 @@
 {
   "meta": {
     "status": "reviewed",
-    "spec_summary": "FHIRPath spec requires fixed-precision decimal arithmetic. Implementations should use fixed-precision decimal formats (not binary floats) to ensure decimal values are accurately represented. Decimal range: (-10^28+1)/10^8 to (10^28-1)/10^8, step 10^-8. precision() counts digits after decimal including trailing zeros. Equality ignores trailing zeros (1.0 = 1.00). Result scale: add/sub = max(scale_a, scale_b), mul = scale_a + scale_b (capped at 8), div = decimal result with reasonable precision.",
+    "spec_summary": "FHIRPath spec requires fixed-precision decimal arithmetic. Implementations should use fixed-precision decimal formats (not binary floats) to ensure decimal values are accurately represented. Decimal range: (-10^28+1)/10^8 to (10^28-1)/10^8, step 10^-8. precision() counts digits after decimal including trailing zeros. Equality ignores trailing zeros (1.0 = 1.00). Equivalence: rounded to precision of least precise operand, trailing zeros ignored. Result scale: add/sub = max(scale_a, scale_b), mul = scale_a + scale_b (capped at 8), div = decimal result. toString format: (-)?#0.0#",
     "open_questions": []
   },
   "todo": [],
@@ -97,6 +97,12 @@
       "expect": []
     },
     {
+      "name": "div: left-associative (8 / 4 / 2 = 1)",
+      "expr": "8 / 4 / 2",
+      "input": {},
+      "expect": [{"type": "decimal", "value": 1.0}]
+    },
+    {
       "name": "mixed: integer + decimal promotes to decimal",
       "expr": "2 + 1.5",
       "input": {},
@@ -127,10 +133,76 @@
       "expect": [{"type": "integer", "value": 3}]
     },
     {
+      "name": "int_div: spec example (5.5 div 0.7 = 7)",
+      "expr": "5.5 div 0.7",
+      "input": {},
+      "expect": [{"type": "integer", "value": 7}]
+    },
+    {
+      "name": "int_div: division by zero returns empty",
+      "expr": "5 div 0",
+      "input": {},
+      "expect": []
+    },
+    {
       "name": "mod: decimal modulo",
       "expr": "5.5 mod 2.0",
       "input": {},
       "expect": [{"type": "decimal", "value": 1.5}]
+    },
+    {
+      "name": "mod: spec example (5.5 mod 0.7 = 0.6)",
+      "expr": "5.5 mod 0.7",
+      "input": {},
+      "expect": [{"type": "decimal", "value": 0.6}]
+    },
+    {
+      "name": "mod: division by zero returns empty",
+      "expr": "5.0 mod 0.0",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "scale: add preserves max scale via toString",
+      "expr": "(1.50 + 0.50).toString()",
+      "input": {},
+      "expect": [{"type": "string", "value": "2.00"}]
+    },
+    {
+      "name": "scale: add different scales via toString",
+      "expr": "(1.0 + 2.00).toString()",
+      "input": {},
+      "expect": [{"type": "string", "value": "3.00"}]
+    },
+    {
+      "name": "scale: mul scale = sum of scales via toString",
+      "expr": "(2.0 * 2.0).toString()",
+      "input": {},
+      "expect": [{"type": "string", "value": "4.00"}]
+    },
+    {
+      "name": "scale: mul with trailing zeros via toString",
+      "expr": "(1.50 * 2.00).toString()",
+      "input": {},
+      "expect": [{"type": "string", "value": "3.0000"}]
+    },
+    {
+      "name": "scale: integer * decimal via toString",
+      "expr": "(3 * 1.50).toString()",
+      "input": {},
+      "expect": [{"type": "string", "value": "4.50"}]
+    },
+    {
+      "name": "scale: sub preserves scale via toString",
+      "expr": "(5.00 - 2.00).toString()",
+      "input": {},
+      "expect": [{"type": "string", "value": "3.00"}]
+    },
+    {
+      "name": "scale: div 10/3 via toString",
+      "expr": "(10 / 3).toString()",
+      "input": {},
+      "expect": [{"type": "string", "value": "3.33333333"}]
     },
     {
       "name": "precision: preserved through addition",
@@ -145,10 +217,34 @@
       "expect": [{"type": "integer", "value": 2}]
     },
     {
+      "name": "precision: mul scale is sum of operand scales",
+      "expr": "(1.50 * 2.00).precision()",
+      "input": {},
+      "expect": [{"type": "integer", "value": 4}]
+    },
+    {
+      "name": "precision: spec example 1.58700 has precision 5",
+      "expr": "1.58700.precision()",
+      "input": {},
+      "expect": [{"type": "integer", "value": 5}]
+    },
+    {
+      "name": "precision: integer division result",
+      "expr": "(10 / 3).precision()",
+      "input": {},
+      "expect": [{"type": "integer", "value": 8}]
+    },
+    {
       "name": "chained: multi-step arithmetic stays precise",
       "expr": "(0.1 + 0.2) * 10.0",
       "input": {},
       "expect": [{"type": "decimal", "value": 3.0}]
+    },
+    {
+      "name": "chained: division then multiplication",
+      "expr": "(1.0 / 4.0) * 4.0",
+      "input": {},
+      "expect": [{"type": "decimal", "value": 1.0}]
     },
     {
       "name": "negative: decimal subtraction yielding negative",
@@ -161,6 +257,24 @@
       "expr": "(-2.5) * 4.0",
       "input": {},
       "expect": [{"type": "decimal", "value": -10.0}]
+    },
+    {
+      "name": "equality: trailing zeros ignored (1.0 = 1.00)",
+      "expr": "1.0 = 1.00",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "equality: trailing zeros ignored in results",
+      "expr": "(1.50 + 0.50) = 2.0",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
+    },
+    {
+      "name": "equality: decimal equals integer",
+      "expr": "2.0 = 2",
+      "input": {},
+      "expect": [{"type": "boolean", "value": true}]
     }
   ]
 }

@@ -1,5 +1,41 @@
 import { FhirPathEngine } from "./fhirpath.js";
 
+class JsonDecimal {
+  constructor(text) { this.text = text; }
+  toString() { return this.text; }
+  valueOf() { return parseFloat(this.text); }
+}
+
+function decimalAwareJsonParse(text) {
+  return JSON.parse(text, (key, value, context) => {
+    if (typeof value === "number" && context?.source != null && context.source.includes(".")) {
+      return new JsonDecimal(context.source);
+    }
+    return value;
+  });
+}
+
+function prettyJson(value, indent = 0) {
+  const pad = "  ".repeat(indent);
+  const pad1 = "  ".repeat(indent + 1);
+  if (value === null) return "null";
+  if (value instanceof JsonDecimal) return value.text;
+  if (typeof value === "string") return JSON.stringify(value);
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) {
+    if (value.length === 0) return "[]";
+    const items = value.map(v => pad1 + prettyJson(v, indent + 1));
+    return "[\n" + items.join(",\n") + "\n" + pad + "]";
+  }
+  if (typeof value === "object") {
+    const keys = Object.keys(value);
+    if (keys.length === 0) return "{}";
+    const entries = keys.map(k => pad1 + JSON.stringify(k) + ": " + prettyJson(value[k], indent + 1));
+    return "{\n" + entries.join(",\n") + "\n" + pad + "}";
+  }
+  return String(value);
+}
+
 const exprInput = document.querySelector("#expr");
 const jsonInput = document.querySelector("#json");
 const resultsEl = document.querySelector("#results");
@@ -217,7 +253,8 @@ function addResultCard({ title, body, meta }) {
 function normalizeDisplay(value) {
   if (value === null) return "null";
   if (typeof value === "string") return value;
-  return JSON.stringify(value, null, 2);
+  if (value instanceof JsonDecimal) return value.text;
+  return prettyJson(value);
 }
 
 let engine;
@@ -225,7 +262,7 @@ let engine;
 async function init() {
   try {
     statusEl.textContent = "Loading WASM + schemas…";
-    engine = await FhirPathEngine.instantiate();
+    engine = await FhirPathEngine.instantiate({ jsonParser: decimalAwareJsonParse });
 
     const availableSchemas = [];
     for (const s of [{ name: "r5", isDefault: true }, { name: "r4" }]) {
@@ -279,7 +316,7 @@ async function runExpression() {
     // JS adapter: fast, but numbers go through V8 f64
     let parsed;
     try {
-      parsed = JSON.parse(inputText);
+      parsed = decimalAwareJsonParse(inputText);
     } catch (err) {
       statusEl.textContent = "Invalid JSON";
       addResultCard({ title: "JSON parse error", body: err?.message ?? String(err) });

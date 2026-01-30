@@ -313,10 +313,10 @@ async function runExpression() {
       addResultCard({ title: "Eval error", body: err?.message ?? String(err) });
     }
   } else if (currentFormat === "json-adapter") {
-    // JS adapter: fast, but numbers go through V8 f64
+    // JS adapter: fast, decimals preserved via decimalAwareJsonParse
     let parsed;
     try {
-      parsed = JSON.parse(inputText);
+      parsed = decimalAwareJsonParse(inputText);
     } catch (err) {
       statusEl.textContent = "Invalid JSON";
       addResultCard({ title: "JSON parse error", body: err?.message ?? String(err) });

@@ -91,7 +91,47 @@ console.log("JSON adapter decimal tests:");
     wasmResults[0]?.data, jsResults[0]?.data);
 }
 
-// Test 5: integer values still work in adapter mode
+// Test 5: decimal wrapper preserves trailing zeros through adapter
+{
+  // Simulate what decimalAwareJsonParse does: wrap numbers with '.' as objects
+  // that preserve the original text via toString(), with numeric valueOf()
+  class JsonDecimal {
+    constructor(text) { this.text = text; }
+    toString() { return this.text; }
+    valueOf() { return parseFloat(this.text); }
+  }
+  const precisionInput = {
+    resourceType: "Observation",
+    status: "final",
+    valueQuantity: { value: new JsonDecimal("98.6000"), unit: "degF" },
+  };
+  const results = [...engine.eval({ expr: "value.ofType(Quantity).value", input: precisionInput, schema: "r5" })];
+  assert("decimal wrapper returns 1 result", results.length, 1);
+  if (results.length > 0) {
+    assert("98.6000 precision preserved", results[0].data, "98.6000");
+  }
+}
+
+// Test 6: decimal wrapper arithmetic preserves precision
+{
+  class JsonDecimal {
+    constructor(text) { this.text = text; }
+    toString() { return this.text; }
+    valueOf() { return parseFloat(this.text); }
+  }
+  const precisionInput = {
+    resourceType: "Observation",
+    status: "final",
+    valueQuantity: { value: new JsonDecimal("98.6000"), unit: "degF" },
+  };
+  const results = [...engine.eval({ expr: "value.ofType(Quantity).value * 2.0", input: precisionInput, schema: "r5" })];
+  assert("decimal wrapper arithmetic returns 1 result", results.length, 1);
+  if (results.length > 0) {
+    assert("98.6000 * 2.0 = '197.20000'", results[0].data, "197.20000");
+  }
+}
+
+// Test 7: integer values still work in adapter mode
 {
   const intInput = {
     resourceType: "Observation",

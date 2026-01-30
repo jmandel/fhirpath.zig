@@ -141,10 +141,12 @@ function createJsAdapterImports(nodeMap) {
         if (val === null || val === undefined) return 5; // null
         if (Array.isArray(val)) return 1; // array
         const t = typeof val;
-        if (t === "object") return 0; // object
         if (t === "string") return 2; // string
         if (t === "number") return 3; // number
         if (t === "boolean") return 4; // boolean
+        // Decimal wrapper: object with numeric valueOf() (e.g. JsonDecimal)
+        if (t === "object" && typeof val.valueOf() === "number" && val.valueOf() !== val) return 3;
+        if (t === "object") return 0; // object
         return 5; // null
       },
 
@@ -197,9 +199,15 @@ function createJsAdapterImports(nodeMap) {
 
       js_number_text(ref, outPtr, maxLen) {
         const val = nodeMap.get(ref);
-        if (typeof val !== "number") return 0;
-        const text = Object.is(val, -0) ? "-0" : String(val);
-        return nodeMap.writeString(text, outPtr, maxLen);
+        if (typeof val === "number") {
+          const text = Object.is(val, -0) ? "-0" : String(val);
+          return nodeMap.writeString(text, outPtr, maxLen);
+        }
+        // Decimal wrapper: use toString() which preserves original precision
+        if (typeof val === "object" && val !== null && typeof val.valueOf() === "number" && val.valueOf() !== val) {
+          return nodeMap.writeString(String(val), outPtr, maxLen);
+        }
+        return 0;
       },
 
       js_boolean(ref) {

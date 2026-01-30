@@ -60,7 +60,7 @@ const examples = [
   },
   {
     label: "Quantity",
-    expr: "// Access a Quantity value\nvalueQuantity",
+    expr: "// Access a Quantity value\nvalue.ofType(Quantity)",
     json: {
       resourceType: "Observation",
       status: "final",
@@ -139,7 +139,7 @@ const examples = [
   },
   {
     label: "Math",
-    expr: "// Arithmetic on quantity values\nvalueQuantity.value * 2",
+    expr: "// Arithmetic on quantity values\nvalue.ofType(Quantity).value * 2",
     json: {
       resourceType: "Observation",
       status: "final",

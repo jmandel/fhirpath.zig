@@ -151,7 +151,7 @@ flowchart TB
   Items["ItemList<br/>(node_ref or value)"]
   Resolve["resolveResult()"]
   Result["EvalResult<br/>(items + node_values + arena)"]
-  Access["Lazy access<br/>(meta/data on demand)"]
+  Access["Lazy access<br/>(metadata/data on demand)"]
 
   JsonText --> JsonParse
   XmlText --> XmlParse

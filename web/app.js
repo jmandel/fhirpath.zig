@@ -316,7 +316,7 @@ async function runExpression() {
     // JS adapter: fast, but numbers go through V8 f64
     let parsed;
     try {
-      parsed = decimalAwareJsonParse(inputText);
+      parsed = JSON.parse(inputText);
     } catch (err) {
       statusEl.textContent = "Invalid JSON";
       addResultCard({ title: "JSON parse error", body: err?.message ?? String(err) });

@@ -71,7 +71,27 @@ console.log("JSON adapter decimal tests:");
   }
 }
 
-// Test 3: integer values still work in adapter mode
+// Test 3: expression-literal precision preserved (e.g. * 2.000)
+{
+  const results = [...engine.eval({ expr: "value.ofType(Quantity).value * 2.000", input, schema: "r5" })];
+  assert("value * 2.000 returns 1 result", results.length, 1);
+  if (results.length > 0) {
+    const val = results[0].data;
+    assert("98.6 * 2.000 = '197.2000'", val, "197.2000");
+  }
+}
+
+// Test 4: all three modes agree on arithmetic results
+{
+  const jsonText = JSON.stringify(input);
+  const expr = "value.ofType(Quantity).value * 2.000";
+  const wasmResults = [...engine.eval({ expr, input: jsonText, adapter: "wasm", schema: "r5" })];
+  const jsResults = [...engine.eval({ expr, input, schema: "r5" })];
+  assert("WASM and JS adapter agree",
+    wasmResults[0]?.data, jsResults[0]?.data);
+}
+
+// Test 5: integer values still work in adapter mode
 {
   const intInput = {
     resourceType: "Observation",

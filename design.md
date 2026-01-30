@@ -135,19 +135,30 @@ Behavior:
 ### Evaluation flow (conceptual)
 
 ```mermaid
-flowchart LR
-  JsonText["JSON text"] --> JsonParse["std.json.parseFromSliceLeaky"]
-  XmlText["XML text"] --> XmlParse["xml_parser.parse"]
+flowchart TB
+  subgraph Input
+    JsonText["JSON text"]
+    XmlText["XML text"]
+  end
 
-  JsonParse --> JsonAdapter["JsonAdapter (generic/fhir)"]
-  XmlParse --> XmlAdapter["XmlAdapter"]
+  subgraph Parse
+    JsonParse["std.json.parseFromSliceLeaky"]
+    XmlParse["xml_parser.parse"]
+  end
 
-  JsonAdapter --> Eval["evalExpression()"]
-  XmlAdapter --> Eval
+  Adapter["Adapter layer<br/>(JsonAdapter / XmlAdapter)"]
+  Eval["evalExpression()"]
+  Items["ItemList<br/>(node_ref or value)"]
+  Resolve["resolveResult()"]
+  Result["EvalResult<br/>(items + node_values + arena)"]
+  Access["Lazy access<br/>(meta/data on demand)"]
 
-  Eval --> Items["ItemList\n(data_kind=node_ref/value)"]
-  Items --> Resolve["resolveResult()"]
-  Resolve --> Result["EvalResult\n(items + node_values + arena)"]
+  JsonText --> JsonParse
+  XmlText --> XmlParse
+  JsonParse --> Adapter
+  XmlParse --> Adapter
+  Adapter --> Eval --> Items --> Resolve --> Result
+  Result -.-> Access
 ```
 
 ### Result iteration (iterator-only)
@@ -949,19 +960,18 @@ pub const NodeHandle = usize;
 ### Node + Item relationship (conceptual)
 
 ```mermaid
-flowchart LR
-  subgraph Adapter["Adapter (JsonAdapter / XmlAdapter / JsAdapter)"]
-    NodeRef["NodeHandle"]
-    Kind["kind()/objectGet()/arrayAt()"]
-  end
+flowchart TB
+  Item["Item<br/>(data_kind, value_kind, type_id)"]
+  NodeRef["node_ref<br/>(NodeHandle)"]
+  Value["value<br/>(Value union)"]
+  Meta["metadata<br/>(type_id, source span)"]
+  Adapter["Adapter<br/>(Json/Xml/Js)"]
+  Methods["kind/objectGet/arrayAt"]
 
-  Item["Item\n(data_kind, value_kind, type_id, node_ref?, value?)"]
-  Value["Value union\n(string/date/quantity/...)"]
-
-  Item -- data_kind=node_ref --> NodeRef
-  Item -- data_kind=value --> Value
-  NodeRef --> Kind
-  Item --> TypeId["type_id\n(System.* or schema type)"]
+  Item -->|data_kind=node_ref| NodeRef
+  Item -->|data_kind=value| Value
+  Item --> Meta
+  NodeRef --> Adapter --> Methods
 ```
 
 Convention:
@@ -1062,11 +1072,14 @@ pub fn nodeToValue(adapter: anytype, handle: NodeHandle, type_id: u32, schema: ?
 ### Value resolution flow (conceptual)
 
 ```mermaid
-flowchart LR
+flowchart TB
   ItemNode["Item (node_ref)"] --> Resolver["value_resolver.nodeToValue()"]
   Resolver --> Kind["adapter.kind()"]
-  Resolver --> Schema["Schema.childTypeForField() / implicit System type"]
-  Resolver --> Value["Value (System.*)\n(date/string/quantity/etc.)"]
+  Kind -->|schema present| SchemaLookup["Schema lookup<br/>(implicit System type)"]
+  Kind -->|no schema| Fallback["JSON-kind fallback"]
+  SchemaLookup --> Convert["Type-aware conversion"]
+  Fallback --> Convert
+  Convert --> Value["Value (System.*)<br/>(date/string/quantity/etc.)"]
 ```
 
 This centralizes:

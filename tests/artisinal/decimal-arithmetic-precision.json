@@ -1,0 +1,166 @@
+{
+  "meta": {
+    "status": "reviewed",
+    "spec_summary": "FHIRPath spec requires fixed-precision decimal arithmetic. Implementations should use fixed-precision decimal formats (not binary floats) to ensure decimal values are accurately represented. Decimal range: (-10^28+1)/10^8 to (10^28-1)/10^8, step 10^-8. precision() counts digits after decimal including trailing zeros. Equality ignores trailing zeros (1.0 = 1.00). Result scale: add/sub = max(scale_a, scale_b), mul = scale_a + scale_b (capped at 8), div = decimal result with reasonable precision.",
+    "open_questions": []
+  },
+  "todo": [],
+  "cases": [
+    {
+      "name": "add: no floating-point artifacts (0.1 + 0.2 = 0.3)",
+      "expr": "0.1 + 0.2",
+      "input": {},
+      "expect": [{"type": "decimal", "value": 0.3}]
+    },
+    {
+      "name": "add: scale = max(scale_a, scale_b) with different scales",
+      "expr": "1.0 + 2.00",
+      "input": {},
+      "expect": [{"type": "decimal", "value": 3.0}]
+    },
+    {
+      "name": "add: basic decimal addition",
+      "expr": "1.5 + 2.3",
+      "input": {},
+      "expect": [{"type": "decimal", "value": 3.8}]
+    },
+    {
+      "name": "add: large decimal values",
+      "expr": "999999.99 + 0.01",
+      "input": {},
+      "expect": [{"type": "decimal", "value": 1000000.0}]
+    },
+    {
+      "name": "sub: basic decimal subtraction",
+      "expr": "5.5 - 2.3",
+      "input": {},
+      "expect": [{"type": "decimal", "value": 3.2}]
+    },
+    {
+      "name": "sub: no floating-point artifacts (1.0 - 0.9)",
+      "expr": "1.0 - 0.9",
+      "input": {},
+      "expect": [{"type": "decimal", "value": 0.1}]
+    },
+    {
+      "name": "sub: result is zero",
+      "expr": "3.14 - 3.14",
+      "input": {},
+      "expect": [{"type": "decimal", "value": 0.0}]
+    },
+    {
+      "name": "mul: basic decimal multiplication",
+      "expr": "2.5 * 4.0",
+      "input": {},
+      "expect": [{"type": "decimal", "value": 10.0}]
+    },
+    {
+      "name": "mul: result scale = scale_a + scale_b",
+      "expr": "1.50 * 2.00",
+      "input": {},
+      "expect": [{"type": "decimal", "value": 3.0}]
+    },
+    {
+      "name": "mul: no floating-point artifacts",
+      "expr": "0.1 * 0.2",
+      "input": {},
+      "expect": [{"type": "decimal", "value": 0.02}]
+    },
+    {
+      "name": "mul: result scale capped at 8",
+      "expr": "1.12345678 * 1.0",
+      "input": {},
+      "expect": [{"type": "decimal", "value": 1.12345678}]
+    },
+    {
+      "name": "div: basic decimal division",
+      "expr": "10.0 / 2.0",
+      "input": {},
+      "expect": [{"type": "decimal", "value": 5.0}]
+    },
+    {
+      "name": "div: repeating decimal is truncated",
+      "expr": "1.0 / 3.0",
+      "input": {},
+      "expect": [{"type": "decimal", "value": 0.33333333}]
+    },
+    {
+      "name": "div: result is always decimal type",
+      "expr": "10 / 5",
+      "input": {},
+      "expect": [{"type": "decimal", "value": 2.0}]
+    },
+    {
+      "name": "div: division by zero returns empty",
+      "expr": "1.0 / 0.0",
+      "input": {},
+      "expect": []
+    },
+    {
+      "name": "mixed: integer + decimal promotes to decimal",
+      "expr": "2 + 1.5",
+      "input": {},
+      "expect": [{"type": "decimal", "value": 3.5}]
+    },
+    {
+      "name": "mixed: decimal + integer promotes to decimal",
+      "expr": "1.5 + 2",
+      "input": {},
+      "expect": [{"type": "decimal", "value": 3.5}]
+    },
+    {
+      "name": "mixed: integer * decimal",
+      "expr": "3 * 1.50",
+      "input": {},
+      "expect": [{"type": "decimal", "value": 4.50}]
+    },
+    {
+      "name": "mixed: decimal - integer",
+      "expr": "5.5 - 2",
+      "input": {},
+      "expect": [{"type": "decimal", "value": 3.5}]
+    },
+    {
+      "name": "int_div: decimal integer division truncates",
+      "expr": "7.0 div 2.0",
+      "input": {},
+      "expect": [{"type": "integer", "value": 3}]
+    },
+    {
+      "name": "mod: decimal modulo",
+      "expr": "5.5 mod 2.0",
+      "input": {},
+      "expect": [{"type": "decimal", "value": 1.5}]
+    },
+    {
+      "name": "precision: preserved through addition",
+      "expr": "(1.50 + 0.50).precision()",
+      "input": {},
+      "expect": [{"type": "integer", "value": 2}]
+    },
+    {
+      "name": "precision: preserved through multiplication",
+      "expr": "(1.5 * 2.0).precision()",
+      "input": {},
+      "expect": [{"type": "integer", "value": 2}]
+    },
+    {
+      "name": "chained: multi-step arithmetic stays precise",
+      "expr": "(0.1 + 0.2) * 10.0",
+      "input": {},
+      "expect": [{"type": "decimal", "value": 3.0}]
+    },
+    {
+      "name": "negative: decimal subtraction yielding negative",
+      "expr": "1.0 - 3.0",
+      "input": {},
+      "expect": [{"type": "decimal", "value": -2.0}]
+    },
+    {
+      "name": "negative: negative times positive",
+      "expr": "(-2.5) * 4.0",
+      "input": {},
+      "expect": [{"type": "decimal", "value": -10.0}]
+    }
+  ]
+}

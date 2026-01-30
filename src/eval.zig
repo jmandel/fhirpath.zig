@@ -1987,9 +1987,18 @@ fn evalArithmetic(
             return out;
         }
         if (op == .div and b != 0) {
-            const fa: f64 = @floatFromInt(a);
-            const fb: f64 = @floatFromInt(b);
-            try out.append(ctx.allocator, try makeDecimalItem(ctx, fa / fb));
+            // Integer division: use i128 scaled arithmetic for exact result
+            const div_scale: u32 = 8;
+            const a128: i128 = @intCast(a);
+            const factor = pow10i128(div_scale) orelse {
+                return out;
+            };
+            const numerator = @mulWithOverflow(a128, factor);
+            if (numerator[1] != 0) return out;
+            const b128: i128 = @intCast(b);
+            const result_val = @divTrunc(numerator[0], b128);
+            const text = try formatScaledDecimal(ctx.allocator, result_val, div_scale);
+            try out.append(ctx.allocator, makeDecimalItemText(ctx, text));
             return out;
         }
     }
@@ -2022,40 +2031,125 @@ fn evalArithmetic(
             return out;
         }
         if (op == .div and b != 0) {
-            const fa: f64 = @floatFromInt(a);
-            const fb: f64 = @floatFromInt(b);
-            try out.append(ctx.allocator, try makeDecimalItem(ctx, fa / fb));
+            // Long division: use i128 scaled arithmetic for exact result
+            const div_scale: u32 = 8;
+            const a128: i128 = @intCast(a);
+            const factor = pow10i128(div_scale) orelse {
+                return out;
+            };
+            const numerator = @mulWithOverflow(a128, factor);
+            if (numerator[1] != 0) return out;
+            const b128: i128 = @intCast(b);
+            const result_val = @divTrunc(numerator[0], b128);
+            const text = try formatScaledDecimal(ctx.allocator, result_val, div_scale);
+            try out.append(ctx.allocator, makeDecimalItemText(ctx, text));
             return out;
         }
     }
 
-    // Decimal arithmetic
-    const fa: ?f64 = switch (va) {
-        .integer => |i| @floatFromInt(i),
-        .long => |i| @floatFromInt(i),
-        .decimal => |d| std.fmt.parseFloat(f64, d) catch null,
+    // Decimal arithmetic (i128 scaled-integer)
+    // Get text representation and scale for each operand
+    const a_text: ?[]const u8 = switch (va) {
+        .decimal => |d| d,
+        .integer => |i| blk: {
+            break :blk std.fmt.allocPrint(ctx.allocator, "{d}", .{i}) catch null;
+        },
+        .long => |i| blk: {
+            break :blk std.fmt.allocPrint(ctx.allocator, "{d}", .{i}) catch null;
+        },
         else => null,
     };
-    const fb: ?f64 = switch (vb) {
-        .integer => |i| @floatFromInt(i),
-        .long => |i| @floatFromInt(i),
-        .decimal => |d| std.fmt.parseFloat(f64, d) catch null,
+    const b_text: ?[]const u8 = switch (vb) {
+        .decimal => |d| d,
+        .integer => |i| blk: {
+            break :blk std.fmt.allocPrint(ctx.allocator, "{d}", .{i}) catch null;
+        },
+        .long => |i| blk: {
+            break :blk std.fmt.allocPrint(ctx.allocator, "{d}", .{i}) catch null;
+        },
         else => null,
     };
 
-    if (fa != null and fb != null) {
-        const a = fa.?;
-        const b = fb.?;
-        const result: ?f64 = switch (op) {
-            .add => a + b,
-            .sub => a - b,
-            .mul => a * b,
-            .div => if (b != 0) a / b else null,
-            .int_div => if (b != 0) @trunc(a / b) else null,
-            .mod => if (b != 0) @mod(a, b) else null,
+    if (a_text != null and b_text != null) {
+        const at = a_text.?;
+        const bt = b_text.?;
+        const scale_a = decimalScale(at) orelse 0;
+        const scale_b = decimalScale(bt) orelse 0;
+
+        // Determine result scale based on operation
+        const result_scale: u32 = switch (op) {
+            .add, .sub => @max(scale_a, scale_b),
+            .mul => @min(scale_a + scale_b, 8),
+            .div => @max(scale_a, 8),
+            .int_div => 0,
+            .mod => @max(scale_a, scale_b),
         };
-        if (result) |r| {
-            try out.append(ctx.allocator, try makeDecimalItem(ctx, r));
+
+        switch (op) {
+            .add, .sub => {
+                const common = @max(scale_a, scale_b);
+                const ia = parseDecimalScaled(at, common) orelse return out;
+                const ib = parseDecimalScaled(bt, common) orelse return out;
+                const r: i128 = if (op == .add)
+                    ia + ib
+                else
+                    ia - ib;
+                const text = try formatScaledDecimal(ctx.allocator, r, result_scale);
+                try out.append(ctx.allocator, makeDecimalItemText(ctx, text));
+            },
+            .mul => {
+                // Parse each at its own scale, multiply, result scale = scale_a + scale_b (capped at 8)
+                const ia = parseDecimalScaled(at, scale_a) orelse return out;
+                const ib = parseDecimalScaled(bt, scale_b) orelse return out;
+                const product = @mulWithOverflow(ia, ib);
+                if (product[1] != 0) return out;
+                const raw_scale = scale_a + scale_b;
+                // If raw_scale > 8, we need to divide out the excess
+                if (raw_scale > 8) {
+                    const excess = raw_scale - 8;
+                    const divisor = pow10i128(excess) orelse return out;
+                    const r = @divTrunc(product[0], divisor);
+                    const text = try formatScaledDecimal(ctx.allocator, r, 8);
+                    try out.append(ctx.allocator, makeDecimalItemText(ctx, text));
+                } else {
+                    const text = try formatScaledDecimal(ctx.allocator, product[0], result_scale);
+                    try out.append(ctx.allocator, makeDecimalItemText(ctx, text));
+                }
+            },
+            .div => {
+                // Check for division by zero
+                const ib_check = parseDecimalScaled(bt, scale_b) orelse return out;
+                if (ib_check == 0) return out;
+                // Parse both at common scale, then upscale numerator by result_scale
+                const common = @max(scale_a, scale_b);
+                const ia = parseDecimalScaled(at, common + result_scale) orelse return out;
+                const ib = parseDecimalScaled(bt, common) orelse return out;
+                const r = @divTrunc(ia, ib);
+                const text = try formatScaledDecimal(ctx.allocator, r, result_scale);
+                try out.append(ctx.allocator, makeDecimalItemText(ctx, text));
+            },
+            .int_div => {
+                const ib_check = parseDecimalScaled(bt, scale_b) orelse return out;
+                if (ib_check == 0) return out;
+                const common = @max(scale_a, scale_b);
+                const ia = parseDecimalScaled(at, common) orelse return out;
+                const ib = parseDecimalScaled(bt, common) orelse return out;
+                const r = @divTrunc(ia, ib);
+                // int_div returns integer
+                const int_val: i64 = @intCast(r);
+                try out.append(ctx.allocator, makeIntegerItem(ctx, int_val));
+            },
+            .mod => {
+                const ib_check = parseDecimalScaled(bt, scale_b) orelse return out;
+                if (ib_check == 0) return out;
+                const common = @max(scale_a, scale_b);
+                const ia = parseDecimalScaled(at, common) orelse return out;
+                const ib = parseDecimalScaled(bt, common) orelse return out;
+                // Use truncated division remainder (matches @rem behavior for consistency)
+                const r = @rem(ia, ib);
+                const text = try formatScaledDecimal(ctx.allocator, r, result_scale);
+                try out.append(ctx.allocator, makeDecimalItemText(ctx, text));
+            },
         }
     }
 

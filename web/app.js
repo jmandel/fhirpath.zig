@@ -10,7 +10,7 @@ const chipRow = document.querySelector("#chip-row");
 const schemaSelect = document.querySelector("#schema-select");
 const formatToggle = document.querySelector("#format-toggle");
 
-let currentFormat = "json";
+let currentFormat = "json-string";
 
 const examples = [
   {
@@ -183,6 +183,7 @@ function loadExample(idx = 0) {
   } else {
     jsonInput.value = JSON.stringify(example.json, null, 2);
   }
+  inputLabel.textContent = currentFormat === "xml" ? "Input XML" : "Input JSON";
   updateInputMeta();
 }
 
@@ -262,7 +263,20 @@ async function runExpression() {
     return;
   }
 
-  if (currentFormat === "json") {
+  const selectedSchema = schemaSelect.value || "r5";
+
+  if (currentFormat === "json-string") {
+    // WASM-side parse: numbers stay as strings — full precision
+    try {
+      const t0 = performance.now();
+      const results = engine.eval({ expr, input: inputText, adapter: "wasm", schema: selectedSchema, now: new Date() });
+      renderResults(results, t0);
+    } catch (err) {
+      statusEl.textContent = "Evaluation error";
+      addResultCard({ title: "Eval error", body: err?.message ?? String(err) });
+    }
+  } else if (currentFormat === "json-adapter") {
+    // JS adapter: fast, but numbers go through V8 f64
     let parsed;
     try {
       parsed = JSON.parse(inputText);
@@ -273,7 +287,6 @@ async function runExpression() {
     }
 
     try {
-      const selectedSchema = schemaSelect.value || "r5";
       const t0 = performance.now();
       const results = engine.eval({ expr, input: parsed, schema: selectedSchema, now: new Date() });
       renderResults(results, t0);
@@ -282,8 +295,8 @@ async function runExpression() {
       addResultCard({ title: "Eval error", body: err?.message ?? String(err) });
     }
   } else {
+    // XML string: parsed inside WASM
     try {
-      const selectedSchema = schemaSelect.value || "r5";
       const t0 = performance.now();
       const results = engine.evalXml({ expr, xml: inputText, schema: selectedSchema, now: new Date() });
       renderResults(results, t0);
@@ -346,7 +359,6 @@ formatToggle.addEventListener("click", (e) => {
   for (const el of formatToggle.querySelectorAll(".toggle-btn")) {
     el.classList.toggle("active", el.dataset.format === fmt);
   }
-  inputLabel.textContent = fmt === "xml" ? "Input XML" : "Input JSON";
   loadExample(currentExampleIdx);
   runExpression();
 });

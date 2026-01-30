@@ -1065,7 +1065,7 @@ pub fn nodeToValue(adapter: anytype, handle: NodeHandle, type_id: u32, schema: ?
 flowchart LR
   ItemNode["Item (node_ref)"] --> Resolver["value_resolver.nodeToValue()"]
   Resolver --> Kind["adapter.kind()"]
-  Resolver --> Schema["schema childTypeForField() / implicit System type"]
+  Resolver --> Schema["Schema.childTypeForField() / implicit System type"]
   Resolver --> Value["Value (System.*)\n(date/string/quantity/etc.)"]
 ```
 

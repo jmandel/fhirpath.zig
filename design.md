@@ -132,6 +132,24 @@ Behavior:
 - If `schema_name_len=0`, use default schema if set; otherwise return `Status.model_error`.
 - If `opts_len=0`, no env and no custom functions are provided.
 
+### Evaluation flow (conceptual)
+
+```mermaid
+flowchart LR
+  JsonText["JSON text"] --> JsonParse["std.json.parseFromSliceLeaky"]
+  XmlText["XML text"] --> XmlParse["xml_parser.parse"]
+
+  JsonParse --> JsonAdapter["JsonAdapter (generic/fhir)"]
+  XmlParse --> XmlAdapter["XmlAdapter"]
+
+  JsonAdapter --> Eval["evalExpression()"]
+  XmlAdapter --> Eval
+
+  Eval --> Items["ItemList\n(data_kind=node_ref/value)"]
+  Items --> Resolve["resolveResult()"]
+  Resolve --> Result["EvalResult\n(items + node_values + arena)"]
+```
+
 ### Result iteration (iterator-only)
 ```zig
 export fn fhirpath_result_count(ctx: u32) u32;
@@ -928,6 +946,24 @@ All backends expose a single node handle type:
 pub const NodeHandle = usize;
 ```
 
+### Node + Item relationship (conceptual)
+
+```mermaid
+flowchart LR
+  subgraph Adapter["Adapter (JsonAdapter / XmlAdapter / JsAdapter)"]
+    NodeRef["NodeHandle"]
+    Kind["kind()/objectGet()/arrayAt()"]
+  end
+
+  Item["Item\n(data_kind, value_kind, type_id, node_ref?, value?)"]
+  Value["Value union\n(string/date/quantity/...)"]
+
+  Item -- data_kind=node_ref --> NodeRef
+  Item -- data_kind=value --> Value
+  NodeRef --> Kind
+  Item --> TypeId["type_id\n(System.* or schema type)"]
+```
+
 Convention:
 
 - **Pointer-backed node** (e.g. `*const std.json.Value`): stored directly,
@@ -1021,6 +1057,16 @@ A shared module handles all node-to-value conversion:
 ```zig
 // src/value_resolver.zig
 pub fn nodeToValue(adapter: anytype, handle: NodeHandle, type_id: u32, schema: ?*Schema) item.Value;
+```
+
+### Value resolution flow (conceptual)
+
+```mermaid
+flowchart LR
+  ItemNode["Item (node_ref)"] --> Resolver["value_resolver.nodeToValue()"]
+  Resolver --> Kind["adapter.kind()"]
+  Resolver --> Schema["schema childTypeForField() / implicit System type"]
+  Resolver --> Value["Value (System.*)\n(date/string/quantity/etc.)"]
 ```
 
 This centralizes:
@@ -1556,4 +1602,3 @@ WASM-side parsing dominates (up to 153x on a 240KB StructureDefinition).
 - Schema/model access and type inference.
 - Custom function invocation strategy.
 - Error handling and tracing.
-

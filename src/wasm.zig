@@ -346,7 +346,7 @@ pub export fn fhirpath_eval(
             arena.deinit();
             return .arena_oom;
         };
-        const parse_opts: std.json.ParseOptions = if (schema_ptr != null) .{} else .{ .parse_numbers = false };
+        const parse_opts: std.json.ParseOptions = .{ .parse_numbers = false };
         root_val.* = std.json.parseFromSliceLeaky(std.json.Value, arena_alloc, json_text, parse_opts) catch |err| {
             arena.deinit();
             return statusFromError(err);

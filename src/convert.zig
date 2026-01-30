@@ -29,11 +29,10 @@ pub fn valueToJsonValue(allocator: std.mem.Allocator, v: item.Value) !std.json.V
 }
 
 fn parseNumber(text: []const u8) std.json.Value {
+    // Decimals (containing '.' or scientific notation): preserve as number_string
+    // to retain trailing zeros and full precision.
     if (std.mem.indexOfScalar(u8, text, '.') != null or std.mem.indexOfAny(u8, text, "eE") != null) {
-        const value = std.fmt.parseFloat(f64, text) catch {
-            return .{ .number_string = text };
-        };
-        return .{ .float = value };
+        return .{ .number_string = text };
     }
     const value = std.fmt.parseInt(i64, text, 10) catch {
         return .{ .number_string = text };

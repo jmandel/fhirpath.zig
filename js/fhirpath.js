@@ -227,6 +227,7 @@ export class FhirPathEngine {
     const engine = new FhirPathEngine(result.instance);
     nodeMap.memory = engine.memory;
     engine._nodeMap = nodeMap;
+    engine.jsonParser = options.jsonParser ?? JSON.parse;
 
     if (options.schemas) {
       for (const schema of options.schemas) {
@@ -533,7 +534,7 @@ export class FhirPathEngine {
     const len = this.exports.fhirpath_item_data_len(this.ctx, item);
     if (!ptr || !len) return null;
     const text = decoder.decode(this.#mem().subarray(ptr, ptr + len));
-    return JSON.parse(text);
+    return this.jsonParser(text);
   }
 
   _readSourceSpan(item) {

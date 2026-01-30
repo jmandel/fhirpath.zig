@@ -1,0 +1,97 @@
+{
+  "meta": {
+    "status": "reviewed",
+    "feature": "decimal-precision",
+    "spec_summary": "Decimal values from JSON input must preserve their original precision (trailing zeros). When a JSON field contains 98.600000, that precision must be carried through evaluation, matching the behavior of expression literals."
+  },
+  "cases": [
+    {
+      "name": "expression literal preserves trailing zeros",
+      "expr": "98.600000",
+      "strict_decimal": true,
+      "input": {},
+      "expect": [
+        {
+          "type": "decimal",
+          "value": 98.600000
+        }
+      ]
+    },
+    {
+      "name": "input JSON decimal preserves trailing zeros",
+      "expr": "valueQuantity.value",
+      "strict_decimal": true,
+      "input": {
+        "resourceType": "Observation",
+        "status": "final",
+        "valueQuantity": { "value": 98.600000, "unit": "degF" }
+      },
+      "expect": [
+        {
+          "type": "decimal",
+          "value": 98.600000
+        }
+      ]
+    },
+    {
+      "name": "input JSON precision propagates through arithmetic",
+      "expr": "valueQuantity.value * 2.0",
+      "strict_decimal": true,
+      "input": {
+        "resourceType": "Observation",
+        "status": "final",
+        "valueQuantity": { "value": 98.600000, "unit": "degF" }
+      },
+      "expect": [
+        {
+          "type": "decimal",
+          "value": 197.2000000
+        }
+      ]
+    },
+    {
+      "name": "literal and input precision match: both 6 trailing zeros",
+      "expr": "98.600000 * 2.0",
+      "strict_decimal": true,
+      "input": {},
+      "expect": [
+        {
+          "type": "decimal",
+          "value": 197.2000000
+        }
+      ]
+    },
+    {
+      "name": "input decimal with single trailing zero",
+      "expr": "valueQuantity.value",
+      "strict_decimal": true,
+      "input": {
+        "resourceType": "Observation",
+        "status": "final",
+        "valueQuantity": { "value": 5.40, "unit": "mmol/L" }
+      },
+      "expect": [
+        {
+          "type": "decimal",
+          "value": 5.40
+        }
+      ]
+    },
+    {
+      "name": "input decimal no trailing zeros stays unchanged",
+      "expr": "valueQuantity.value",
+      "strict_decimal": true,
+      "input": {
+        "resourceType": "Observation",
+        "status": "final",
+        "valueQuantity": { "value": 5.4, "unit": "mmol/L" }
+      },
+      "expect": [
+        {
+          "type": "decimal",
+          "value": 5.4
+        }
+      ]
+    }
+  ]
+}

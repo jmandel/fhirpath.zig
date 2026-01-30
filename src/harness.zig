@@ -404,6 +404,9 @@ fn runTestFile(
         // Check for expect_error marker
         const expect_error = if (obj.get("expect_error")) |inv| inv == .bool and inv.bool else false;
 
+        // Check for strict_decimal marker (exact number_string comparison)
+        const strict_decimal = if (obj.get("strict_decimal")) |sd| sd == .bool and sd.bool else false;
+
         const expr_val = obj.get(expr_key) orelse {
             // Skip section header entries in artisinal tests (comment-only or section-only)
             if (obj.get("_comment") != null or obj.get("_section") != null) {
@@ -553,7 +556,7 @@ fn runTestFile(
             defer actual_values.deinit(allocator);
 
             const unordered = if (obj.get("unordered")) |uv| uv == .bool and uv.bool else false;
-            const matched = compareExpected(expect_items, actual_values.items, unordered);
+            const matched = compareExpected(expect_items, actual_values.items, unordered, strict_decimal);
             if (!matched) {
                 result.failed += 1;
                 result.mismatch_errors += 1;
@@ -645,7 +648,7 @@ fn runTestFile(
             defer actual_values.deinit(allocator);
 
             const unordered = if (obj.get("unordered")) |uv| uv == .bool and uv.bool else false;
-            const matched = compareExpected(expect_items, actual_values.items, unordered);
+            const matched = compareExpected(expect_items, actual_values.items, unordered, strict_decimal);
             if (!matched) {
                 result.failed += 1;
                 result.mismatch_errors += 1;
@@ -777,7 +780,7 @@ fn runTestFile(
             defer actual_values.deinit(allocator);
 
             const unordered = if (obj.get("unordered")) |uv| uv == .bool and uv.bool else false;
-            const matched = compareExpected(expect_items, actual_values.items, unordered);
+            const matched = compareExpected(expect_items, actual_values.items, unordered, strict_decimal);
             if (!matched) {
                 result.failed += 1;
                 result.mismatch_errors += 1;
@@ -875,18 +878,18 @@ fn itemsToJsonArray(
     return out;
 }
 
-fn compareExpected(expected: []const std.json.Value, actual: []const std.json.Value, unordered: bool) bool {
+fn compareExpected(expected: []const std.json.Value, actual: []const std.json.Value, unordered: bool, strict_decimal: bool) bool {
     if (expected.len != actual.len) return false;
-    
+
     if (unordered) {
         // Multiset comparison: each expected item must match exactly one actual item
         var used = [_]bool{false} ** 256; // Max 256 items
         if (actual.len > 256) return false; // Sanity check
-        
+
         for (expected) |exp_item| {
             var found = false;
             for (actual, 0..) |act_item, j| {
-                if (!used[j] and compareTypedValue(exp_item, act_item)) {
+                if (!used[j] and compareTypedValue(exp_item, act_item, strict_decimal)) {
                     used[j] = true;
                     found = true;
                     break;
@@ -896,18 +899,18 @@ fn compareExpected(expected: []const std.json.Value, actual: []const std.json.Va
         }
         return true;
     }
-    
+
     // Ordered comparison
     var i: usize = 0;
     while (i < expected.len) : (i += 1) {
-        if (!compareTypedValue(expected[i], actual[i])) return false;
+        if (!compareTypedValue(expected[i], actual[i], strict_decimal)) return false;
     }
     return true;
 }
 
-fn compareTypedValue(expected: std.json.Value, actual: std.json.Value) bool {
+fn compareTypedValue(expected: std.json.Value, actual: std.json.Value, strict_decimal: bool) bool {
     if (expected != .object or actual != .object) {
-        return jsonEqual(expected, actual);
+        return jsonEqual(expected, actual, strict_decimal);
     }
 
     const exp_obj = expected.object;
@@ -921,7 +924,8 @@ fn compareTypedValue(expected: std.json.Value, actual: std.json.Value) bool {
 
     const exp_val = exp_obj.get("value") orelse return false;
     const act_val = act_obj.get("value") orelse return false;
-    return jsonEqual(exp_val, act_val);
+
+    return jsonEqual(exp_val, act_val, strict_decimal);
 }
 
 fn typesMatch(expected: []const u8, actual: []const u8) bool {
@@ -937,7 +941,7 @@ fn typesMatch(expected: []const u8, actual: []const u8) bool {
     return false;
 }
 
-fn jsonEqual(a: std.json.Value, b: std.json.Value) bool {
+fn jsonEqual(a: std.json.Value, b: std.json.Value, strict_decimal: bool) bool {
     if (!std.mem.eql(u8, @tagName(a), @tagName(b))) {
         // Handle number coercion (integer vs float)
         const na = numberValue(a);
@@ -953,7 +957,11 @@ fn jsonEqual(a: std.json.Value, b: std.json.Value) bool {
         .integer => |v| return v == b.integer,
         .float => |v| return v == b.float,
         .number_string => |v| {
-            // Compare as numbers if both parseable, handles trailing zeros
+            if (strict_decimal) {
+                // Exact string comparison: verifies precision (trailing zeros) match
+                return std.mem.eql(u8, v, b.number_string);
+            }
+            // Compare as numbers if both parseable, tolerates precision differences
             const na = std.fmt.parseFloat(f64, v) catch null;
             const nb = std.fmt.parseFloat(f64, b.number_string) catch null;
             if (na != null and nb != null) {
@@ -966,7 +974,7 @@ fn jsonEqual(a: std.json.Value, b: std.json.Value) bool {
             const arr_b = b.array;
             if (arr.items.len != arr_b.items.len) return false;
             for (arr.items, 0..) |item_val, idx| {
-                if (!jsonEqual(item_val, arr_b.items[idx])) return false;
+                if (!jsonEqual(item_val, arr_b.items[idx], strict_decimal)) return false;
             }
             return true;
         },
@@ -976,7 +984,7 @@ fn jsonEqual(a: std.json.Value, b: std.json.Value) bool {
             var it = obj.iterator();
             while (it.next()) |entry| {
                 const val_b = obj_b.get(entry.key_ptr.*) orelse return false;
-                if (!jsonEqual(entry.value_ptr.*, val_b)) return false;
+                if (!jsonEqual(entry.value_ptr.*, val_b, strict_decimal)) return false;
             }
             return true;
         },

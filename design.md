@@ -132,6 +132,35 @@ Behavior:
 - If `schema_name_len=0`, use default schema if set; otherwise return `Status.model_error`.
 - If `opts_len=0`, no env and no custom functions are provided.
 
+### Evaluation flow (conceptual)
+
+```mermaid
+flowchart TB
+  subgraph Input
+    JsonText["JSON text"]
+    XmlText["XML text"]
+  end
+
+  subgraph Parse
+    JsonParse["std.json.parseFromSliceLeaky"]
+    XmlParse["xml_parser.parse"]
+  end
+
+  Adapter["Adapter layer<br/>(JsonAdapter / XmlAdapter)"]
+  Eval["evalExpression()"]
+  Items["ItemList<br/>(node_ref or value)"]
+  Resolve["resolveResult()"]
+  Result["EvalResult<br/>(items + node_values + arena)"]
+  Access["Lazy access<br/>(metadata/data on demand)"]
+
+  JsonText --> JsonParse
+  XmlText --> XmlParse
+  JsonParse --> Adapter
+  XmlParse --> Adapter
+  Adapter --> Eval --> Items --> Resolve --> Result
+  Result -.-> Access
+```
+
 ### Result iteration (iterator-only)
 ```zig
 export fn fhirpath_result_count(ctx: u32) u32;
@@ -928,6 +957,23 @@ All backends expose a single node handle type:
 pub const NodeHandle = usize;
 ```
 
+### Node + Item relationship (conceptual)
+
+```mermaid
+flowchart TB
+  Item["Item<br/>(data_kind, value_kind, type_id)"]
+  NodeRef["node_ref<br/>(NodeHandle)"]
+  Value["value<br/>(Value union)"]
+  Meta["metadata<br/>(type_id, source span)"]
+  Adapter["Adapter<br/>(Json/Xml/Js)"]
+  Methods["kind/objectGet/arrayAt"]
+
+  Item -->|data_kind=node_ref| NodeRef
+  Item -->|data_kind=value| Value
+  Item --> Meta
+  NodeRef --> Adapter --> Methods
+```
+
 Convention:
 
 - **Pointer-backed node** (e.g. `*const std.json.Value`): stored directly,
@@ -1021,6 +1067,19 @@ A shared module handles all node-to-value conversion:
 ```zig
 // src/value_resolver.zig
 pub fn nodeToValue(adapter: anytype, handle: NodeHandle, type_id: u32, schema: ?*Schema) item.Value;
+```
+
+### Value resolution flow (conceptual)
+
+```mermaid
+flowchart TB
+  ItemNode["Item (node_ref)"] --> Resolver["value_resolver.nodeToValue()"]
+  Resolver --> Kind["adapter.kind()"]
+  Kind -->|schema present| SchemaLookup["Schema lookup<br/>(implicit System type)"]
+  Kind -->|no schema| Fallback["JSON-kind fallback"]
+  SchemaLookup --> Convert["Type-aware conversion"]
+  Fallback --> Convert
+  Convert --> Value["Value (System.*)<br/>(date/string/quantity/etc.)"]
 ```
 
 This centralizes:
@@ -1556,4 +1615,3 @@ WASM-side parsing dominates (up to 153x on a 240KB StructureDefinition).
 - Schema/model access and type inference.
 - Custom function invocation strategy.
 - Error handling and tracing.
-

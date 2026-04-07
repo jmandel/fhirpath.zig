@@ -1,0 +1,17 @@
+# Node modules
+node_modules/
+
+# Build artifacts copied in by scripts/build_azure_function.sh
+fhirpath.js
+fhirpath.wasm
+model-r4.bin
+model-r5.bin
+
+# Azure Functions local settings (may contain secrets)
+local.settings.json
+
+# OS / editor
+.DS_Store
+*.swp
+*.swo
+*~

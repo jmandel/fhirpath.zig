@@ -507,6 +507,13 @@ export class FhirPathEngine {
     return decoder.decode(this.#mem().subarray(ptr, ptr + len));
   }
 
+  fhirTypeNameFromId(typeId) {
+    const ptr = this.exports.fhirpath_fhir_type_name_ptr(this.ctx, typeId >>> 0);
+    const len = this.exports.fhirpath_fhir_type_name_len(this.ctx, typeId >>> 0);
+    if (!ptr || !len) return "";
+    return decoder.decode(this.#mem().subarray(ptr, ptr + len));
+  }
+
   _decodeValue(item) {
     const kind = this.exports.fhirpath_item_value_kind(this.ctx, item);
     switch (kind) {
@@ -657,9 +664,12 @@ export class FhirPathNode {
   get meta() {
     if (this._meta) return this._meta;
     const typeId = this.engine.exports.fhirpath_item_type_id(this.engine.ctx, this.item) >>> 0;
+    const rawTypeId = this.engine.exports.fhirpath_item_raw_type_id(this.engine.ctx, this.item) >>> 0;
     this._meta = {
       typeId,
       typeName: this.engine.typeNameFromId(typeId),
+      rawTypeId,
+      fhirTypeName: this.engine.fhirTypeNameFromId(rawTypeId),
       source: this.engine._readSourceSpan(this.item),
     };
     return this._meta;

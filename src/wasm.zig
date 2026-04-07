@@ -549,6 +549,12 @@ pub export fn fhirpath_item_type_id(ctx_handle: u32, item_handle: u32) u32 {
     return it.type_id;
 }
 
+pub export fn fhirpath_item_raw_type_id(ctx_handle: u32, item_handle: u32) u32 {
+    const ctx = ctxFromHandle(ctx_handle) orelse return 0;
+    const it = itemFromHandle(ctx, item_handle) orelse return 0;
+    return it.type_id;
+}
+
 pub export fn fhirpath_type_name_ptr(ctx_handle: u32, type_id: u32) u32 {
     const ctx = ctxFromHandle(ctx_handle) orelse return 0;
     const name = typeNameSlice(ctx, type_id);
@@ -559,6 +565,26 @@ pub export fn fhirpath_type_name_ptr(ctx_handle: u32, type_id: u32) u32 {
 pub export fn fhirpath_type_name_len(ctx_handle: u32, type_id: u32) u32 {
     const ctx = ctxFromHandle(ctx_handle) orelse return 0;
     const name = typeNameSlice(ctx, type_id);
+    return @intCast(name.len);
+}
+
+fn fhirTypeNameSlice(ctx: *Context, type_id: u32) []const u8 {
+    if (type_id == 0) return "";
+    if (ctx.last_schema) |s| return s.typeName(type_id);
+    if (schema.isModelType(type_id)) return "";
+    return schema.systemTypeName(type_id);
+}
+
+pub export fn fhirpath_fhir_type_name_ptr(ctx_handle: u32, type_id: u32) u32 {
+    const ctx = ctxFromHandle(ctx_handle) orelse return 0;
+    const name = fhirTypeNameSlice(ctx, type_id);
+    if (name.len == 0) return 0;
+    return @intCast(@intFromPtr(name.ptr));
+}
+
+pub export fn fhirpath_fhir_type_name_len(ctx_handle: u32, type_id: u32) u32 {
+    const ctx = ctxFromHandle(ctx_handle) orelse return 0;
+    const name = fhirTypeNameSlice(ctx, type_id);
     return @intCast(name.len);
 }
 

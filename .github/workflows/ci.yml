@@ -56,3 +56,20 @@ jobs:
         with:
           name: web-dist
           path: dist
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build Azure Function App
+        run: ./scripts/build_azure_function.sh
+
+      - name: Upload Azure Function artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: azure-function-dist
+          path: |
+            azure-function/**
+            !azure-function/node_modules/**
+            !azure-function/.gitignore

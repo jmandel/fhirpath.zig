@@ -1,0 +1,17 @@
+{
+  "name": "fhirpath-zig-azure-function",
+  "version": "1.0.0",
+  "description": "Azure Function App implementing the fhirpath-lab API using the fhirpath.zig WASM engine",
+  "type": "module",
+  "main": "src/functions/fhirpath-eval.js",
+  "scripts": {
+    "start": "func start",
+    "build": "echo 'Run scripts/build_azure_function.sh from the repository root first'"
+  },
+  "dependencies": {
+    "@azure/functions": "^4.5.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

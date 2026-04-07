@@ -2,6 +2,8 @@
 
 A FHIRPath engine implementation in Zig, targeting WebAssembly with a JavaScript wrapper interface.
 
+Note: Also includes an [Azure Function](azure-function) wrapper to expose the fhirpath-lab API
+
 ## Build
 
 ```bash

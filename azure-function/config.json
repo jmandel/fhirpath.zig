@@ -1,0 +1,32 @@
+{
+    "engines": {
+        "fhirpath.zig (R4)": {
+            "name": "fhirpath.zig",
+            "legacyName": "fhirpath.zig (R4)",
+            "fhirVersion": "R4",
+            "appInsightsEngineName": "fhirpath.zig",
+            "publisher": "jmandel",
+            "configSetting": "fhirpathzig_server_r4",
+            "githubRepo": "https://github.com/jmandel/fhirpath.zig",
+            "description": "fhirpath.zig WASM engine for FHIR R4",
+            "external": true,
+            "supportsAST": true,
+            "supportsXML": true
+        },
+        "fhirpath.zig (R5)": {
+            "name": "fhirpath.zig",
+            "legacyName": "fhirpath.zig (R5)",
+            "fhirVersion": "R5",
+            "appInsightsEngineName": "fhirpath.zig",
+            "publisher": "jmandel",
+            "configSetting": "fhirpathzig_server_r5",
+            "githubRepo": "https://github.com/jmandel/fhirpath.zig",
+            "description": "fhirpath.zig WASM engine for FHIR R5",
+            "external": true,
+            "supportsAST": true,
+            "supportsXML": true
+        }
+    },
+    "fhirpathzig_server_r4": "/$fhirpath-r4",
+    "fhirpathzig_server_r5": "/$fhirpath-r5"
+}
